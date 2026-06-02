@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, X, Check } from 'lucide-react';
+import { GOOGLE_ANALYTICS_ID } from '../constants';
 
 export function CookieConsent() {
   const [show, setShow] = useState(false);
@@ -11,7 +12,7 @@ export function CookieConsent() {
     const script = document.createElement('script');
     script.id = 'gtag-script';
     script.async = true;
-    script.src = 'https://www.googletagmanager.com/gtag/js?id=AW-17715078634';
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ANALYTICS_ID}`;
     document.head.appendChild(script);
 
     (window as any).dataLayer = (window as any).dataLayer || [];
@@ -20,6 +21,7 @@ export function CookieConsent() {
     }
     (window as any).gtag = gtag;
     gtag('js', new Date());
+    gtag('config', GOOGLE_ANALYTICS_ID);
     gtag('config', 'AW-17715078634');
   };
 

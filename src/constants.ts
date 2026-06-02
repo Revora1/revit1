@@ -12,3 +12,6 @@ export const GOOGLE_ADS_FEED_UNIT = 'native';
 export const ADSENSE_CLIENT_ID = 'ca-pub-2103649447635694';
 export const ADSENSE_SLOT_ID = '8297225782';
 export const ADSENSE_LAYOUT_KEY = '-6t+ed+2i-1n-4w';
+
+// Google Analytics / Google tag
+export const GOOGLE_ANALYTICS_ID = 'G-J963239L7K';
