@@ -1,0 +1,14 @@
+{
+  "name": "RevItUp",
+  "description": "A mobile-first social media app for car enthusiasts to share builds, modifications, and project photos.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "Firebase Authentication",
+    "Cloud Firestore",
+    "Firebase Storage",
+    "Real-time Chat"
+  ]
+}
