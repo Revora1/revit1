@@ -46,6 +46,34 @@ function InnerAppContent() {
   const [targetChatInfo, setTargetChatInfo] = useState<{ chatId: string, otherUser: any, ts: number } | null>(null);
   const [initialProfileTab, setInitialProfileTab] = useState<'garage' | 'posts' | 'duo'>('garage');
   const [inboxTargetTab, setInboxTargetTab] = useState<'notifications' | 'messages' | 'garage' | 'leaderboards' | 'leaderboards-dyno' | null>(null);
+  const [navigationHistory, setNavigationHistory] = useState<{
+    view: View;
+    targetUserId: string | null;
+    targetUsername: string | null;
+    targetPostId: string | null;
+    initialProfileTab: 'garage' | 'posts' | 'duo';
+    inboxTargetTab: 'notifications' | 'messages' | 'garage' | 'leaderboards' | 'leaderboards-dyno' | null;
+  }[]>([]);
+
+  const stateRef = React.useRef({
+    view: activeView,
+    targetUserId,
+    targetUsername,
+    targetPostId,
+    initialProfileTab,
+    inboxTargetTab
+  });
+
+  React.useEffect(() => {
+    stateRef.current = {
+      view: activeView,
+      targetUserId,
+      targetUsername,
+      targetPostId,
+      initialProfileTab,
+      inboxTargetTab
+    };
+  }, [activeView, targetUserId, targetUsername, targetPostId, initialProfileTab, inboxTargetTab]);
 
   const prevViewRef = React.useRef<View>('feed');
   React.useEffect(() => {
@@ -70,6 +98,10 @@ function InnerAppContent() {
   React.useEffect(() => {
     const handleProfileNav = (e: any) => {
       const { userId, username, initialTab } = e.detail;
+      setNavigationHistory(prev => [
+        ...prev,
+        { ...stateRef.current }
+      ]);
       setTargetUserId(userId || null);
       setTargetUsername(username || null);
       setInitialProfileTab(initialTab || 'garage');
@@ -77,36 +109,78 @@ function InnerAppContent() {
     };
     const handlePostNav = (e: any) => {
       const { postId, openComments } = e.detail;
+      setNavigationHistory(prev => [
+        ...prev,
+        { ...stateRef.current }
+      ]);
       setTargetPostId(postId);
       setAutoOpenComments(!!openComments);
       setActiveView('post');
     };
     const handleChatNav = (e: any) => {
       const { chatId, otherUser } = e.detail;
+      setNavigationHistory(prev => [
+        ...prev,
+        { ...stateRef.current }
+      ]);
       setTargetChatInfo({ chatId, otherUser, ts: Date.now() });
       setInboxTargetTab('messages');
       setActiveView('inbox');
     };
     const handleInboxNav = (e?: any) => {
       const tab = e?.detail?.tab || 'notifications';
+      setNavigationHistory(prev => [
+        ...prev,
+        { ...stateRef.current }
+      ]);
       setInboxTargetTab(tab);
       setActiveView('inbox');
     };
     const handleDynoNav = () => {
+      setNavigationHistory(prev => [
+        ...prev,
+        { ...stateRef.current }
+      ]);
       setInboxTargetTab('leaderboards-dyno');
       setActiveView('inbox');
+    };
+    const handleNavigateBack = () => {
+      setNavigationHistory(prev => {
+        if (prev.length === 0) {
+          // If no history, default back to feed
+          setActiveView('feed');
+          setTargetUserId(null);
+          setTargetUsername(null);
+          setTargetPostId(null);
+          setInboxTargetTab(null);
+          return [];
+        }
+        const newHistory = [...prev];
+        const lastState = newHistory.pop()!;
+        
+        setActiveView(lastState.view);
+        setTargetUserId(lastState.targetUserId);
+        setTargetUsername(lastState.targetUsername);
+        setTargetPostId(lastState.targetPostId);
+        setInitialProfileTab(lastState.initialProfileTab);
+        setInboxTargetTab(lastState.inboxTargetTab);
+
+        return newHistory;
+      });
     };
     window.addEventListener('navigate-profile', handleProfileNav);
     window.addEventListener('navigate-post', handlePostNav);
     window.addEventListener('navigate-chat', handleChatNav);
     window.addEventListener('navigate-inbox', handleInboxNav);
     window.addEventListener('navigate-dyno', handleDynoNav);
+    window.addEventListener('navigate-back', handleNavigateBack);
     return () => {
       window.removeEventListener('navigate-profile', handleProfileNav);
       window.removeEventListener('navigate-post', handlePostNav);
       window.removeEventListener('navigate-chat', handleChatNav);
       window.removeEventListener('navigate-inbox', handleInboxNav);
       window.removeEventListener('navigate-dyno', handleDynoNav);
+      window.removeEventListener('navigate-back', handleNavigateBack);
     };
   }, []);
 

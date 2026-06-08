@@ -251,7 +251,7 @@ export function SearchView() {
   ].filter(Boolean).length;
 
   return (
-    <div className="p-6 space-y-6 bg-black min-h-full pb-20 scrollbar-hide">
+    <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] space-y-6 bg-black min-h-full pb-20 scrollbar-hide">
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

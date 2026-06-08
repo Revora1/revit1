@@ -545,12 +545,12 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   return (
     <div className="min-h-full bg-black pb-20">
       {/* Header */}
-      <div className="p-6 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-10 font-sans">
+      <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-10 font-sans">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
              {!isOwnProfile && (
                 <button 
-                  onClick={() => window.history.back()} 
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate-back'))} 
                   className="p-1 -ml-1 text-zinc-400 hover:text-white"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -639,6 +639,38 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
           </button>
         </div>
 
+        {/* Action Button Area (EDIT PROFILE or FOLLOW & MESSAGE) - Rendered ABOVE stats */}
+        <div className="w-full max-w-[240px] flex items-center justify-center gap-3">
+          {isOwnProfile ? (
+            <button 
+              onClick={() => setShowEditProfile(true)}
+              className="w-full h-11 border border-zinc-800 rounded-full font-bold text-sm bg-zinc-900/50 hover:bg-white hover:text-black transition-all active:scale-95"
+            >
+              EDIT PROFILE
+            </button>
+          ) : (
+            <>
+              <button 
+                onClick={handleFollowClick}
+                disabled={checkingFollow}
+                className={`flex-1 h-11 text-xs font-bold rounded-full active:scale-95 transition-all ${
+                  isFollowing 
+                    ? 'bg-zinc-800 text-white border border-zinc-700' 
+                    : 'bg-white text-black'
+                }`}
+              >
+                {isFollowing ? 'FOLLOWING' : 'FOLLOW'}
+              </button>
+              <button 
+                onClick={handleMessageClick}
+                className="w-11 h-11 bg-zinc-900 text-white rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors border border-zinc-800 active:scale-95 shadow-lg"
+              >
+                <MessageSquare size={18} />
+              </button>
+            </>
+          )}
+        </div>
+
         <div className="flex items-center gap-12 text-center pb-4 w-full justify-center">
           <button onClick={() => setFollowModalConfig({ type: 'followers', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
             <p className="text-lg font-black">{targetProfile.followersCount}</p>
@@ -653,15 +685,6 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
             <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Cars</p>
           </div>
         </div>
-
-        {isOwnProfile && (
-          <button 
-            onClick={() => setShowEditProfile(true)}
-            className="w-full h-12 border border-zinc-800 rounded-full font-bold text-sm hover:bg-white hover:text-black transition-all"
-          >
-            EDIT PROFILE
-          </button>
-        )}
       </div>
 
       {/* Tabs */}

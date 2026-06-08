@@ -75,7 +75,7 @@ export function MessagesView({ hideHeader, initialChatId, initialOtherUser, navK
     <>
       <div className="bg-black h-full flex flex-col pb-20 overflow-y-auto">
         {!hideHeader && (
-          <div className="p-6 pb-2 border-b border-zinc-900 sticky top-0 bg-black/80 backdrop-blur z-10">
+          <div className="p-6 pb-2 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] border-b border-zinc-900 sticky top-0 bg-black/80 backdrop-blur z-10">
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-black italic tracking-tighter">MESSAGES</h1>
               <button onClick={() => setShowNewChat(true)} className="p-2 text-white bg-zinc-900 hover:bg-zinc-800 transition-colors rounded-full"><Edit size={20}/></button>

@@ -37,7 +37,7 @@ export function InboxView({
   return (
     <div className="flex flex-col h-full bg-black text-white">
       {/* Header with Tabs */}
-      <div className="p-3 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-30">
+      <div className="p-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-30">
         <div className="flex justify-around bg-zinc-900 p-1 rounded-xl gap-1">
           <button
             onClick={() => setActiveTab('notifications')}

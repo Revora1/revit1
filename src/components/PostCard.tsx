@@ -3,7 +3,7 @@ import { Post, UserProfile, Car } from '../types';
 import { Heart, MessageCircle, Share2, Music2, User, Check, Trash2, Plus, X, Eye, Clock, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { CommentsSheet } from './CommentsSheet';
 
@@ -48,6 +48,123 @@ const formatTimeAgo = (timestamp: number): string => {
   // Format as date
   const date = new Date(timestamp);
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+interface ViewerRowProps {
+  profile: UserProfile;
+  currentUser: any;
+  onNavigateProfile: (userId: string) => void;
+  onCloseViewers: () => void;
+}
+
+const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateProfile, onCloseViewers }) => {
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [checkingFollow, setCheckingFollow] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser || currentUser.uid === profile.uid) return;
+    const followId = `${currentUser.uid}_${profile.uid}`;
+    const followRef = doc(db, 'follows', followId);
+    const unsubscribe = onSnapshot(followRef, (snap) => {
+      setIsFollowing(snap.exists());
+    }, (error) => {
+      console.error("Error setting up follow listener", error);
+    });
+    return () => unsubscribe();
+  }, [currentUser, profile.uid]);
+
+  const handleFollowClick = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Stop navigation when click follow
+    if (!currentUser || currentUser.uid === profile.uid || checkingFollow) return;
+    setCheckingFollow(true);
+    const followId = `${currentUser.uid}_${profile.uid}`;
+    const followRef = doc(db, 'follows', followId);
+    const myRef = doc(db, 'users', currentUser.uid);
+    const targetRef = doc(db, 'users', profile.uid);
+
+    try {
+      if (isFollowing) {
+        await deleteDoc(followRef);
+        await updateDoc(myRef, { followingCount: increment(-1) });
+        await updateDoc(targetRef, { followersCount: increment(-1) });
+      } else {
+        await setDoc(followRef, {
+          followerId: currentUser.uid,
+          followingId: profile.uid,
+          createdAt: Date.now()
+        });
+        await updateDoc(myRef, { followingCount: increment(1) });
+        await updateDoc(targetRef, { followersCount: increment(1) });
+        
+        // Push notification
+        const notifId = `${Date.now()}_${currentUser.uid}_follow_${profile.uid}`;
+        await setDoc(doc(db, 'notifications', notifId), {
+          userId: profile.uid,
+          actorId: currentUser.uid,
+          type: 'follow',
+          read: false,
+          createdAt: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error("Error in follow action:", error);
+    } finally {
+      setCheckingFollow(false);
+    }
+  };
+
+  const handleNavigate = () => {
+    onCloseViewers();
+    onNavigateProfile(profile.uid);
+  };
+
+  return (
+    <div 
+      className="flex items-center justify-between bg-zinc-900/40 border border-zinc-900/70 p-3 rounded-2xl hover:border-zinc-800/80 transition-all select-none"
+    >
+      {/* Clickable user details to navigate to profile */}
+      <div 
+        onClick={handleNavigate}
+        className="flex items-center gap-3 cursor-pointer group flex-1 mr-2"
+      >
+        <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700/50 group-hover:border-red-500 transition-colors">
+          {profile.profilePic ? (
+            <img src={profile.profilePic} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+              <User size={16} className="text-zinc-600" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-bold text-xs font-sans group-hover:text-red-500 transition-colors">
+            @{profile.username}
+          </p>
+          <p className="text-zinc-400 text-[10px] font-medium truncate max-w-[160px]">
+            {profile.bio || 'Revving the community!'}
+          </p>
+        </div>
+      </div>
+
+      {currentUser && currentUser.uid !== profile.uid ? (
+        <button 
+          onClick={handleFollowClick}
+          disabled={checkingFollow}
+          className={`px-3.5 py-1.5 text-[9px] font-black uppercase italic tracking-widest rounded-xl transition-all active:scale-95 flex-shrink-0 min-w-[76px] text-center ${
+            isFollowing 
+              ? 'bg-zinc-850 text-zinc-400 hover:bg-zinc-800 border border-zinc-800' 
+              : 'bg-white text-black hover:bg-zinc-200'
+          }`}
+        >
+          {isFollowing ? 'following' : 'follow'}
+        </button>
+      ) : (
+        <span className="text-[9px] font-black uppercase italic tracking-widest text-zinc-600 px-3.5 flex-shrink-0">
+          You
+        </span>
+      )}
+    </div>
+  );
 };
 
 export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, initialShowComments = false }) => {
@@ -554,7 +671,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
                 </span>
               </div>
               
-              <div className="space-y-3 overflow-y-auto flex-1 pr-1">
+               <div className="space-y-3 overflow-y-auto flex-1 pr-1">
                 {viewerProfiles.length === 0 ? (
                   <div className="text-center py-10 space-y-2">
                     <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">No verified views yet</p>
@@ -562,34 +679,15 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
                   </div>
                 ) : (
                   viewerProfiles.map(profile => (
-                    <div key={profile.uid} className="flex items-center justify-between bg-zinc-900/40 border border-zinc-900/70 p-3 rounded-2xl hover:border-zinc-800/80 transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700/50">
-                          {profile.profilePic ? (
-                            <img src={profile.profilePic} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                              <User size={16} className="text-zinc-650" />
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-white font-bold text-xs font-sans">@{profile.username}</p>
-                          <p className="text-zinc-400 text-[10px] font-medium truncate max-w-[160px]">
-                            {profile.bio || 'Revving the community!'}
-                          </p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          setShowViewers(false);
-                          window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId: profile.uid } }));
-                        }}
-                        className="px-3.5 py-1.5 bg-white hover:bg-zinc-200 text-black text-[9px] font-black uppercase italic tracking-widest rounded-xl transition-colors active:scale-95"
-                      >
-                        Profile
-                      </button>
-                    </div>
+                    <ViewerRow 
+                      key={profile.uid}
+                      profile={profile}
+                      currentUser={user}
+                      onNavigateProfile={(userId) => {
+                        window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId } }));
+                      }}
+                      onCloseViewers={() => setShowViewers(false)}
+                    />
                   ))
                 )}
               </div>

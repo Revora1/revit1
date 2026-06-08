@@ -45,7 +45,7 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
   return (
     <div className="h-full bg-black relative snap-y snap-mandatory overflow-y-scroll scrollbar-hide">
        {/* Back Button Overlay */}
-       <div className="absolute top-12 left-4 z-50">
+       <div className="absolute top-[calc(env(safe-area-inset-top,0px)+1rem)] left-4 z-50">
          <button 
            onClick={onBack}
            className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10"

@@ -87,7 +87,7 @@ export function NotificationsView({ hideHeader }: { hideHeader?: boolean }) {
   return (
     <div className="h-full bg-black text-white overflow-y-auto pb-20">
       {!hideHeader && (
-        <div className="p-6 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-10 flex items-center gap-3">
+        <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-10 flex items-center gap-3">
           <Bell size={24} />
           <h1 className="text-xl font-black italic tracking-tight">ALERTS</h1>
         </div>

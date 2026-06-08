@@ -112,7 +112,7 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="p-6 h-full flex flex-col space-y-8 bg-black overflow-y-auto">
+    <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] h-full flex flex-col space-y-8 bg-black overflow-y-auto">
       <div>
         <h1 className="text-3xl font-black italic tracking-tighter">SHARE BUILD</h1>
         <p className="text-zinc-500 text-sm font-medium">Show the world what's under the hood.</p>
