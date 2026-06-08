@@ -116,7 +116,7 @@ const getNextTier = (pts: number): ReputationTier | null => {
   return reversed.find(t => t.pointsRequired > pts) || null;
 };
 
-export function TopTuners() {
+export function TopTuners({ hideHeader }: { hideHeader?: boolean } = {}) {
   const { user: currentUser } = useAuth();
   
   const [users, setUsers] = useState<any[]>([]);
@@ -304,8 +304,8 @@ export function TopTuners() {
   return (
     <div className="flex flex-col min-h-full bg-black pb-24 text-zinc-100">
       {/* Dynamic Header */}
-      <div className="pt-12 px-6 pb-6 border-b border-zinc-900 bg-zinc-950/40 backdrop-blur-xl sticky top-0 z-20">
-        <div className="flex items-center justify-between mb-2">
+      <div className={`${hideHeader ? 'pt-4 px-6 pb-4 flex items-center justify-end' : 'pt-12 px-6 pb-6'} border-b border-zinc-900 bg-zinc-950/40 backdrop-blur-xl sticky top-0 z-20`}>
+        <div className={`flex items-center justify-between mb-2 w-full ${hideHeader ? 'hidden' : ''}`}>
           <div>
             <h1 className="text-3xl font-black italic tracking-tighter text-white uppercase flex items-center gap-2">
               <Trophy className="text-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)] animate-pulse" size={28} />
@@ -324,6 +324,17 @@ export function TopTuners() {
             {showGuide ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
+
+        {hideHeader && (
+          <button
+            onClick={() => setShowGuide(!showGuide)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-[10px] font-black uppercase text-zinc-400 tracking-widest transition-all border border-zinc-800 hover:border-zinc-700"
+          >
+            <Sparkles size={12} className="text-yellow-500" />
+            <span>Rules</span>
+            {showGuide ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        )}
 
         {/* Reputation Guide Panel (Expands beautifully) */}
         <AnimatePresence>

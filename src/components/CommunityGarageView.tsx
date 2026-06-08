@@ -6,7 +6,7 @@ import { Search, SlidersHorizontal, Grid, List, ChevronRight, Car as CarIcon, Ar
 import { motion, AnimatePresence } from 'motion/react';
 import { CarDetailsModal } from './CarDetailsModal';
 
-export function CommunityGarageView() {
+export function CommunityGarageView({ hideHeader }: { hideHeader?: boolean } = {}) {
   const [cars, setCars] = useState<(Car & { owner?: UserProfile })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,36 +121,56 @@ export function CommunityGarageView() {
   return (
     <div className="min-h-full bg-black flex flex-col pb-24">
       {/* Header */}
-      <div className="p-6 space-y-6 flex-none">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none">Community</h1>
-            <h2 className="text-2xl font-black italic tracking-tighter uppercase text-white/40 leading-none mt-1">Garage</h2>
+      <div className={`${hideHeader ? 'p-4 space-y-4' : 'p-6 space-y-6'} flex-none`}>
+        {!hideHeader ? (
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none">Community</h1>
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase text-white/40 leading-none mt-1">Garage</h2>
+            </div>
+            <div className="flex flex-col items-end gap-3">
+              <button 
+                onClick={goToBoard}
+                className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl active:scale-95 transition-all shadow-lg shadow-white/5"
+              >
+                <Trophy size={16} fill="black" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Board</span>
+              </button>
+              <div className="flex bg-zinc-900 rounded-xl p-1 border border-zinc-800">
+                <button 
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  <Grid size={18} />
+                </button>
+                <button 
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  <List size={18} />
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col items-end gap-3">
-            <button 
-              onClick={goToBoard}
-              className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl active:scale-95 transition-all shadow-lg shadow-white/5"
-            >
-              <Trophy size={16} fill="black" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Board</span>
-            </button>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Community Builds</span>
             <div className="flex bg-zinc-900 rounded-xl p-1 border border-zinc-800">
               <button 
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                <Grid size={18} />
+                <Grid size={14} />
               </button>
               <button 
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`p-1.5 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                <List size={18} />
+                <List size={14} />
               </button>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Search */}
         <div className="relative group">

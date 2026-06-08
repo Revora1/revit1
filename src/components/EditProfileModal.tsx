@@ -165,7 +165,7 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2 pb-28 sm:pb-4">
           <form onSubmit={handleSubmit} className="space-y-6 pb-2">
             <div className="flex flex-col items-center gap-4">
              <div 

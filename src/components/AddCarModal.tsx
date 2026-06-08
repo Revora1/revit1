@@ -100,7 +100,7 @@ export function AddCarModal({ onClose }: AddCarModalProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2 pb-28 sm:pb-4">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
             {/* Image Upload Area */}
           <div className="space-y-1.5">

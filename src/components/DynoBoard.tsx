@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 type SortCategory = 'horsepower' | 'torque' | 'quarterMileTime';
 
-export function DynoBoard() {
+export function DynoBoard({ hideHeader }: { hideHeader?: boolean } = {}) {
   const [records, setRecords] = useState<PerformanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<SortCategory>('horsepower');
@@ -54,16 +54,18 @@ export function DynoBoard() {
   return (
     <div className="flex flex-col h-full bg-black">
       {/* Header */}
-      <div className="pt-12 px-6 pb-6 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-xl sticky top-0 z-20">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-black italic tracking-tighter text-white uppercase italic">Perf. Board</h1>
-            <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase mt-1">Verified Builds & Dyno Stats</p>
+      <div className={`px-4 pb-4 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-xl sticky top-0 z-20 ${hideHeader ? 'pt-2' : 'pt-12'}`}>
+        {!hideHeader && (
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-black italic tracking-tighter text-white uppercase italic">Perf. Board</h1>
+              <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase mt-1">Verified Builds & Dyno Stats</p>
+            </div>
+            <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center border border-white/10">
+              <Trophy className="text-yellow-500" size={24} />
+            </div>
           </div>
-          <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center border border-white/10">
-            <Trophy className="text-yellow-500" size={24} />
-          </div>
-        </div>
+        )}
 
         {/* Categories Tab Bar */}
         <div className="flex bg-zinc-900 p-1 rounded-2xl gap-1">

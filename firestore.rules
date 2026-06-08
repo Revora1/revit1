@@ -71,17 +71,53 @@ service cloud.firestore {
     function isPostValid(data) {
       return data.authorId is string &&
              (
-               ('mediaUrls' in data && data.mediaUrls is list && data.mediaUrls.size() > 0 && data.mediaUrls.size() <= 10) ||
-               ('mediaUrl' in data && data.mediaUrl is string && data.mediaUrl.size() <= 500)
+               !('mediaUrls' in data) || 
+               (data.mediaUrls is list && data.mediaUrls.size() >= 0 && data.mediaUrls.size() <= 10)
              ) &&
-             data.mediaType is string && data.mediaType in ['image', 'video'] &&
-             data.caption is string && data.caption.size() <= 1000 &&
-             (!('carTagId' in data) || (data.carTagId is string && data.carTagId.size() <= 128)) &&
-             data.likesCount is number && data.likesCount >= 0 &&
-             data.commentsCount is number && data.commentsCount >= 0 &&
-             (!('viewCount' in data) || (data.viewCount is number && data.viewCount >= 0)) &&
-             (!('isDuo' in data) || data.isDuo is bool) &&
-             data.createdAt is number;
+             (
+               !('mediaUrl' in data) || 
+               (data.mediaUrl is string && data.mediaUrl.size() <= 500)
+             ) &&
+             (
+               !('mediaType' in data) || 
+               (data.mediaType is string && data.mediaType in ['image', 'video'])
+             ) &&
+             (
+               !('caption' in data) || 
+               (data.caption is string && data.caption.size() <= 1000)
+             ) &&
+             (
+               !('carTagId' in data) || 
+               (data.carTagId is string && data.carTagId.size() <= 128)
+             ) &&
+             (
+               !('likesCount' in data) || 
+               (data.likesCount is number && data.likesCount >= 0)
+             ) &&
+             (
+               !('commentsCount' in data) || 
+               (data.commentsCount is number && data.commentsCount >= 0)
+             ) &&
+             (
+               !('viewCount' in data) || 
+               (data.viewCount is number && data.viewCount >= 0)
+             ) &&
+             (
+               !('views' in data) || 
+               (data.views is list && data.views.size() <= 10000)
+             ) &&
+             (
+               !('isDuo' in data) || 
+               data.isDuo is bool
+             ) &&
+             (
+               !('isModUpdate' in data) || 
+               data.isModUpdate is bool
+             ) &&
+             (
+               !('createdAt' in data) || 
+               data.createdAt is number
+             );
     }
 
     match /posts/{postId} {
@@ -89,12 +125,12 @@ service cloud.firestore {
       allow list: if isSignedIn(); // Public posts are readable
       allow create: if isEmailVerified() && isValidId(postId) && isPostValid(incoming()) && 
                       incoming().authorId == request.auth.uid &&
-                      incoming().keys().size() >= 6 && incoming().keys().size() <= 12;
+                      incoming().keys().size() >= 6 && incoming().keys().size() <= 13;
       allow update: if isValidId(postId) && isPostValid(incoming()) && (
         // Author update
         (isEmailVerified() && resource.data.authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'carTagId', 'isDuo'])) ||
         // Engagement update (likes/comments/views count)
-        (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'viewCount']))
+        (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'viewCount', 'views']))
       );
       allow delete: if isEmailVerified() && isValidId(postId) && resource.data.authorId == request.auth.uid;
     }

@@ -92,7 +92,7 @@ export function PerformanceSubmitModal({ car, userName, onClose }: PerformanceSu
       <motion.div 
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
-        className="w-full max-w-lg bg-zinc-950 rounded-t-[32px] sm:rounded-3xl border border-zinc-800 p-8 pt-6 space-y-6 max-h-[90vh] overflow-y-auto scrollbar-hide"
+        className="w-full max-w-lg bg-zinc-950 rounded-t-[32px] sm:rounded-3xl border border-zinc-800 px-8 pt-6 pb-28 sm:pb-8 space-y-6 max-h-[90vh] overflow-y-auto scrollbar-hide"
       >
         <div className="flex items-center justify-between">
           <div className="space-y-1">

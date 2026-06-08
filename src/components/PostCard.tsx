@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Post, UserProfile, Car } from '../types';
-import { Heart, MessageCircle, Share2, Music2, User, Check, Trash2, Plus, X, Eye, Clock } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Music2, User, Check, Trash2, Plus, X, Eye, Clock, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { CommentsSheet } from './CommentsSheet';
 
@@ -65,6 +65,38 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
 
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
+  const [showViewers, setShowViewers] = useState(false);
+  const [viewerProfiles, setViewerProfiles] = useState<UserProfile[]>([]);
+  const [loadingViewers, setLoadingViewers] = useState(false);
+
+  const fetchViewers = async () => {
+    if (loadingViewers) return;
+    setLoadingViewers(true);
+    const uids = post.views || [];
+    
+    try {
+      const profiles: UserProfile[] = [];
+      for (const uid of uids) {
+        if (AUTHOR_CACHE[uid]) {
+          profiles.push(AUTHOR_CACHE[uid]);
+        } else {
+          const userSnap = await getDoc(doc(db, 'users', uid));
+          if (userSnap.exists()) {
+            const data = userSnap.data() as UserProfile;
+            AUTHOR_CACHE[uid] = data;
+            profiles.push(data);
+          }
+        }
+      }
+      setViewerProfiles(profiles);
+      setShowViewers(true);
+    } catch (e) {
+      console.error("Error fetching viewers:", e);
+    } finally {
+      setLoadingViewers(false);
+    }
+  };
+
   const mediaList = (post.mediaUrls && post.mediaUrls.length > 0) 
     ? post.mediaUrls 
     : (post.mediaUrl ? [post.mediaUrl] : []);
@@ -81,21 +113,25 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
 
   useEffect(() => {
     if (isActive && !hasIncrementedView.current && user && user.uid !== post.authorId) {
-      hasIncrementedView.current = true;
-      const incrementView = async () => {
-        try {
-          const postRef = doc(db, 'posts', post.id);
-          await updateDoc(postRef, {
-            viewCount: increment(1)
-          });
-        } catch (error) {
-          // Silent fail for views to avoid console spam
-          console.error("Failed to increment view count", error);
-        }
-      };
-      incrementView();
+      const postViews = post.views || [];
+      if (!postViews.includes(user.uid)) {
+        hasIncrementedView.current = true;
+        const trackView = async () => {
+          try {
+            const postRef = doc(db, 'posts', post.id);
+            await updateDoc(postRef, {
+              views: arrayUnion(user.uid),
+              viewCount: increment(1)
+            });
+          } catch (error) {
+            // Silent fail for views to avoid console spam
+            console.error("Failed to increment view count", error);
+          }
+        };
+        trackView();
+      }
     }
-  }, [isActive, post.id, user]);
+  }, [isActive, post.id, user, post.views, post.authorId]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -342,50 +378,69 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           <span className="text-[10px] font-bold text-white tracking-wider drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">{post.commentsCount || 0}</span>
         </div>
 
-        <div className="flex flex-col items-center gap-0.5 group flex-shrink-0">
-          <div className="w-10 h-10 bg-black/25 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 shadow-lg">
-            <Eye size={22} className="text-white/60" />
-          </div>
-          <span className="text-[10px] font-bold text-white/60 tracking-wider drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">{post.viewCount || 0}</span>
-        </div>
-
         <button 
-          disabled={isSharing}
-          onClick={async () => {
-            if (isSharing) return;
-            setIsSharing(true);
-            try {
-              if (navigator.share) {
-                await navigator.share({
-                  title: 'RevItUp Post',
-                  text: post.caption,
-                  url: window.location.href,
-                });
-              } else {
-                await navigator.clipboard.writeText(window.location.href);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              }
-            } catch (err: any) {
-              console.error('Error sharing:', err);
-              // Fallback if sharing fails and it's not a user cancellation
-              if (err.name !== 'AbortError') {
-                try {
-                  await navigator.clipboard.writeText(window.location.href);
+          onClick={fetchViewers}
+          className="flex flex-col items-center gap-0.5 group flex-shrink-0 active:scale-95 transition-all outline-none"
+        >
+          <div className="w-10 h-10 bg-black/25 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 shadow-lg group-hover:bg-black/40">
+            <Eye size={22} className={user?.uid === post.authorId ? "text-red-500" : "text-white/60"} />
+          </div>
+          <span className="text-[10px] font-bold text-white/60 tracking-wider drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+            {post.views?.length || post.viewCount || 0}
+          </span>
+        </button>
+
+        <div className="relative group flex-shrink-0">
+          <AnimatePresence>
+            {copied && (
+              <motion.div
+                initial={{ opacity: 0, x: 10, scale: 0.9 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 10, scale: 0.9 }}
+                className="absolute right-12 top-1/2 -translate-y-1/2 bg-zinc-950/95 text-red-500 text-[9px] font-black uppercase italic tracking-widest px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xl border border-zinc-800 z-[80]"
+              >
+                Post Link Copied!
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <button 
+            disabled={isSharing}
+            onClick={async () => {
+              if (isSharing) return;
+              setIsSharing(true);
+              const shareUrl = `${window.location.origin}${window.location.pathname}?p=${post.id}`;
+              try {
+                if (navigator.share) {
+                  await navigator.share({
+                    title: 'RevItUp Post',
+                    url: shareUrl,
+                  });
+                } else {
+                  await navigator.clipboard.writeText(shareUrl);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
-                } catch (clipErr) {
-                  console.error('Clipboard failed:', clipErr);
                 }
+              } catch (err: any) {
+                console.error('Error sharing:', err);
+                // Fallback if sharing fails and it's not a user cancellation
+                if (err.name !== 'AbortError') {
+                  try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch (clipErr) {
+                    console.error('Clipboard failed:', clipErr);
+                  }
+                }
+              } finally {
+                setIsSharing(false);
               }
-            } finally {
-              setIsSharing(false);
-            }
-          }}
-          className="w-10 h-10 bg-black/25 backdrop-blur-md rounded-full flex items-center justify-center active:scale-95 transition-all group-hover:bg-black/40 border border-white/10 shadow-lg disabled:opacity-50 flex-shrink-0"
-        >
-          {copied ? <Check size={20} className="text-green-400" /> : <Share2 size={20} className="text-white" />}
-        </button>
+            }}
+            className="w-10 h-10 bg-black/25 backdrop-blur-md rounded-full flex items-center justify-center active:scale-95 transition-all group-hover:bg-black/40 border border-white/10 shadow-lg disabled:opacity-50"
+          >
+            {copied ? <Check size={20} className="text-green-500" /> : <Share2 size={20} className="text-white" />}
+          </button>
+        </div>
 
         {user?.uid === post.authorId && (
           <button 
@@ -467,6 +522,81 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         isOpen={showComments} 
         onClose={() => setShowComments(false)} 
       />
+
+      {/* Viewers Bottom Sheet */}
+      <AnimatePresence>
+        {showViewers && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowViewers(false)}
+              className="absolute inset-0 bg-black/60 z-[60] backdrop-blur-sm"
+              id="viewers-backdrop"
+            />
+            <motion.div 
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              className="absolute bottom-0 left-0 right-0 bg-zinc-950 border-t border-zinc-900 rounded-t-[32px] z-[70] p-6 pb-24 sm:pb-12 max-h-[60vh] overflow-y-auto flex flex-col"
+              id="viewers-panel"
+            >
+              <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-6 flex-shrink-0" />
+              
+              <div className="flex items-center justify-between mb-6 flex-shrink-0">
+                <h3 className="text-white font-black uppercase italic tracking-widest text-sm flex items-center gap-1.5 font-sans">
+                  <Users size={16} className="text-red-500" />
+                  {user?.uid === post.authorId ? "Who Viewed Your Post" : "Post Viewers"}
+                </h3>
+                <span className="text-[10px] font-mono font-black uppercase border border-zinc-800 bg-zinc-900/50 px-2.5 py-1 rounded-full text-zinc-400">
+                  {post.views?.length || 0} Total
+                </span>
+              </div>
+              
+              <div className="space-y-3 overflow-y-auto flex-1 pr-1">
+                {viewerProfiles.length === 0 ? (
+                  <div className="text-center py-10 space-y-2">
+                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">No verified views yet</p>
+                    <p className="text-zinc-600 text-[10px] uppercase tracking-wider font-mono">Views only count once per unique tuner profile.</p>
+                  </div>
+                ) : (
+                  viewerProfiles.map(profile => (
+                    <div key={profile.uid} className="flex items-center justify-between bg-zinc-900/40 border border-zinc-900/70 p-3 rounded-2xl hover:border-zinc-800/80 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700/50">
+                          {profile.profilePic ? (
+                            <img src={profile.profilePic} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+                              <User size={16} className="text-zinc-650" />
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-white font-bold text-xs font-sans">@{profile.username}</p>
+                          <p className="text-zinc-400 text-[10px] font-medium truncate max-w-[160px]">
+                            {profile.bio || 'Revving the community!'}
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setShowViewers(false);
+                          window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId: profile.uid } }));
+                        }}
+                        className="px-3.5 py-1.5 bg-white hover:bg-zinc-200 text-black text-[9px] font-black uppercase italic tracking-widest rounded-xl transition-colors active:scale-95"
+                      >
+                        Profile
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </article>
   );
 });

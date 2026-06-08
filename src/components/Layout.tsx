@@ -116,10 +116,8 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
   const navItems = [
     { id: 'feed', icon: Home, label: 'Home' },
     { id: 'search', icon: Search, label: 'Search' },
-    { id: 'garage', icon: CarIcon, label: 'Garage' },
     { id: 'upload', icon: PlusSquare, label: 'Post' },
-    { id: 'tuners', icon: Trophy, label: 'Leaderboard' },
-    { id: 'inbox', icon: Inbox, label: 'Inbox' },
+    { id: 'inbox', icon: Inbox, label: 'Activities' },
     { id: 'profile', icon: User, label: 'Profile' },
   ] as const;
 

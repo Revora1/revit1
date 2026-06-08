@@ -9,15 +9,24 @@ import { StoryCreator } from './StoryCreator';
 import { AdSlot } from './AdSlot';
 import { ADSENSE_CLIENT_ID } from '../constants';
 import { trackOutboundClick } from '../lib/analytics';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, RefreshCw } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export function Feed() {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedStoryUserId, setSelectedStoryUserId] = useState<string | null>(null);
 
+  // Pull to refresh states
+  const [pullOffset, setPullOffset] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullStartY = useRef(0);
+  const pullStarted = useRef(false);
+
   useEffect(() => {
+    setLoading(true);
     const q = query(
       collection(db, 'posts'),
       orderBy('createdAt', 'desc'),
@@ -30,8 +39,10 @@ export function Feed() {
         ...doc.data()
       })) as Post[];
       setPosts(fetchedPosts);
+      setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'posts');
+      setLoading(false);
     });
 
     return unsubscribe;
@@ -45,6 +56,47 @@ export function Feed() {
     }
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (containerRef.current && containerRef.current.scrollTop === 0 && !refreshing) {
+      pullStartY.current = e.clientY;
+      pullStarted.current = true;
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch (err) {}
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pullStarted.current || refreshing) return;
+    const currentY = e.clientY;
+    const deltaY = currentY - pullStartY.current;
+    
+    if (deltaY > 0 && containerRef.current && containerRef.current.scrollTop === 0) {
+      const dampened = Math.min(80, deltaY * 0.45);
+      setPullOffset(dampened);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!pullStarted.current) return;
+    pullStarted.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (err) {}
+
+    if (pullOffset >= 50) {
+      setRefreshing(true);
+      setPullOffset(50);
+      
+      setTimeout(() => {
+        setRefreshing(false);
+        setPullOffset(0);
+      }, 1200);
+    } else {
+      setPullOffset(0);
+    }
+  };
+
   const feedItems = [];
   posts.forEach((post, index) => {
     feedItems.push({ type: 'post', data: post, id: post.id });
@@ -52,6 +104,66 @@ export function Feed() {
       feedItems.push({ type: 'ad', id: `ad-${index}` });
     }
   });
+
+  if (loading) {
+    return (
+      <div className="relative h-full bg-black flex flex-col overflow-hidden animate-pulse">
+        {/* Fake Header & Stories Shimmer */}
+        <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-none pt-[env(safe-area-inset-top)] px-4 pb-4">
+          <div className="flex items-center justify-between py-2 mb-3">
+            <div className="h-6 w-24 bg-zinc-800 rounded-lg" />
+            <div className="h-9 w-9 bg-zinc-800 rounded-full" />
+          </div>
+          
+          {/* Stories Bar Skeletons */}
+          <div className="flex gap-4 overflow-x-hidden pt-1">
+            <div className="flex flex-col items-center gap-1.5 flex-none">
+              <div className="w-14 h-14 rounded-full bg-zinc-850 border border-zinc-800" />
+              <div className="h-2 w-10 bg-zinc-850 rounded" />
+            </div>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex flex-col items-center gap-1.5 flex-none">
+                <div className="w-14 h-14 rounded-full bg-zinc-850" />
+                <div className="h-2 w-12 bg-zinc-850 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Fake Large Media Post Placeholder */}
+        <div className="flex-1 w-full bg-zinc-950 relative flex flex-col justify-end p-6 pb-28">
+          {/* Glowing element */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30 z-10" />
+          <div className="absolute inset-0 bg-zinc-900 border-zinc-850" />
+
+          {/* Lower Content Skeletons */}
+          <div className="relative z-10 space-y-4 max-w-[80%]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full bg-zinc-800" />
+              <div className="space-y-1.5">
+                <div className="h-3 w-28 bg-zinc-800 rounded" />
+                <div className="h-2 w-16 bg-zinc-850 rounded" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 w-56 bg-zinc-800 rounded" />
+              <div className="h-3 w-40 bg-zinc-800 rounded" />
+            </div>
+          </div>
+
+          {/* Sidebar Interaction Buttons Skeleton */}
+          <div className="absolute right-4 bottom-28 z-10 flex flex-col items-center gap-5">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex flex-col items-center gap-1">
+                <div className="w-11 h-11 rounded-full bg-zinc-800 flex items-center justify-center" />
+                <div className="h-2 w-5 bg-zinc-850 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (posts.length === 0) {
     return (
@@ -74,6 +186,30 @@ export function Feed() {
 
   return (
     <div className="relative h-full bg-black">
+      {/* Pull down to refresh indicator */}
+      {(pullOffset > 0 || refreshing) && (
+        <div 
+          className="absolute left-0 right-0 z-50 flex justify-center pointer-events-none"
+          style={{ 
+            top: 'env(safe-area-inset-top, 16px)',
+            transform: `translateY(${Math.min(100, pullOffset * 0.9)}px)`,
+            opacity: Math.min(1, pullOffset / 30)
+          }}
+        >
+          <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-800/80 px-4 py-1.5 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.8)] flex items-center gap-2">
+            <motion.div
+              animate={refreshing ? { rotate: 360 } : { rotate: pullOffset * 6 }}
+              transition={refreshing ? { repeat: Infinity, duration: 1, ease: "linear" } : { duration: 0 }}
+            >
+              <RefreshCw size={12} className={refreshing ? "text-yellow-500 animate-pulse" : "text-zinc-400"} />
+            </motion.div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-300 font-mono">
+              {refreshing ? "STAGING GREEN LIGHT..." : pullOffset >= 50 ? "RELEASE TO SPIN" : "DRAG TO REFRESH"}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none pt-[env(safe-area-inset-top)] px-4">
         <div className="flex items-center justify-between pointer-events-auto mb-2 py-2">
            <h1 className="text-2xl font-black italic tracking-tighter text-white">REVITUP</h1>
@@ -91,8 +227,17 @@ export function Feed() {
       <main 
         ref={containerRef}
         onScroll={handleScroll}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         role="feed"
-        className="h-full overflow-y-scroll snap-y snap-mandatory"
+        className="h-full overflow-y-scroll snap-y snap-mandatory touch-pan-y"
+        style={{ 
+          transform: `translateY(${pullOffset}px)`,
+          transition: pullStarted.current ? 'none' : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+          touchAction: 'pan-y'
+        }}
       >
         {feedItems.map((item, index) => {
           if (item.type === 'post') {

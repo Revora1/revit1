@@ -27,13 +27,45 @@ export default function App() {
 
 function InnerAppContent() {
   const { user, loading } = useAuth();
-  const [activeView, setActiveView] = useState<View>('feed');
+  
+  // Parse shared post from URL query params
+  const sharedPostId = React.useMemo(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('p') || params.get('postId');
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const [activeView, setActiveView] = useState<View>(sharedPostId ? 'post' : 'feed');
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [targetUsername, setTargetUsername] = useState<string | null>(null);
-  const [targetPostId, setTargetPostId] = useState<string | null>(null);
+  const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);
   const [autoOpenComments, setAutoOpenComments] = useState(false);
   const [targetChatInfo, setTargetChatInfo] = useState<{ chatId: string, otherUser: any, ts: number } | null>(null);
   const [initialProfileTab, setInitialProfileTab] = useState<'garage' | 'posts' | 'duo'>('garage');
+  const [inboxTargetTab, setInboxTargetTab] = useState<'notifications' | 'messages' | 'garage' | 'leaderboards' | 'leaderboards-dyno' | null>(null);
+
+  const prevViewRef = React.useRef<View>('feed');
+  React.useEffect(() => {
+    if (activeView !== 'post') {
+      prevViewRef.current = activeView;
+    }
+  }, [activeView]);
+
+  React.useEffect(() => {
+    if (sharedPostId) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('p');
+        url.searchParams.delete('postId');
+        window.history.replaceState({}, document.title, url.toString());
+      } catch (e) {
+        console.error("Failed to clean up sharing URL params:", e);
+      }
+    }
+  }, [sharedPostId]);
 
   React.useEffect(() => {
     const handleProfileNav = (e: any) => {
@@ -52,13 +84,17 @@ function InnerAppContent() {
     const handleChatNav = (e: any) => {
       const { chatId, otherUser } = e.detail;
       setTargetChatInfo({ chatId, otherUser, ts: Date.now() });
+      setInboxTargetTab('messages');
       setActiveView('inbox');
     };
-    const handleInboxNav = () => {
+    const handleInboxNav = (e?: any) => {
+      const tab = e?.detail?.tab || 'notifications';
+      setInboxTargetTab(tab);
       setActiveView('inbox');
     };
     const handleDynoNav = () => {
-      setActiveView('dyno');
+      setInboxTargetTab('leaderboards-dyno');
+      setActiveView('inbox');
     };
     window.addEventListener('navigate-profile', handleProfileNav);
     window.addEventListener('navigate-post', handlePostNav);
@@ -96,6 +132,22 @@ function InnerAppContent() {
   }, []);
 
   const handleViewChange = (view: View) => {
+    if (view === 'garage') {
+      setInboxTargetTab('garage');
+      setActiveView('inbox');
+      return;
+    }
+    if (view === 'tuners') {
+      setInboxTargetTab('leaderboards');
+      setActiveView('inbox');
+      return;
+    }
+    if (view === 'dyno') {
+      setInboxTargetTab('leaderboards-dyno');
+      setActiveView('inbox');
+      return;
+    }
+
     setActiveView(view);
     if (view !== 'profile') {
       setTargetUserId(null);
@@ -107,6 +159,7 @@ function InnerAppContent() {
     }
     if (view !== 'inbox') {
       setTargetChatInfo(null);
+      setInboxTargetTab(null);
     }
   };
 
@@ -128,7 +181,7 @@ function InnerAppContent() {
         {activeView === 'garage' && <CommunityGarageView />}
         {activeView === 'tuners' && <TopTuners />}
         {activeView === 'upload' && <UploadView onComplete={() => setActiveView('feed')} />}
-        {activeView === 'inbox' && <InboxView initialChat={targetChatInfo || undefined} />}
+        {activeView === 'inbox' && <InboxView initialTab={inboxTargetTab || undefined} initialChat={targetChatInfo || undefined} />}
         {activeView === 'profile' && (
           <Profile 
             userId={targetUserId || undefined} 
@@ -136,7 +189,7 @@ function InnerAppContent() {
             initialTab={initialProfileTab} 
           />
         )}
-        {activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView('inbox')} autoOpenComments={autoOpenComments} />}
+        {activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}
       </Layout>
     );
   }

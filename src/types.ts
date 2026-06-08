@@ -26,6 +26,7 @@ export interface Post {
   likesCount: number;
   commentsCount: number;
   viewCount?: number;
+  views?: string[];
   isDuo?: boolean;
   createdAt: number;
 }

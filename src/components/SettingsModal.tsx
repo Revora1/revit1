@@ -402,7 +402,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         exit={{ y: "100%" }}
         className="w-full max-w-lg bg-zinc-950 rounded-t-[32px] sm:rounded-3xl border border-zinc-800 p-8 pt-6 space-y-8 max-h-[90vh] flex flex-col relative shadow-2xl"
       >
-        <div className="flex-1 overflow-y-auto pr-2 -mr-2 scroll-smooth">
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2 scroll-smooth pb-28 sm:pb-4">
           <AnimatePresence mode="wait">
           {!activeSubView ? (
             <motion.div 
