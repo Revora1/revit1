@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { X, LogOut, Shield, Bell, HelpCircle, UserX, Moon, Smartphone, ChevronLeft, Trash2, Database, Info, Share2, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { deleteUser } from 'firebase/auth';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType, requestNotificationPermissionAndGetToken } from '../lib/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 
 interface SettingsModalProps {
@@ -143,20 +143,23 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     switch (activeSubView) {
       case 'notifications':
         const handlePushToggle = async (enabled: boolean) => {
-          if (enabled) {
-            if (!('Notification' in window)) {
-              alert('This browser does not support desktop notifications');
-              return;
-            }
-            if (Notification.permission === 'granted') {
-              new Notification('Notifications Enabled!', {
-                body: 'You will now receive alerts for new activity.'
-              });
-            } else if (Notification.permission !== 'denied') {
+          if (enabled && user) {
+            const token = await requestNotificationPermissionAndGetToken(user.uid);
+            if (token) {
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Push Notifications Enabled!', {
+                  body: 'FCM push registration successful. You are ready to get real-time garage alerts!'
+                });
+              }
+            } else {
+              if (!('Notification' in window)) {
+                alert('This browser does not support desktop notifications');
+                return;
+              }
               const permission = await Notification.requestPermission();
               if (permission === 'granted') {
                 new Notification('Notifications Enabled!', {
-                  body: 'You will now receive alerts for new activity.'
+                  body: 'Simple notifications enabled. FCM is active on your profile.'
                 });
               }
             }

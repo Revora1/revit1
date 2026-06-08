@@ -40,6 +40,10 @@ export interface BuildLogEntry {
   type: 'modification' | 'repair' | 'maintenance' | 'dyno' | 'track_day' | 'performance_verification';
   postId?: string; // Optional link to a post
   mediaUrl?: string; // Optional image of the update
+  cost?: number; // Optional part cost
+  laborCost?: number; // Optional labor cost
+  supplier?: string; // Sourced from / brand
+  installedBy?: string; // DIY or shop name
 }
 
 export interface PerformanceRecord {

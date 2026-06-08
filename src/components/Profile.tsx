@@ -5,9 +5,9 @@ import { DuoGarageView } from './DuoGarageView';
 import { AddCarModal } from './AddCarModal';
 import { EditProfileModal } from './EditProfileModal';
 import { SettingsModal } from './SettingsModal';
-import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2 } from 'lucide-react';
+import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Award, Info, Sparkles, ThumbsUp, Lock, Unlock, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Post, UserProfile } from '../types';
+import { Post, UserProfile, Car, Comment } from '../types';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, where, orderBy, getDocs, onSnapshot, doc, getDoc, deleteDoc, setDoc, updateDoc, increment, limit } from 'firebase/firestore';
 import { PostCard } from './PostCard';
@@ -118,12 +118,134 @@ function UserPosts({ userId }: { userId: string }) {
   );
 }
 
-export function Profile({ userId: propUserId, username: propUsername }: { userId?: string, username?: string }) {
+interface ReputationTier {
+  name: string;
+  pointsRequired: number;
+  badgeColor: string;
+  badgeBorder: string;
+  borderColor: string;
+  bgGradient: string;
+  textColor: string;
+  description: string;
+}
+
+const REPUTATION_TIERS: ReputationTier[] = [
+  {
+    name: "Master Builder",
+    pointsRequired: 300,
+    badgeColor: "bg-purple-950/80 border-purple-500 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.4)]",
+    badgeBorder: "border-purple-500",
+    borderColor: "border-purple-500/25",
+    bgGradient: "from-purple-950/40 to-indigo-950/40",
+    textColor: "text-purple-400",
+    description: "Legendary mechanical wizard. Visually documented builds, community-trusted specs & advice."
+  },
+  {
+    name: "Trackday Regular",
+    pointsRequired: 150,
+    badgeColor: "bg-amber-950/80 border-amber-500 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.3)]",
+    badgeBorder: "border-amber-500",
+    borderColor: "border-amber-500/25",
+    bgGradient: "from-amber-950/40 to-yellow-950/40",
+    textColor: "text-amber-400",
+    description: "Proven high performer on the streets, dyno, & track day buildlogs."
+  },
+  {
+    name: "Tuner Pro",
+    pointsRequired: 50,
+    badgeColor: "bg-blue-950/80 border-blue-500 text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.2)]",
+    badgeBorder: "border-blue-500",
+    borderColor: "border-blue-500/25",
+    bgGradient: "from-blue-950/40 to-cyan-950/40",
+    textColor: "text-cyan-400",
+    description: "Actively contributing mods, dynos, and writing helpful comment replies."
+  },
+  {
+    name: "Grease Monkey",
+    pointsRequired: 0,
+    badgeColor: "bg-zinc-900/80 border-zinc-700 text-zinc-300",
+    badgeBorder: "border-zinc-700",
+    borderColor: "border-zinc-800",
+    bgGradient: "from-zinc-900/20 to-zinc-950/20",
+    textColor: "text-zinc-400",
+    description: "Automotive build journey initialized. Share logs & write helpful comments to level up!"
+  }
+];
+
+const MILESTONE_REWARDS = [
+  {
+    tierName: "Grease Monkey",
+    pointsRequired: 0,
+    badgeName: "🔧 Novice Grease Gun Badge",
+    rewards: [
+      "Comment styling: Standard Zinc",
+      "Unlock Garage: Register 1 Car Spec",
+      "Write active replies in Comments"
+    ]
+  },
+  {
+    tierName: "Tuner Pro",
+    pointsRequired: 50,
+    badgeName: "⚡ Pro Dyno Certified Badge",
+    rewards: [
+      "Custom Neon-Blue Avatar Rim",
+      "Unlock Garage: Register up to 3 Cars",
+      "Ability to write Dyno review logs"
+    ]
+  },
+  {
+    tierName: "Trackday Regular",
+    pointsRequired: 150,
+    badgeName: "🏁 Apex Corner Expert Badge",
+    rewards: [
+      "Spotlight feature: Promoted Builds",
+      "Unlock Garage: Register up to 5 Cars",
+      "Receive gold-rimmed activity cards"
+    ]
+  },
+  {
+    tierName: "Master Builder",
+    pointsRequired: 300,
+    badgeName: "👑 Carbon Fiber Crown Badge",
+    rewards: [
+      "Verified Legend Expert emblem",
+      "Unlock Garage: Register Unlimited Cars",
+      "Pin posts to the Top Tuners index"
+    ]
+  }
+];
+
+const getCurrentTier = (pts: number): ReputationTier => {
+  return REPUTATION_TIERS.find(t => pts >= t.pointsRequired) || REPUTATION_TIERS[REPUTATION_TIERS.length - 1];
+};
+
+const getNextTier = (pts: number): ReputationTier | null => {
+  const reversed = [...REPUTATION_TIERS].reverse();
+  return reversed.find(t => t.pointsRequired > pts) || null;
+};
+
+interface ProfileProps {
+  userId?: string;
+  username?: string;
+  initialTab?: 'garage' | 'posts' | 'duo';
+}
+
+export function Profile({ userId: propUserId, username: propUsername, initialTab = 'garage' }: ProfileProps) {
   const { user: currentUser, profile: currentProfile, logout } = useAuth();
   const [targetProfile, setTargetProfile] = useState<UserProfile | null>(null);
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'garage' | 'posts' | 'duo'>('garage');
+  const [activeTab, setActiveTab] = useState<'garage' | 'posts' | 'duo'>(initialTab);
+  
+  // Reputation states
+  const [showRepDetails, setShowRepDetails] = useState(false);
+  const [repData, setRepData] = useState({
+    carsCount: 0,
+    buildLogsCount: 0,
+    commentsCount: 0,
+    helpfulVotesCount: 0,
+    postsCount: 0
+  });
   const [showAddCar, setShowAddCar] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -201,8 +323,8 @@ export function Profile({ userId: propUserId, username: propUsername }: { userId
   const effectiveUserId = resolvedUserId;
 
   useEffect(() => {
-    setActiveTab('garage');
-  }, [resolvedUserId]);
+    setActiveTab(initialTab);
+  }, [resolvedUserId, initialTab]);
 
   useEffect(() => {
     if (isOwnProfile) {
@@ -241,6 +363,60 @@ export function Profile({ userId: propUserId, username: propUsername }: { userId
     };
     fetchPartner();
   }, [targetProfile?.partnerId]);
+
+  useEffect(() => {
+    if (!effectiveUserId || effectiveUserId === 'not_found') return;
+
+    // 1. Cars & build logs inside them
+    const qCars = query(collection(db, 'garage'), where('ownerId', '==', effectiveUserId));
+    const unsubCars = onSnapshot(qCars, (snap) => {
+      const cars = snap.docs.map(doc => doc.data() as Car);
+      const carsCount = cars.length;
+      const buildLogsCount = cars.reduce((acc, c) => acc + (c.buildTimeline?.length || 0), 0);
+      setRepData(prev => ({ ...prev, carsCount, buildLogsCount }));
+    }, (error) => {
+      console.error('Error fetching cars for rep:', error);
+    });
+
+    // 2. Comments made
+    const qComments = query(collection(db, 'comments'), where('authorId', '==', effectiveUserId));
+    const unsubComments = onSnapshot(qComments, (snap) => {
+      setRepData(prev => ({ ...prev, commentsCount: snap.size }));
+    }, (error) => {
+      console.error('Error fetching comments for rep:', error);
+    });
+
+    // 3. Helpful votes received
+    const qHelpful = query(collection(db, 'helpful_votes'), where('commentAuthorId', '==', effectiveUserId));
+    const unsubHelpful = onSnapshot(qHelpful, (snap) => {
+      setRepData(prev => ({ ...prev, helpfulVotesCount: snap.size }));
+    }, (error) => {
+      console.error('Error fetching helpful votes for rep:', error);
+    });
+
+    // 4. Posts made
+    const qPosts = query(collection(db, 'posts'), where('authorId', '==', effectiveUserId));
+    const unsubPosts = onSnapshot(qPosts, (snap) => {
+      setRepData(prev => ({ ...prev, postsCount: snap.size }));
+    }, (error) => {
+      console.error('Error fetching posts for rep:', error);
+    });
+
+    return () => {
+      unsubCars();
+      unsubComments();
+      unsubHelpful();
+      unsubPosts();
+    };
+  }, [effectiveUserId]);
+
+  const pointsFromCars = repData.carsCount * 20; // 20 points per car
+  const pointsFromLogs = repData.buildLogsCount * 10; // 10 points per mod log entry
+  const pointsFromComments = repData.commentsCount * 5; // 5 points per comment made
+  const pointsFromVotes = repData.helpfulVotesCount * 15; // 15 points per helpful vote received
+  const pointsFromPosts = repData.postsCount * 10; // 10 points per post shared
+
+  const totalPoints = pointsFromCars + pointsFromLogs + pointsFromComments + pointsFromVotes + pointsFromPosts;
 
   useEffect(() => {
     if (isOwnProfile || !effectiveUserId || !currentUser) return;
@@ -443,9 +619,24 @@ export function Profile({ userId: propUserId, username: propUsername }: { userId
            )}
         </div>
 
-        <div className="text-center space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight">{targetProfile.username}</h2>
-          <p className="text-sm text-zinc-500 max-w-[250px] mx-auto">{targetProfile.bio || "RevItUp enthusiast"}</p>
+        <div className="text-center space-y-4 flex flex-col items-center animate-fade-in">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold tracking-tight">{targetProfile.username}</h2>
+            <p className="text-sm text-zinc-500 max-w-[250px] mx-auto">{targetProfile.bio || "RevItUp enthusiast"}</p>
+          </div>
+
+          {/* Dynamic Reputation Badge */}
+          <button
+            onClick={() => setShowRepDetails(true)}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 cursor-pointer select-none bg-zinc-950/60 leading-none ${
+              getCurrentTier(totalPoints).badgeColor
+            }`}
+          >
+            <Award size={11} className="text-yellow-400 fill-yellow-400 animate-pulse" />
+            <span>{getCurrentTier(totalPoints).name}</span>
+            <span className="opacity-30">|</span>
+            <span className="text-white font-black tracking-normal">{totalPoints} REP</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-12 text-center pb-4 w-full justify-center">
@@ -530,6 +721,205 @@ export function Profile({ userId: propUserId, username: propUsername }: { userId
             <Share2 size={14} className="text-black" />
             Link Copied to Clipboard
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reputation Details Modal */}
+      <AnimatePresence>
+        {showRepDetails && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowRepDetails(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110]"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              transition={{ type: 'spring', duration: 0.4 }}
+              className="fixed inset-x-4 top-[8%] max-h-[84%] bg-zinc-950 border border-zinc-900 rounded-3xl z-[120] flex flex-col overflow-hidden max-w-md mx-auto shadow-[0_20px_50px_rgba(0,0,0,0.9)]"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-zinc-900 flex justify-between items-center bg-zinc-900/40">
+                <div className="flex items-center gap-2">
+                  <Award size={20} className="text-yellow-400" />
+                  <h3 className="font-black tracking-tight uppercase text-sm">Reputation Profile</h3>
+                </div>
+                <button 
+                  onClick={() => setShowRepDetails(false)}
+                  className="p-1 px-3 text-xs bg-zinc-900 text-zinc-400 hover:text-white rounded-full font-bold uppercase border border-zinc-800"
+                >
+                  Close
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-5 scroll-smooth">
+                {/* Current Badge Hero */}
+                <div className={`p-4 rounded-2xl border text-center ${getCurrentTier(totalPoints).badgeColor} flex flex-col items-center space-y-2`}>
+                  <Sparkles size={24} className="text-yellow-400 animate-pulse" />
+                  <div>
+                    <h4 className="text-sm font-black uppercase tracking-widest leading-none">{getCurrentTier(totalPoints).name}</h4>
+                    <p className="text-xl font-black text-white mt-1.5">{totalPoints} <span className="text-[10px] text-zinc-405 uppercase tracking-widest font-bold">Points</span></p>
+                  </div>
+                  <p className="text-[10px] font-semibold leading-relaxed max-w-[280px] opacity-75">
+                    "{getCurrentTier(totalPoints).description}"
+                  </p>
+                </div>
+
+                {/* Progress to Next Tier */}
+                {getNextTier(totalPoints) ? (
+                  <div className="p-3.5 bg-zinc-900/30 border border-zinc-900 rounded-2xl space-y-2">
+                    <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-wider text-zinc-400">
+                      <span>NEXT TIER: {getNextTier(totalPoints)?.name}</span>
+                      <span>{totalPoints} / {getNextTier(totalPoints)?.pointsRequired} PTS</span>
+                    </div>
+                    {/* Progress Bar Container */}
+                    <div className="h-2 w-full bg-zinc-900 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-yellow-550 to-amber-400 rounded-full" 
+                        style={{ width: `${Math.min(100, (totalPoints / (getNextTier(totalPoints)?.pointsRequired || 1)) * 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest text-center">
+                      Need {Math.max(0, (getNextTier(totalPoints)?.pointsRequired || 0) - totalPoints)} more points to level up!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-zinc-950 border border-purple-500/20 rounded-2xl text-center space-y-1">
+                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">👑 MAXIMUM TIER REACHED</p>
+                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">You have unlocked the peak of automotive builders!</p>
+                  </div>
+                )}
+
+                {/* Milestone Rewards & Badge Unlocks Roadmap */}
+                <div className="space-y-3">
+                  <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5 border-b border-zinc-900 pb-1.5">
+                    <Sparkles size={11} className="text-yellow-500" />
+                    Milestones & Unlockable Rewards
+                  </h5>
+                  
+                  <div className="space-y-2.5">
+                    {MILESTONE_REWARDS.map((milestone) => {
+                      const isUnlocked = totalPoints >= milestone.pointsRequired;
+                      return (
+                        <div 
+                          key={milestone.tierName}
+                          className={`p-3 rounded-2xl border transition-all ${
+                            isUnlocked 
+                              ? 'bg-zinc-900/45 border-emerald-500/10 shadow-[inset_0_1px_20px_rgba(16,185,129,0.01)]' 
+                              : 'bg-zinc-950/20 border-zinc-900/40 opacity-55'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[10px] font-black uppercase tracking-wider ${isUnlocked ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                                  {milestone.tierName}
+                                </span>
+                                <span className="text-[9px] text-zinc-600">•</span>
+                                <span className="text-[9px] font-bold text-zinc-400">{milestone.pointsRequired} PTS</span>
+                              </div>
+                              <h6 className={`text-xs font-black flex items-center gap-1 ${isUnlocked ? 'text-white' : 'text-zinc-400'}`}>
+                                {milestone.badgeName}
+                              </h6>
+                            </div>
+
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 border ${
+                              isUnlocked 
+                                ? 'bg-emerald-950/30 border-emerald-500/25 text-emerald-400' 
+                                : 'bg-zinc-900/60 border-zinc-805 text-zinc-500'
+                            }`}>
+                              {isUnlocked ? (
+                                <>
+                                  <Check size={10} strokeWidth={3} />
+                                  Unlocked
+                                </>
+                              ) : (
+                                <>
+                                  <Lock size={10} />
+                                  Locked
+                                </>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Perks List */}
+                          <div className="mt-2 pl-1 space-y-1 border-l border-zinc-900 ml-1">
+                            {milestone.rewards.map((reward, i) => (
+                              <div key={i} className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
+                                <div className={`w-1 h-1 rounded-full ${isUnlocked ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+                                <span className={isUnlocked ? 'text-zinc-300' : 'text-zinc-500'}>{reward}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Point Breakdown */}
+                <div className="space-y-2.5">
+                  <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5 border-b border-zinc-900 pb-1.5">
+                    <Award size={11} className="text-zinc-500" />
+                    Live Reputation Breakdown
+                  </h5>
+                  
+                  <div className="space-y-2 text-xs">
+                    {/* Cars */}
+                    <div className="flex justify-between items-center p-3 bg-zinc-900/20 border border-zinc-900/60 rounded-xl">
+                      <div>
+                        <div className="font-black uppercase tracking-wider text-[10px]">Shared Builds (Cars)</div>
+                        <div className="text-[9px] text-zinc-500 font-bold uppercase">{repData.carsCount} cars registered</div>
+                      </div>
+                      <div className="font-extrabold pr-1 text-emerald-400">+{pointsFromCars}</div>
+                    </div>
+
+                    {/* Build Timeline Logs */}
+                    <div className="flex justify-between items-center p-3 bg-zinc-900/20 border border-zinc-900/60 rounded-xl">
+                      <div>
+                        <div className="font-black uppercase tracking-wider text-[10px]">Timeline updates (Specs)</div>
+                        <div className="text-[9px] text-zinc-500 font-bold uppercase">{repData.buildLogsCount} update logs shared</div>
+                      </div>
+                      <div className="font-extrabold pr-1 text-emerald-400">+{pointsFromLogs}</div>
+                    </div>
+
+                    {/* Posts */}
+                    <div className="flex justify-between items-center p-3 bg-zinc-900/20 border border-zinc-900/60 rounded-xl">
+                      <div>
+                        <div className="font-black uppercase tracking-wider text-[10px]">Media Posts</div>
+                        <div className="text-[9px] text-zinc-500 font-bold uppercase">{repData.postsCount} posts published</div>
+                      </div>
+                      <div className="font-extrabold pr-1 text-emerald-400">+{pointsFromPosts}</div>
+                    </div>
+
+                    {/* Comments */}
+                    <div className="flex justify-between items-center p-3 bg-zinc-900/20 border border-zinc-900/60 rounded-xl">
+                      <div>
+                        <div className="font-black uppercase tracking-wider text-[10px]">Comments Posted</div>
+                        <div className="text-[9px] text-zinc-500 font-bold uppercase">{repData.commentsCount} comments written</div>
+                      </div>
+                      <div className="font-extrabold pr-1 text-emerald-400">+{pointsFromComments}</div>
+                    </div>
+
+                    {/* Helpful upvotes */}
+                    <div className="flex justify-between items-center p-3 bg-zinc-900/20 border border-zinc-900/60 rounded-xl">
+                      <div>
+                        <div className="font-black uppercase tracking-wider text-[10px]">Helpful Feedback Upvotes</div>
+                        <div className="text-[9px] text-zinc-500 font-bold uppercase">{repData.helpfulVotesCount} upvotes received</div>
+                      </div>
+                      <div className="font-extrabold pr-1 text-emerald-400">+{pointsFromVotes}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 

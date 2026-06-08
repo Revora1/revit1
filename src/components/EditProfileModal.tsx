@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { X, Camera, Heart, User, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
+import { sanitizeInput, isValidUsername } from '../lib/utils';
 
 interface EditProfileModalProps {
   onClose: () => void;
@@ -101,10 +102,19 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
     setLoading(true);
 
     try {
-      if (formData.username !== profile?.username) {
+      const cleanUsername = sanitizeInput(formData.username.trim());
+      const cleanBio = sanitizeInput(formData.bio.trim());
+
+      if (!isValidUsername(cleanUsername)) {
+        alert('Invalid Username. It must be between 3 and 25 characters, and only contain letters, numbers, underscores, and hyphens.');
+        setLoading(false);
+        return;
+      }
+
+      if (cleanUsername !== profile?.username) {
         // Check if username is already taken (case-insensitive)
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('usernameLower', '==', formData.username.toLowerCase()));
+        const q = query(usersRef, where('usernameLower', '==', cleanUsername.toLowerCase()));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
           alert('This username is already taken. Please choose another one.');
@@ -123,9 +133,10 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
 
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        ...formData,
+        username: cleanUsername,
+        bio: cleanBio,
         partnerId: selectedPartner?.uid || '',
-        usernameLower: formData.username.toLowerCase(),
+        usernameLower: cleanUsername.toLowerCase(),
         profilePic: profilePicUrl,
       });
       onClose();

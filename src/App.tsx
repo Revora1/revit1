@@ -10,8 +10,11 @@ import { InboxView } from './components/InboxView';
 import { SinglePostView } from './components/SinglePostView';
 import { DynoBoard } from './components/DynoBoard';
 import { CommunityGarageView } from './components/CommunityGarageView';
+import { TopTuners } from './components/TopTuners';
 
 import { CookieConsent } from './components/CookieConsent';
+import { messaging } from './lib/firebase';
+import { onMessage } from 'firebase/messaging';
 
 export default function App() {
   return (
@@ -30,12 +33,14 @@ function InnerAppContent() {
   const [targetPostId, setTargetPostId] = useState<string | null>(null);
   const [autoOpenComments, setAutoOpenComments] = useState(false);
   const [targetChatInfo, setTargetChatInfo] = useState<{ chatId: string, otherUser: any, ts: number } | null>(null);
+  const [initialProfileTab, setInitialProfileTab] = useState<'garage' | 'posts' | 'duo'>('garage');
 
   React.useEffect(() => {
     const handleProfileNav = (e: any) => {
-      const { userId, username } = e.detail;
+      const { userId, username, initialTab } = e.detail;
       setTargetUserId(userId || null);
       setTargetUsername(username || null);
+      setInitialProfileTab(initialTab || 'garage');
       setActiveView('profile');
     };
     const handlePostNav = (e: any) => {
@@ -69,6 +74,27 @@ function InnerAppContent() {
     };
   }, []);
 
+  React.useEffect(() => {
+    if (!messaging) return;
+    try {
+      const unsubscribe = onMessage(messaging, (payload) => {
+        console.log('FCM Foreground message received:', payload);
+        const title = payload.notification?.title || payload.data?.title || 'RevItUp';
+        const body = payload.notification?.body || payload.data?.body || 'New update in your social garage!';
+        
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, {
+            body: body,
+            icon: '/screenshot.png'
+          });
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn("Could not register onMessage listener:", e);
+    }
+  }, []);
+
   const handleViewChange = (view: View) => {
     setActiveView(view);
     if (view !== 'profile') {
@@ -100,9 +126,16 @@ function InnerAppContent() {
         {activeView === 'search' && <SearchView />}
         {activeView === 'dyno' && <DynoBoard />}
         {activeView === 'garage' && <CommunityGarageView />}
+        {activeView === 'tuners' && <TopTuners />}
         {activeView === 'upload' && <UploadView onComplete={() => setActiveView('feed')} />}
         {activeView === 'inbox' && <InboxView initialChat={targetChatInfo || undefined} />}
-        {activeView === 'profile' && <Profile userId={targetUserId || undefined} username={targetUsername || undefined} />}
+        {activeView === 'profile' && (
+          <Profile 
+            userId={targetUserId || undefined} 
+            username={targetUsername || undefined} 
+            initialTab={initialProfileTab} 
+          />
+        )}
         {activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView('inbox')} autoOpenComments={autoOpenComments} />}
       </Layout>
     );

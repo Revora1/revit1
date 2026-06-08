@@ -161,7 +161,7 @@ export function DuoGarageView({ userId1, userId2, user1, user2 }: DuoGarageViewP
                         {owner.profilePic && <img src={owner.profilePic} className="w-full h-full object-cover" alt="" />}
                      </div>
                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">
-                       Added by {isUser1 ? 'Me' : owner.username}
+                       Added by {car.ownerId === currentUser?.uid ? 'Me' : owner.username}
                      </span>
                   </div>
                   <div className="flex items-center gap-2 mt-2">

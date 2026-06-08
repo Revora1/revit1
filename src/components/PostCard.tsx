@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Post, UserProfile, Car } from '../types';
-import { Heart, MessageCircle, Share2, Music2, User, Check, Trash2, Plus, X, Eye } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Music2, User, Check, Trash2, Plus, X, Eye, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
@@ -15,6 +15,40 @@ interface PostCardProps {
 
 const AUTHOR_CACHE: Record<string, UserProfile> = {};
 const CAR_CACHE: Record<string, Car> = {};
+
+const formatTimeAgo = (timestamp: number): string => {
+  if (!timestamp) return '';
+  const now = Date.now();
+  const diff = now - timestamp;
+  
+  if (diff < 60000) { // less than 1 min
+    return 'just now';
+  }
+  
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) {
+    return `${mins}m ago`;
+  }
+  
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  
+  const days = Math.floor(diff / 86400000);
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+  
+  const weeks = Math.floor(diff / 604800000);
+  if (weeks < 4) {
+    return `${weeks}w ago`;
+  }
+  
+  // Format as date
+  const date = new Date(timestamp);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
 
 export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, initialShowComments = false }) => {
   const [liked, setLiked] = useState(false);
@@ -299,6 +333,16 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         </div>
 
         <div className="flex flex-col items-center gap-0.5 group flex-shrink-0">
+          <button 
+            onClick={() => setShowComments(true)}
+            className="w-10 h-10 bg-black/25 backdrop-blur-md rounded-full flex items-center justify-center active:scale-95 transition-all group-hover:bg-black/40 border border-white/10 shadow-lg"
+          >
+            <MessageCircle size={22} className="text-white" />
+          </button>
+          <span className="text-[10px] font-bold text-white tracking-wider drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">{post.commentsCount || 0}</span>
+        </div>
+
+        <div className="flex flex-col items-center gap-0.5 group flex-shrink-0">
           <div className="w-10 h-10 bg-black/25 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 shadow-lg">
             <Eye size={22} className="text-white/60" />
           </div>
@@ -392,13 +436,22 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         <div className="flex flex-wrap items-center gap-2">
            <button 
              onClick={() => window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId: post.authorId } }))}
-             className="font-bold text-lg hover:underline active:opacity-70 transition-all text-white"
+             className="font-bold text-lg hover:underline active:opacity-70 transition-all text-white flex items-center gap-1.5"
            >
              @{author?.username || `user_${post.authorId.slice(0, 5)}`}
+             {post.isDuo && (
+               <span className="flex items-center gap-1 bg-red-500/20 text-red-500 border border-red-500/30 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest leading-none">
+                 <Heart size={8} fill="currentColor" /> Duo Joint Update
+               </span>
+             )}
            </button>
            {taggedCar && (
              <span className="px-2 py-0.5 bg-zinc-800 rounded text-[10px] font-bold tracking-tight text-white">#{taggedCar.make} {taggedCar.model}</span>
            )}
+           <span className="text-[11px] font-medium text-zinc-400 flex items-center gap-1 bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/5">
+             <Clock size={10} className="text-zinc-500 animate-pulse" />
+             <span>{formatTimeAgo(post.createdAt)}</span>
+           </span>
         </div>
         <p className="text-sm text-zinc-200 max-h-32 overflow-y-auto scrollbar-hide break-words">
           {renderText(post.caption)}

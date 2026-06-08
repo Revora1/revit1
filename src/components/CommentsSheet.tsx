@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Trash2 } from 'lucide-react';
+import { X, Send, Trash2, ThumbsUp } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot, doc, setDoc, deleteDoc, updateDoc, increment, getDoc, getDocs, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { UserProfile } from '../types';
+import { sanitizeInput } from '../lib/utils';
 
 interface Comment {
   id: string;
@@ -28,6 +29,7 @@ interface CommentItemProps {
 
 const CommentItem: React.FC<CommentItemProps> = ({ comment, onDelete, currentUserId }) => {
   const [author, setAuthor] = useState<UserProfile | null>(null);
+  const [votes, setVotes] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchAuthor = async () => {
@@ -43,6 +45,42 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, onDelete, currentUse
     };
     fetchAuthor();
   }, [comment.authorId]);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'helpful_votes'), 
+      where('commentId', '==', comment.id)
+    );
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setVotes(snap.docs.map(doc => doc.data()));
+    }, (err) => {
+      console.error('Error listening to helpful votes:', err);
+    });
+    return unsubscribe;
+  }, [comment.id]);
+
+  const hasVoted = votes.some(v => v.voterId === currentUserId);
+  const voteCount = votes.length;
+
+  const handleToggleHelpful = async () => {
+    if (!currentUserId) return;
+    if (comment.authorId === currentUserId) return;
+    const voteId = `${comment.id}_${currentUserId}`;
+    try {
+      if (hasVoted) {
+        await deleteDoc(doc(db, 'helpful_votes', voteId));
+      } else {
+        await setDoc(doc(db, 'helpful_votes', voteId), {
+          voterId: currentUserId,
+          commentId: comment.id,
+          commentAuthorId: comment.authorId,
+          createdAt: Date.now()
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `helpful_votes/${voteId}`);
+    }
+  };
 
   const renderText = (text: string) => {
     const parts = text.split(/(@[a-zA-Z0-9._]+)/g);
@@ -63,17 +101,41 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, onDelete, currentUse
   };
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0">
       <div className="w-8 h-8 rounded-full bg-zinc-800 flex-shrink-0 overflow-hidden">
         {author?.profilePic && (
           <img src={author.profilePic} alt={author.username} className="w-full h-full object-cover" />
         )}
       </div>
-      <div className="flex-1">
-        <div className="text-sm font-bold opacity-70">
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-black opacity-60">
           @{author?.username || `user_${comment.authorId.slice(0, 5)}`}
         </div>
-        <p className="text-sm mt-0.5 break-words">{renderText(comment.text)}</p>
+        <p className="text-sm mt-0.5 break-words font-medium">{renderText(comment.text)}</p>
+        
+        {/* Helpfulness controls */}
+        <div className="flex items-center gap-3 mt-2 select-none">
+          <button
+            onClick={handleToggleHelpful}
+            disabled={comment.authorId === currentUserId}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider transition-all border ${
+              hasVoted 
+                ? 'bg-yellow-400 text-black border-yellow-400' 
+                : comment.authorId === currentUserId
+                  ? 'bg-zinc-800/40 text-zinc-500 border-transparent cursor-default'
+                  : 'bg-zinc-800 text-zinc-400 border-white/5 hover:border-zinc-500 hover:text-white'
+            }`}
+          >
+            <ThumbsUp size={10} className={hasVoted ? "fill-black" : ""} />
+            <span>Helpful {voteCount > 0 ? `(${voteCount})` : ''}</span>
+          </button>
+          
+          {comment.authorId === currentUserId && voteCount > 0 && (
+            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">
+              🎉 +{voteCount * 15} Rep
+            </span>
+          )}
+        </div>
       </div>
       {currentUserId === comment.authorId && (
         <button 
@@ -166,7 +228,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
     e.preventDefault();
     if (!user || !newComment.trim()) return;
 
-    const commentText = newComment.trim();
+    const commentText = sanitizeInput(newComment.trim());
     const commentId = `${Date.now()}_${user.uid}`;
     
     try {

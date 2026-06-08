@@ -13,7 +13,8 @@
         "followersCount": { "type": "integer" },
         "followingCount": { "type": "integer" },
         "garage": { "type": "array", "items": { "type": "string" } },
-        "partnerId": { "type": "string" }
+        "partnerId": { "type": "string" },
+        "fcmTokens": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["uid", "username"]
     },
@@ -166,6 +167,18 @@
         "createdAt": { "type": "integer" }
       },
       "required": ["carId", "ownerId", "proofUrl", "createdAt"]
+    },
+    "HelpfulVote": {
+      "title": "HelpfulVote",
+      "description": "User vote marking a comment as helpful",
+      "type": "object",
+      "properties": {
+        "voterId": { "type": "string" },
+        "commentId": { "type": "string" },
+        "commentAuthorId": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["voterId", "commentId", "commentAuthorId", "createdAt"]
     }
   },
   "firestore": {
@@ -192,6 +205,10 @@
     "/comments/{commentId}": {
       "schema": "Comment",
       "description": "Comments on posts"
+    },
+    "/helpful_votes/{voteId}": {
+      "schema": "HelpfulVote",
+      "description": "Helpful votes on comments"
     },
     "/follows/{followId}": {
       "schema": "Follow",

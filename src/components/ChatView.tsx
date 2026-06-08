@@ -5,6 +5,7 @@ import { collection, query, where, orderBy, onSnapshot, getDoc, doc, getDocs, se
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Chat, ChatMessage, UserProfile } from '../types';
+import { sanitizeInput } from '../lib/utils';
 
 interface ChatViewProps {
   chatId: string;
@@ -67,7 +68,7 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
     e.preventDefault();
     if (!inputText.trim() || !user || !chatId) return;
 
-    const text = inputText;
+    const text = sanitizeInput(inputText);
     setInputText('');
 
     try {

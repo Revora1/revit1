@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
-export type View = 'feed' | 'search' | 'upload' | 'inbox' | 'profile' | 'post' | 'dyno' | 'garage';
+export type View = 'feed' | 'search' | 'upload' | 'inbox' | 'profile' | 'post' | 'dyno' | 'garage' | 'tuners';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -89,6 +89,7 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
     { id: 'search', icon: Search, label: 'Search' },
     { id: 'garage', icon: CarIcon, label: 'Garage' },
     { id: 'upload', icon: PlusSquare, label: 'Post' },
+    { id: 'tuners', icon: Trophy, label: 'Leaderboard' },
     { id: 'inbox', icon: Inbox, label: 'Inbox' },
     { id: 'profile', icon: User, label: 'Profile' },
   ] as const;
@@ -101,26 +102,26 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="pb-[max(0px,env(safe-area-inset-bottom))] min-h-[64px] h-[calc(64px+env(safe-area-inset-bottom,0px))] border-t border-zinc-800 flex items-center justify-around px-4 bg-black/90 backdrop-blur-md z-50 relative">
+      <nav className="pb-[max(0px,env(safe-area-inset-bottom))] min-h-[64px] h-[calc(64px+env(safe-area-inset-bottom,0px))] border-t border-zinc-800 flex items-center justify-around px-1 sm:px-4 bg-black/90 backdrop-blur-md z-50 relative">
         {navItems.map(({ id, icon: Icon, label }) => (
           <button
             key={id}
             id={`nav-${id}`}
             onClick={() => onViewChange(id)}
             className={cn(
-              "flex flex-col items-center gap-1 transition-colors relative w-16",
+              "flex flex-col items-center gap-1 transition-colors relative w-12 sm:w-16",
               activeView === id ? "text-white" : "text-zinc-500"
             )}
           >
             <div className="relative">
-              <Icon size={24} />
+              <Icon size={20} className="sm:w-6 sm:h-6" />
               {id === 'inbox' && unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </div>
-            <span className="text-[10px] font-medium">{label}</span>
+            <span className="text-[9px] sm:text-[10px] font-medium leading-none">{label}</span>
           </button>
         ))}
       </nav>
