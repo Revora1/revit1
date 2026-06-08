@@ -35,39 +35,68 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
         snap.docChanges().forEach(async (change) => {
           if (change.type === 'added') {
             const docData = change.doc.data();
-            if (docData.type === 'message' && docData.actorId !== user.uid) {
+            if (docData.actorId !== user.uid) {
               if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
                 try {
                   const actorSnap = await getDoc(doc(db, 'users', docData.actorId));
                   const actorName = actorSnap.exists() ? actorSnap.data().username : 'Someone';
-                  const notif = new Notification('New Message', {
-                    body: `${actorName} sent you a message.`
+                  
+                  let title = 'New Alert';
+                  let body = 'You have a new update in your social garage!';
+                  
+                  if (docData.type === 'message') {
+                    title = 'New Message';
+                    body = `${actorName} sent you a message.`;
+                  } else if (docData.type === 'comment') {
+                    title = 'New Comment';
+                    body = `${actorName} commented: "${docData.text || ''}"`;
+                  } else if (docData.type === 'like') {
+                    title = 'Post Liked';
+                    body = `${actorName} liked your build update.`;
+                  } else if (docData.type === 'follow') {
+                    title = 'New Follower';
+                    body = `${actorName} is now following your garage.`;
+                  }
+
+                  const notif = new Notification(title, {
+                    body: body
                   });
+
                   notif.onclick = async () => {
                     window.focus();
-                    const chatId1 = `${user.uid}_${docData.actorId}`;
-                    const chatId2 = `${docData.actorId}_${user.uid}`;
-                    let chatId = null;
-                    const snap1 = await getDoc(doc(db, 'chats', chatId1));
-                    if (snap1.exists()) {
-                      chatId = chatId1;
-                    } else {
-                      const snap2 = await getDoc(doc(db, 'chats', chatId2));
-                      if (snap2.exists()) {
-                        chatId = chatId2;
+                    if (docData.type === 'message') {
+                      const chatId1 = `${user.uid}_${docData.actorId}`;
+                      const chatId2 = `${docData.actorId}_${user.uid}`;
+                      let chatId = null;
+                      const snap1 = await getDoc(doc(db, 'chats', chatId1));
+                      if (snap1.exists()) {
+                        chatId = chatId1;
+                      } else {
+                        const snap2 = await getDoc(doc(db, 'chats', chatId2));
+                        if (snap2.exists()) {
+                          chatId = chatId2;
+                        }
                       }
-                    }
-                    if (chatId) {
-                      const otherUser = actorSnap.exists() ? { id: actorSnap.id, ...actorSnap.data() } : null;
-                      window.dispatchEvent(new CustomEvent('navigate-chat', { 
-                       detail: { chatId, otherUser } 
-                      }));
+                      if (chatId) {
+                        const otherUser = actorSnap.exists() ? { id: actorSnap.id, ...actorSnap.data() } : null;
+                        window.dispatchEvent(new CustomEvent('navigate-chat', { 
+                          detail: { chatId, otherUser } 
+                        }));
+                      } else {
+                        window.dispatchEvent(new CustomEvent('navigate-inbox'));
+                      }
+                    } else if (docData.type === 'follow') {
+                      window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId: docData.actorId } }));
+                    } else if (docData.postId) {
+                      window.dispatchEvent(new CustomEvent('navigate-single-post', { detail: { postId: docData.postId } }));
+                    } else {
+                      window.dispatchEvent(new CustomEvent('navigate-inbox'));
                     }
                   };
                 } catch (e) {
-                  const notif = new Notification('New Message', {
-                    body: 'You received a new message.'
-                  });
+                  const title = docData.type === 'message' ? 'New Message' : 'New Notification';
+                  const body = docData.type === 'message' ? 'You received a new message.' : 'Someone interacted with your profile.';
+                  const notif = new Notification(title, { body });
                   notif.onclick = () => {
                     window.focus();
                     window.dispatchEvent(new CustomEvent('navigate-inbox'));

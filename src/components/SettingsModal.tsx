@@ -168,6 +168,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
         const defaultPushChecked = typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
 
+        const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(window.navigator.userAgent);
+        const isStandalone = typeof window !== 'undefined' && (
+          (window.navigator as any).standalone || 
+          window.matchMedia('(display-mode: standalone)').matches
+        );
+        const currentPermission = typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
+
         return (
           <div className="space-y-4">
             <ToggleItem 
@@ -177,6 +184,66 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               onChange={handlePushToggle}
             />
             <ToggleItem label="Email Updates" description="Weekly digest and news" />
+            
+            {/* Status & Troubleshooting diagnostics */}
+            <div className="p-4 bg-zinc-950 border border-zinc-850 rounded-2xl space-y-3 mt-2">
+              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                <span>Phone Notification Diagnostics</span>
+                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-900">
+                  <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wide">Status</span>
+                  <span className={`font-black uppercase text-[10px] ${currentPermission === 'granted' ? 'text-green-400' : 'text-zinc-400'}`}>
+                    {currentPermission === 'granted' ? '● Active' : currentPermission === 'denied' ? '● Blocked/Denied' : '● Not Configured'}
+                  </span>
+                </div>
+                <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-900">
+                  <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wide">App Mode</span>
+                  <span className={`font-black uppercase text-[10px] ${isStandalone ? 'text-blue-400' : 'text-yellow-500'}`}>
+                    {isStandalone ? 'Standalone PWA' : 'Web Browser'}
+                  </span>
+                </div>
+              </div>
+
+              {/* iOS Mobile-Specific Troubleshooting Instructions */}
+              {isIOS && !isStandalone && (
+                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl space-y-2 mt-2">
+                  <div className="flex items-center gap-1.5 text-red-400">
+                    <Smartphone size={14} />
+                    <span className="text-[10px] font-black uppercase tracking-wide">iOS Setup Required</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-300 leading-normal">
+                    Apple iPhone and iPad devices prevent cookies and Web Push notifications inside normal Safari/Chrome browser tabs. To activate:
+                  </p>
+                  <ol className="text-[9px] text-zinc-400 list-decimal pl-4 space-y-1">
+                    <li>Open this site in <span className="text-white font-bold">Safari browser</span>.</li>
+                    <li>Tap the Safari <span className="text-white font-bold inline-flex items-center gap-0.5">Share <Share2 size={10} /></span> button in the bottom bar.</li>
+                    <li>Scroll and select <span className="text-white font-bold">"Add to Home Screen"</span> (+).</li>
+                    <li>Open the new <span className="text-white font-bold">RevItUp</span> icon from your home screen, log in, and toggle notifications on!</li>
+                  </ol>
+                </div>
+              )}
+
+              {/* Android & general troubleshooting instructions */}
+              {(!isIOS || isStandalone) && currentPermission !== 'granted' && (
+                <div className="bg-zinc-900 p-3 rounded-xl space-y-1 text-zinc-400">
+                  <div className="flex items-center gap-1 text-zinc-300">
+                    <HelpCircle size={14} />
+                    <span className="text-[10px] font-black uppercase tracking-wide">Troubleshoot Phone Alerts</span>
+                  </div>
+                  <p className="text-[10px] leading-relaxed">
+                    If alerts aren’t coming through, your phone blocks permissions at system level. Ensure you didn’t block site notifications:
+                  </p>
+                  <ul className="text-[9px] list-disc pl-4 space-y-1.5 mt-1">
+                    <li><span className="text-zinc-200">Android Chrome:</span> Tap three dots (⋮) &gt; Info (ⓘ) icon &gt; Permissions &gt; set Notifications to Blocked to Allowed.</li>
+                    <li><span className="text-zinc-200">System Settings:</span> Go to your phone Settings &gt; Apps &gt; Chrome/Safari &gt; Notifications &gt; toggle "Allow Notifications" on.</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
             <div className="h-px bg-zinc-800 my-4" />
             <div className="text-[10px] font-black text-zinc-500 tracking-widest uppercase mb-2">Activities</div>
             <ToggleItem label="Likes" description="When someone likes your build" defaultChecked />
