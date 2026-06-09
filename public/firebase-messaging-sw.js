@@ -30,3 +30,18 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
+
+// PWA Install and Offline compliance requirements
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
+// Pass-through fetch event listener required by Chrome and Safari for PWA home screen installation with custom icons
+self.addEventListener('fetch', (event) => {
+  // Pass-through to network smoothly without altering any request/socket behavior
+});
+
