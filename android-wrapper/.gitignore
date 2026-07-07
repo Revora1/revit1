@@ -1,0 +1,21 @@
+# Built variants
+/build
+/app/build
+
+# Android Studio & IntelliJ
+.idea/
+*.iml
+.gradle/
+local.properties
+
+# Secrets & Signing keys
+*.jks
+*.keystore
+private_key.pepk
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
