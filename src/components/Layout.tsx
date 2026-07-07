@@ -122,14 +122,14 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
   ] as const;
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-black text-white font-sans overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-black text-white font-sans overflow-hidden">
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto relative">
+      <main className="flex-1 overflow-y-auto relative pb-[calc(52px+env(safe-area-inset-bottom,0px))]">
         {children}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="pb-[max(0px,env(safe-area-inset-bottom))] min-h-[64px] h-[calc(64px+env(safe-area-inset-bottom,0px))] border-t border-zinc-800 flex items-center justify-around px-1 sm:px-4 bg-black/90 backdrop-blur-md z-50 relative">
+      <nav className="mobile-navbar fixed bottom-0 left-0 right-0 select-none border-t border-zinc-900/60 flex items-center justify-around px-1 sm:px-4 bg-black/95 backdrop-blur-md z-50">
         {navItems.map(({ id, icon: Icon, label }) => (
           <button
             key={id}

@@ -43,6 +43,7 @@
         "viewCount": { "type": "integer" },
         "views": { "type": "array", "items": { "type": "string" } },
         "isDuo": { "type": "boolean" },
+        "songId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["postId", "authorId", "videoUrl", "createdAt"]

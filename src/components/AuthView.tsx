@@ -8,7 +8,7 @@ export function AuthView() {
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
 
   return (
-    <div className="h-[100dvh] flex flex-col items-center justify-center p-6 bg-black text-white relative overflow-hidden">
+    <div className="h-full flex flex-col items-center justify-center p-6 bg-black text-white relative overflow-hidden">
       {/* Background Glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-64 h-64 bg-zinc-900 rounded-full blur-[100px] -z-10 opacity-50" />
       

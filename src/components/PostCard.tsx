@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Post, UserProfile, Car } from '../types';
-import { Heart, MessageCircle, Share2, Music2, User, Check, Trash2, Plus, X, Eye, Clock, Users } from 'lucide-react';
+import { Heart, MessageCircle, Share2, User, Check, Trash2, Plus, X, Eye, Clock, Users, Music, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
@@ -169,6 +169,72 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
 
 export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, initialShowComments = false }) => {
   const [liked, setLiked] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Parse associated song if any
+  const postSong = React.useMemo(() => {
+    if (!post.songId) return null;
+    try {
+      return JSON.parse(post.songId);
+    } catch (e) {
+      return null;
+    }
+  }, [post.songId]);
+
+  // Handle active post audio preview stream loop
+  useEffect(() => {
+    if (postSong && postSong.previewUrl) {
+      if (isActive) {
+        const audio = new Audio(postSong.previewUrl);
+        audio.volume = 0.35;
+        audio.loop = true;
+        audioRef.current = audio;
+
+        audio.play().then(() => {
+          setIsPlaying(true);
+        }).catch(err => {
+          console.log("Music autoplay prevented by standard user gesture policy.", err);
+          setIsPlaying(false);
+        });
+
+        return () => {
+          audio.pause();
+          setIsPlaying(false);
+          audioRef.current = null;
+        };
+      } else {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+          audioRef.current = null;
+        }
+      }
+    }
+  }, [isActive, postSong]);
+
+  const togglePlayMusic = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!audioRef.current) {
+      if (postSong && postSong.previewUrl) {
+        const audio = new Audio(postSong.previewUrl);
+        audio.volume = 0.35;
+        audio.loop = true;
+        audioRef.current = audio;
+      } else {
+        return;
+      }
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(err => console.error("Playback prompt error", err));
+    }
+  };
   const [showComments, setShowComments] = useState(initialShowComments);
   const [copied, setCopied] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -181,6 +247,8 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+
+
 
   const [showViewers, setShowViewers] = useState(false);
   const [viewerProfiles, setViewerProfiles] = useState<UserProfile[]>([]);
@@ -625,13 +693,53 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
              <span>{formatTimeAgo(post.createdAt)}</span>
            </span>
         </div>
+        {postSong && (
+          <div 
+            onClick={togglePlayMusic}
+            className="mb-3.5 flex items-center justify-between p-2.5 bg-black/45 hover:bg-black/60 border border-white/5 rounded-2xl cursor-pointer select-none max-w-[280px] group/music transition-all font-sans"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* Spinning Vinyl Disc Artwork */}
+              <div className="relative w-8 h-8 rounded-full overflow-hidden bg-zinc-950 flex-shrink-0 flex items-center justify-center border border-white/10 shadow-md">
+                {postSong.artwork ? (
+                  <img 
+                    src={postSong.artwork} 
+                    className={`w-full h-full object-cover transition-transform ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : ''}`} 
+                    referrerPolicy="no-referrer"
+                    alt=""
+                  />
+                ) : (
+                  <Music size={14} className="text-zinc-500" />
+                )}
+                <div className="absolute w-2 h-2 rounded-full bg-zinc-900 border border-white/20" />
+              </div>
+
+              {/* Info */}
+              <div className="min-w-0 pr-1 flex-1">
+                <p className="text-[11px] font-black text-white truncate">{postSong.title}</p>
+                <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wide truncate">{postSong.artist}</p>
+              </div>
+            </div>
+
+            {/* Bouncing spectrum */}
+            <div className="flex items-center gap-1.5 flex-shrink-0 pr-1.5 h-4 justify-end">
+              {isPlaying ? (
+                <div className="flex gap-0.5 items-end h-2.5">
+                  <div className="w-0.5 h-2.5 bg-red-400 rounded-full animate-[bounce_0.8s_infinite_100ms]" />
+                  <div className="w-0.5 h-1.5 bg-red-400 rounded-full animate-[bounce_0.8s_infinite_300ms]" />
+                  <div className="w-0.5 h-2 bg-red-400 rounded-full animate-[bounce_0.8s_infinite_200ms]" />
+                </div>
+              ) : (
+                <Play size={10} className="text-zinc-400 group-hover/music:text-white fill-current transition-colors" />
+              )}
+            </div>
+          </div>
+        )}
+
         <p className="text-sm text-zinc-200 max-h-32 overflow-y-auto scrollbar-hide break-words">
           {renderText(post.caption)}
         </p>
-        <div className="flex items-center gap-2 text-xs text-zinc-400">
-          <Music2 size={12} className="animate-pulse" />
-          <span className="truncate max-w-[200px]">Original Sound - Exhaust Note Vol. 1</span>
-        </div>
+
       </div>
 
       <CommentsSheet 

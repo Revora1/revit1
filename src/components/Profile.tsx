@@ -322,6 +322,29 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const isOwnProfile = !resolvedUserId || resolvedUserId === currentUser?.uid;
   const effectiveUserId = resolvedUserId;
 
+  const isOwner = isOwnProfile && currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com';
+  const [ownerStats, setOwnerStats] = useState<{ usersCount: number; carsCount: number; postsCount: number } | null>(null);
+
+  useEffect(() => {
+    if (!isOwner) return;
+    
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+      setOwnerStats(prev => ({ ...(prev || { usersCount: 0, carsCount: 0, postsCount: 0 }), usersCount: snap.size }));
+    });
+    const unsubGarage = onSnapshot(collection(db, 'garage'), (snap) => {
+      setOwnerStats(prev => ({ ...(prev || { usersCount: 0, carsCount: 0, postsCount: 0 }), carsCount: snap.size }));
+    });
+    const unsubPosts = onSnapshot(collection(db, 'posts'), (snap) => {
+      setOwnerStats(prev => ({ ...(prev || { usersCount: 0, carsCount: 0, postsCount: 0 }), postsCount: snap.size }));
+    });
+
+    return () => {
+      unsubUsers();
+      unsubGarage();
+      unsubPosts();
+    };
+  }, [isOwner]);
+
   useEffect(() => {
     setActiveTab(initialTab);
   }, [resolvedUserId, initialTab]);
@@ -685,6 +708,37 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
             <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Cars</p>
           </div>
         </div>
+
+        {/* Owner Analytics Console */}
+        {isOwner && ownerStats && (
+          <div className="w-full max-w-xs p-4 rounded-3xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 border border-yellow-500/20 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/5 rounded-full blur-2xl pointer-events-none" />
+            <div className="flex items-center justify-between mb-3 border-b border-zinc-900 pb-2">
+              <div className="flex items-center gap-1.5">
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                </span>
+                <p className="text-[9px] font-black text-yellow-500 tracking-widest uppercase">Owner Console</p>
+              </div>
+              <span className="text-[7px] font-black bg-yellow-500/10 text-yellow-500 px-1.5 py-0.5 rounded uppercase tracking-wider border border-yellow-500/20">Active</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
+                <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Joined</p>
+                <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.usersCount}</p>
+              </div>
+              <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
+                <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Garages</p>
+                <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.carsCount}</p>
+              </div>
+              <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
+                <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Logs</p>
+                <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.postsCount}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

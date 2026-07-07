@@ -119,6 +119,10 @@ const getNextTier = (pts: number): ReputationTier | null => {
 export function TopTuners({ hideHeader }: { hideHeader?: boolean } = {}) {
   const { user: currentUser } = useAuth();
   
+  const isOwner = useMemo(() => {
+    return currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com';
+  }, [currentUser]);
+  
   const [users, setUsers] = useState<any[]>([]);
   const [cars, setCars] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -307,10 +311,17 @@ export function TopTuners({ hideHeader }: { hideHeader?: boolean } = {}) {
       <div className={`${hideHeader ? 'pt-4 px-6 pb-4 flex items-center justify-end' : 'pt-12 px-6 pb-6'} border-b border-zinc-900 bg-zinc-950/40 backdrop-blur-xl sticky top-0 z-20`}>
         <div className={`flex items-center justify-between mb-2 w-full ${hideHeader ? 'hidden' : ''}`}>
           <div>
-            <h1 className="text-3xl font-black italic tracking-tighter text-white uppercase flex items-center gap-2">
-              <Trophy className="text-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)] animate-pulse" size={28} />
-              Top Tuners
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-black italic tracking-tighter text-white uppercase flex items-center gap-2">
+                <Trophy className="text-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)] animate-pulse" size={28} />
+                Top Tuners
+              </h1>
+              {!loading && isOwner && (
+                <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider h-max self-center mt-1">
+                  {users.length} Tuners
+                </span>
+              )}
+            </div>
             <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase mt-1">
               REP, BUILDS & COMMUNITY AUTHORITY
             </p>
@@ -385,6 +396,24 @@ export function TopTuners({ hideHeader }: { hideHeader?: boolean } = {}) {
         </div>
       ) : (
         <div className="p-4 space-y-6">
+          {/* Community Analytics Bento */}
+          <div className="grid grid-cols-3 gap-3 bg-zinc-950/40 p-4 border border-zinc-900 rounded-3xl">
+            <div className="text-center p-2 rounded-2xl bg-zinc-900/5">
+              <p className="text-[9px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Total Tuners</p>
+              <p className="text-xl font-black text-white italic tracking-tighter">
+                {isOwner ? users.length : "🔒"}
+              </p>
+            </div>
+            <div className="text-center p-2 rounded-2xl bg-zinc-900/5 border-l border-zinc-900/80">
+              <p className="text-[9px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Garage Cars</p>
+              <p className="text-xl font-black text-white italic tracking-tighter">{cars.length}</p>
+            </div>
+            <div className="text-center p-2 rounded-2xl bg-zinc-900/5 border-l border-zinc-900/80">
+              <p className="text-[9px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Mod Logs</p>
+              <p className="text-xl font-black text-white italic tracking-tighter">{posts.length}</p>
+            </div>
+          </div>
+
           {/* My Score Summary Block */}
           {myRankingInfo && (
             <div className="bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 rounded-3xl p-5 border border-zinc-800/80 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">

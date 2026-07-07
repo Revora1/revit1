@@ -5,7 +5,9 @@ import { collection, addDoc, query, where, getDocs, updateDoc, doc, arrayUnion }
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../context/AuthContext';
 import { Car, MediaType } from '../types';
-import { Film, Upload, CheckCircle2, ChevronRight, Video, X, Image as ImageIcon, Camera, Plus, Heart } from 'lucide-react';
+import { Film, Upload, CheckCircle2, ChevronRight, Video, X, Image as ImageIcon, Camera, Plus, Heart, Music } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { MusicSelector, SongInfo } from './MusicSelector';
 
 export function UploadView({ onComplete }: { onComplete: () => void }) {
   const { user, profile } = useAuth();
@@ -16,6 +18,9 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
   const [mediaType, setMediaType] = useState<MediaType | null>(null);
   const [isReplacing, setIsReplacing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedSong, setSelectedSong] = useState<SongInfo | null>(null);
+  const [showMusicSelector, setShowMusicSelector] = useState(false);
 
   const [formData, setFormData] = useState({
     caption: '',
@@ -81,6 +86,7 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
         authorId: user.uid,
         likesCount: 0,
         commentsCount: 0,
+        songId: selectedSong ? JSON.stringify(selectedSong) : '',
         createdAt: Date.now()
       });
 
@@ -221,9 +227,66 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
                          {car.make} {car.model}
                        </button>
                     ))}
-                  </div>
+                 </div>
                ) : (
                  <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest px-1 italic">No cars in garage</p>
+               )}
+             </div>
+
+             {/* Background Music Option */}
+             <div className="space-y-1.5 pt-1">
+               <label className="text-[10px] font-black text-zinc-500 tracking-widest px-1 uppercase font-sans">Background Music</label>
+               {selectedSong ? (
+                 <div className="flex items-center justify-between p-3.5 bg-zinc-900 border border-zinc-800 rounded-2xl select-none font-sans">
+                   <div className="flex items-center gap-3 min-w-0">
+                     <div className="w-10 h-10 rounded-lg overflow-hidden border border-red-500/30 bg-black flex-shrink-0">
+                       {selectedSong.artwork ? (
+                         <img src={selectedSong.artwork} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                       ) : (
+                         <div className="w-full h-full flex items-center justify-center bg-zinc-950">
+                           <Music size={16} className="text-zinc-500" />
+                         </div>
+                       )}
+                     </div>
+                     <div className="min-w-0 flex-1">
+                       <p className="text-xs font-black text-white truncate max-w-[170px]">{selectedSong.title}</p>
+                       <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wide truncate max-w-[170px]">{selectedSong.artist}</p>
+                     </div>
+                   </div>
+                   <div className="flex items-center gap-2 flex-shrink-0">
+                     <button
+                       type="button"
+                       onClick={() => setShowMusicSelector(true)}
+                       className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-[9px] font-black uppercase tracking-widest text-[#ccc] transition-colors"
+                     >
+                       Change
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => setSelectedSong(null)}
+                       className="px-3 py-1.5 bg-zinc-855 hover:bg-zinc-800 rounded-xl text-[9px] font-black uppercase tracking-widest text-red-500 transition-colors"
+                     >
+                       Remove
+                     </button>
+                   </div>
+                 </div>
+               ) : (
+                 <button
+                   type="button"
+                   onClick={() => setShowMusicSelector(true)}
+                   className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-zinc-750 rounded-2xl flex items-center justify-between transition-all group select-none font-sans"
+                 >
+                   <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-red-500 group-hover:scale-105 transition-all">
+                       <Music size={16} />
+                     </div>
+                     <div className="text-left">
+                       <span className="text-xs font-black uppercase tracking-widest text-zinc-200">Add Music</span>
+                       <p className="text-[8px] font-bold uppercase tracking-widest text-zinc-650 mt-0.5">Add a background soundtrack to your build</p>
+                     </div>
+                   </div>
+                   <ChevronRight size={16} className="text-zinc-500 group-hover:text-white transition-colors" />
+                 </button>
                )}
              </div>
 
@@ -285,6 +348,36 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
           </button>
         </div>
       </form>
+
+       {/* Music Selector Bottom Sheet Drawer */}
+       <AnimatePresence>
+         {showMusicSelector && (
+           <div className="fixed inset-0 z-[120] flex items-end justify-center font-sans">
+             {/* Backdrop */}
+             <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               onClick={() => setShowMusicSelector(false)}
+               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+             />
+             {/* Sheet wrapper */}
+             <motion.div
+               initial={{ y: '100%' }}
+               animate={{ y: 0 }}
+               exit={{ y: '100%' }}
+               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+               className="relative w-full max-w-lg z-10"
+             >
+               <MusicSelector
+                 selectedSong={selectedSong}
+                 onSelectSong={setSelectedSong}
+                 onClose={() => setShowMusicSelector(false)}
+               />
+             </motion.div>
+           </div>
+         )}
+       </AnimatePresence>
     </div>
   );
 }

@@ -3,8 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { X, Upload, Activity, Camera, Plus } from 'lucide-react';
+import { X, Upload, Activity, Camera, Plus, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { MusicSelector, SongInfo } from './MusicSelector';
 import { MediaType } from '../types';
 
 export function StoryCreator({ onClose }: { onClose: () => void }) {
@@ -13,6 +14,8 @@ export function StoryCreator({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedSong, setSelectedSong] = useState<SongInfo | null>(null);
+  const [showMusicSelector, setShowMusicSelector] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -53,6 +56,7 @@ export function StoryCreator({ onClose }: { onClose: () => void }) {
            authorId: user.uid,
            mediaUrl,
            mediaType: item.type,
+           songId: selectedSong ? JSON.stringify(selectedSong) : '',
            createdAt: Date.now()
         });
         setUploadProgress(((i + 1) / items.length) * 100);
@@ -88,7 +92,23 @@ export function StoryCreator({ onClose }: { onClose: () => void }) {
            {items.length === 0 && (
              <h2 className="text-lg font-black italic tracking-widest uppercase text-white drop-shadow-xl">Add Story</h2>
            )}
-           <div className="w-10"></div>
+           {items.length > 0 ? (
+             <button
+               onClick={() => setShowMusicSelector(true)}
+               className={`p-2.5 backdrop-blur-md rounded-full pointer-events-auto hover:scale-105 transition-all shadow-lg flex items-center justify-center gap-1.5 ${
+                 selectedSong ? 'bg-red-500 text-white animate-pulse' : 'bg-black/40 text-zinc-300'
+               }`}
+             >
+               <Music size={20} />
+               {selectedSong && (
+                 <span className="text-[9px] font-black uppercase tracking-wider pr-1">
+                   {selectedSong.title.slice(0, 10)}
+                 </span>
+               )}
+             </button>
+           ) : (
+             <div className="w-10"></div>
+           )}
         </div>
 
         <div className="flex-1 relative flex flex-col items-center justify-center">
@@ -170,6 +190,36 @@ export function StoryCreator({ onClose }: { onClose: () => void }) {
            />
         </div>
       </motion.div>
+
+      {/* Music Selector Drawer Sheet */}
+      <AnimatePresence>
+        {showMusicSelector && (
+          <div className="fixed inset-0 z-[120] flex items-end justify-center font-sans">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMusicSelector(false)}
+              className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+            />
+            {/* Sheet wrapper */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="relative w-full max-w-lg z-10"
+            >
+              <MusicSelector
+                selectedSong={selectedSong}
+                onSelectSong={setSelectedSong}
+                onClose={() => setShowMusicSelector(false)}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 }

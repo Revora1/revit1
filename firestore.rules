@@ -12,7 +12,7 @@ service cloud.firestore {
     }
 
     function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     function isOwner(userId) {
@@ -115,6 +115,10 @@ service cloud.firestore {
                data.isModUpdate is bool
              ) &&
              (
+               !('songId' in data) || 
+               (data.songId is string && data.songId.size() <= 1500)
+             ) &&
+             (
                !('createdAt' in data) || 
                data.createdAt is number
              );
@@ -125,10 +129,10 @@ service cloud.firestore {
       allow list: if isSignedIn(); // Public posts are readable
       allow create: if isEmailVerified() && isValidId(postId) && isPostValid(incoming()) && 
                       incoming().authorId == request.auth.uid &&
-                      incoming().keys().size() >= 6 && incoming().keys().size() <= 13;
+                      incoming().keys().size() >= 6 && incoming().keys().size() <= 14;
       allow update: if isValidId(postId) && isPostValid(incoming()) && (
         // Author update
-        (isEmailVerified() && resource.data.authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'carTagId', 'isDuo'])) ||
+        (isEmailVerified() && resource.data.authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'carTagId', 'isDuo', 'songId'])) ||
         // Engagement update (likes/comments/views count)
         (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'viewCount', 'views']))
       );

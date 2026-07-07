@@ -121,7 +121,7 @@ export function CommunityGarageView({ hideHeader }: { hideHeader?: boolean } = {
   return (
     <div className="min-h-full bg-black flex flex-col pb-24">
       {/* Header */}
-      <div className={`${hideHeader ? 'p-4 space-y-4' : 'p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] space-y-6'} flex-none`}>
+      <div className={`${hideHeader ? 'p-4 space-y-4' : 'p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] space-y-6'} flex-none sticky top-0 bg-black/95 border-b border-zinc-900/60 backdrop-blur-md z-20`}>
         {!hideHeader ? (
           <div className="flex items-start justify-between">
             <div>

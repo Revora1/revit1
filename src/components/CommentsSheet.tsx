@@ -158,6 +158,33 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const { user } = useAuth();
 
+  const commentsContainerRef = React.useRef<HTMLDivElement>(null);
+  const touchStartY = React.useRef(0);
+  const touchCurrentY = React.useRef(0);
+  const isAtTopOnStart = React.useRef(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchCurrentY.current = e.touches[0].clientY;
+    
+    if (commentsContainerRef.current) {
+      isAtTopOnStart.current = commentsContainerRef.current.scrollTop <= 0;
+    } else {
+      isAtTopOnStart.current = true;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchCurrentY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = () => {
+    const deltaY = touchCurrentY.current - touchStartY.current;
+    if (isAtTopOnStart.current && deltaY > 100) {
+      onClose();
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     
@@ -311,6 +338,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
+            onTouchStart={onClose}
             className="absolute inset-0 bg-black/60 z-40 backdrop-blur-sm"
           />
           <motion.div
@@ -318,16 +346,35 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.6 }}
+            onDragEnd={(event, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 300) {
+                onClose();
+              }
+            }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             className="absolute inset-x-0 bottom-0 top-[30%] bg-zinc-900 rounded-t-3xl z-50 flex flex-col"
           >
-            <div className="flex items-center justify-between p-4 border-b border-white/10">
+            {/* Grab/Drag Handle Bar */}
+            <div className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none">
+              <div className="w-12 h-1 bg-white/20 rounded-full" />
+            </div>
+
+            <div className="flex items-center justify-between px-4 pb-4 pt-1 border-b border-white/10">
               <h3 className="font-bold text-lg">{comments.length} Comments</h3>
               <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4">
+            <div 
+              ref={commentsContainerRef}
+              className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4"
+            >
               {loading ? (
                 <div className="text-center text-zinc-500 py-4">Loading comments...</div>
               ) : comments.length === 0 ? (

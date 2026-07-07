@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, orderBy, getDocs, doc, setDoc, getDoc, deleteDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Story, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { X, ChevronLeft, ChevronRight, Trash2, Heart, Eye, Users } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Trash2, Heart, Eye, Users, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface StoryViewerProps {
@@ -23,9 +23,49 @@ export function StoryViewer({ userId, onClose, onNextUser, onPrevUser }: StoryVi
   const [showViewers, setShowViewers] = useState(false);
   const [viewerProfiles, setViewerProfiles] = useState<UserProfile[]>([]);
   const [loadingViewers, setLoadingViewers] = useState(false);
-
-  // Time remaining
   const [progress, setProgress] = useState(0);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const storyAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const storySong = React.useMemo(() => {
+    const current = stories[currentIndex];
+    if (!current?.songId) return null;
+    try {
+      return JSON.parse(current.songId);
+    } catch (e) {
+      return null;
+    }
+  }, [stories, currentIndex]);
+
+  // Handle soundtrack stream changes
+  useEffect(() => {
+    if (storyAudioRef.current) {
+      storyAudioRef.current.pause();
+      storyAudioRef.current = null;
+      setIsMusicPlaying(false);
+    }
+
+    if (storySong && storySong.previewUrl && !isPaused && !loading) {
+      const audio = new Audio(storySong.previewUrl);
+      audio.volume = 0.45;
+      audio.loop = true;
+      storyAudioRef.current = audio;
+
+      audio.play().then(() => {
+        setIsMusicPlaying(true);
+      }).catch(err => {
+        console.log("Auto-sound playback failed:", err);
+        setIsMusicPlaying(false);
+      });
+
+      return () => {
+        audio.pause();
+        setIsMusicPlaying(false);
+        storyAudioRef.current = null;
+      };
+    }
+  }, [currentIndex, storySong, isPaused, loading]);
+
 
   useEffect(() => {
     setLoading(true);
@@ -274,6 +314,14 @@ export function StoryViewer({ userId, onClose, onNextUser, onPrevUser }: StoryVi
                <button onClick={handleDelete} className="p-1 text-white/50 hover:text-red-400 transition-colors">
                   <Trash2 size={20} />
                </button>
+             )}
+             {storySong && (
+               <div className="absolute top-[72px] left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-black/55 backdrop-blur-md border border-white/10 rounded-full shadow-lg select-none z-50 font-sans">
+                 <Music size={11} className="text-red-500 animate-pulse" />
+                 <span className="text-[10px] font-black text-white truncate max-w-[160px] italic tracking-wide">
+                   {storySong.title} — {storySong.artist}
+                 </span>
+               </div>
              )}
              <button onClick={onClose} className="p-1 text-white/50 hover:text-white transition-colors">
                <X size={24} />

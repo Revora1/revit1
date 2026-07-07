@@ -28,6 +28,7 @@ export interface Post {
   viewCount?: number;
   views?: string[];
   isDuo?: boolean;
+  songId?: string; // Optional track ID attached to the post
   createdAt: number;
 }
 
@@ -116,6 +117,7 @@ export interface Story {
   createdAt: number;
   reactions?: Record<string, string>; // userId -> emoji
   views?: string[]; // list of userIds
+  songId?: string; // Optional track ID (serialized JSON) attached to the story
 }
 
 export interface ChatMessage {
