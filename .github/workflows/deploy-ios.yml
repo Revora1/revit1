@@ -31,11 +31,6 @@ jobs:
         run: |
           npx cap sync ios
 
-      - name: Install Cocoapods Pods
-        run: |
-          cd ios/App
-          pod install
-
       - name: Install Apple Certificate and Provisioning Profile
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
@@ -102,7 +97,7 @@ jobs:
           KEYCHAIN_PASSWORD: "temporary-keychain-password-123"
         run: |
           # Use xcodebuild to archive the app with manual code signing
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          xcodebuild -project ios/App/App.xcodeproj \
                      -scheme App \
                      -configuration Release \
                      -archivePath $RUNNER_TEMP/App.xcarchive \
