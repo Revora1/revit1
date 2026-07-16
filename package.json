@@ -12,7 +12,8 @@
     "cap:add-ios": "cap add ios",
     "cap:add-android": "cap add android",
     "cap:open-ios": "cap open ios",
-    "cap:open-android": "cap open android"
+    "cap:open-android": "cap open android",
+    "postinstall": "node scripts/patch-admob.js"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",
