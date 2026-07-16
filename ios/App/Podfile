@@ -4,6 +4,13 @@ platform :ios, '14.0'
 
 use_frameworks!
 
+def capacitor_pods
+  # This block is required, and its contents are dynamically managed by the Capacitor CLI
+  # DO NOT EDIT this line or the 'end' line below
+  pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+end
+
 target 'App' do
   capacitor_pods
 end
