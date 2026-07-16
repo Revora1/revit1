@@ -16,7 +16,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
           cache: 'npm'
 
       - name: Install Project Dependencies
@@ -26,11 +26,6 @@ jobs:
       - name: Build Web Assets
         run: |
           npm run build
-
-      - name: Set up Cocoapods
-        uses: maxim-lobanov/setup-cocoapods@v1
-        with:
-          podfile-path: ios/App/Podfile
 
       - name: Sync Capacitor iOS Platform
         run: |
