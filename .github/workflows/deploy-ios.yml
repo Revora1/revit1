@@ -27,11 +27,6 @@ jobs:
         run: |
           npm run build
 
-      - name: Set up Cocoapods
-        uses: maxim-lobanov/setup-cocoapods@v1
-        with:
-          podfile-path: ios/App/Podfile
-
       - name: Sync Capacitor iOS Platform
         run: |
           npx cap sync ios
