@@ -101,13 +101,16 @@ jobs:
         env:
           KEYCHAIN_PASSWORD: "temporary-keychain-password-123"
         run: |
-          # Use xcodebuild to archive the app
+          # Use xcodebuild to archive the app with manual code signing
           xcodebuild -workspace ios/App/App.xcworkspace \
                      -scheme App \
                      -configuration Release \
                      -archivePath $RUNNER_TEMP/App.xcarchive \
                      archive \
-                     -allowProvisioningUpdates
+                     DEVELOPMENT_TEAM="ZLHX8SG89D" \
+                     CODE_SIGN_STYLE="Manual" \
+                     PROVISIONING_PROFILE_SPECIFIER="RevitUp App Store Profile" \
+                     CODE_SIGN_IDENTITY="iPhone Distribution"
 
           # Export the IPA file from archive
           # We generate a simple exportOptions.plist on the fly
@@ -138,8 +141,7 @@ jobs:
           xcodebuild -exportArchive \
                      -archivePath $RUNNER_TEMP/App.xcarchive \
                      -exportOptionsPlist $RUNNER_TEMP/exportOptions.plist \
-                     -exportPath $RUNNER_TEMP/exported \
-                     -allowProvisioningUpdates
+                     -exportPath $RUNNER_TEMP/exported
 
       - name: Upload IPA to App Store Connect / TestFlight
         env:
