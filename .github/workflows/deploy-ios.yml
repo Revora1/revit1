@@ -43,17 +43,23 @@ jobs:
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-          # 2. Import certificate and provisioning profile from secrets
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
-          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
+          # 2. Clean and import certificate and provisioning profile from secrets
+          echo "$BUILD_CERTIFICATE_BASE64" | tr -d '\r \n' | base64 --decode -o "$CERTIFICATE_PATH"
+          echo "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r \n' | base64 --decode -o "$PP_PATH"
 
-          # 3. Create a temporary keychain
+          # 3. Convert PKCS12 certificate to legacy format compatible with macOS keychain (handles OpenSSL 3 compatibility)
+          echo "Converting certificate to macOS keychain legacy format..."
+          openssl pkcs12 -in "$CERTIFICATE_PATH" -nodes -passin pass:"$BUILD_CERT_PASSWORD" -out "$RUNNER_TEMP/temp.pem"
+          openssl pkcs12 -export -legacy -provider legacy -provider default -in "$RUNNER_TEMP/temp.pem" -out "$CERTIFICATE_PATH" -passout pass:"$BUILD_CERT_PASSWORD"
+          rm "$RUNNER_TEMP/temp.pem"
+
+          # 4. Create a temporary keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # 4. Import certificate to keychain
+          # 5. Import certificate to keychain
           security import "$CERTIFICATE_PATH" -P "$BUILD_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
