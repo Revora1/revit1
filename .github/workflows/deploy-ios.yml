@@ -1,0 +1,128 @@
+name: Build & Deploy iOS App to App Store
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual triggering from the GitHub UI
+
+jobs:
+  deploy-ios:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install Project Dependencies
+        run: |
+          npm ci || npm install
+
+      - name: Build Web Assets
+        run: |
+          npm run build
+
+      - name: Set up Cocoapods
+        uses: maxim-lobanov/setup-cocoapods@v1
+        with:
+          podfile-path: ios/App/Podfile
+
+      - name: Sync Capacitor iOS Platform
+        run: |
+          npx cap sync ios
+
+      - name: Install Apple Certificate and Provisioning Profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          BUILD_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: "temporary-keychain-password-123"
+        run: |
+          # 1. Create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # 2. Import certificate and provisioning profile from secrets
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
+
+          # 3. Create a temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # 4. Import certificate to keychain
+          security import "$CERTIFICATE_PATH" -P "$BUILD_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # 5. Copy provisioning profile to destination directory
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Build iOS Archive & Export IPA
+        env:
+          KEYCHAIN_PASSWORD: "temporary-keychain-password-123"
+        run: |
+          # Use xcodebuild to archive the app
+          xcodebuild -workspace ios/App/App.xcworkspace \
+                     -scheme App \
+                     -configuration Release \
+                     -archivePath $RUNNER_TEMP/App.xcarchive \
+                     archive \
+                     -allowProvisioningUpdates
+
+          # Export the IPA file from archive
+          # We generate a simple exportOptions.plist on the fly
+          cat <<EOF > $RUNNER_TEMP/exportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>ZLHX8SG89D</string>
+              <key>compileBitcode</key>
+              <false/>
+              <key>destination</key>
+              <string>export</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>today.revitup.app</key>
+                  <string>RevitUp App Store Profile</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+                     -archivePath $RUNNER_TEMP/App.xcarchive \
+                     -exportOptionsPlist $RUNNER_TEMP/exportOptions.plist \
+                     -exportPath $RUNNER_TEMP/exported \
+                     -allowProvisioningUpdates
+
+      - name: Upload IPA to App Store Connect / TestFlight
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          # Create folder for Apple's private key and write it
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo -n "$API_KEY_BASE64" | base64 --decode -o ~/.appstoreconnect/private_keys/AuthKey_$API_KEY_ID.p8
+
+          # Upload built .ipa file to Apple
+          xcrun altool --upload-app \
+                       --type ios \
+                       --file $RUNNER_TEMP/exported/App.ipa \
+                       --apiKey "$API_KEY_ID" \
+                       --apiIssuer "$API_ISSUER_ID"

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Trash2, ThumbsUp } from 'lucide-react';
+import { X, Send, Trash2, ThumbsUp, Flag } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot, doc, setDoc, deleteDoc, updateDoc, increment, getDoc, getDocs, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { UserProfile } from '../types';
 import { sanitizeInput } from '../lib/utils';
+import { ReportModal } from './ReportModal';
 
 interface Comment {
   id: string;
@@ -24,10 +25,11 @@ interface CommentsSheetProps {
 interface CommentItemProps {
   comment: Comment;
   onDelete: (id: string) => Promise<void> | void;
+  onReport: (id: string) => void;
   currentUserId?: string;
 }
 
-const CommentItem: React.FC<CommentItemProps> = ({ comment, onDelete, currentUserId }) => {
+const CommentItem: React.FC<CommentItemProps> = ({ comment, onDelete, onReport, currentUserId }) => {
   const [author, setAuthor] = useState<UserProfile | null>(null);
   const [votes, setVotes] = useState<any[]>([]);
 
@@ -137,13 +139,23 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, onDelete, currentUse
           )}
         </div>
       </div>
-      {currentUserId === comment.authorId && (
+      {currentUserId === comment.authorId ? (
         <button 
           onClick={() => onDelete(comment.id)}
           className="text-red-500 opacity-50 hover:opacity-100 transition-opacity p-2 h-fit"
         >
           <Trash2 size={16} />
         </button>
+      ) : (
+        currentUserId && (
+          <button 
+            onClick={() => onReport(comment.id)}
+            className="text-zinc-500 hover:text-red-500 transition-colors p-2 h-fit"
+            title="Report comment"
+          >
+            <Flag size={14} />
+          </button>
+        )
       )}
     </div>
   );
@@ -155,8 +167,9 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
   const [loading, setLoading] = useState(true);
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
   const [suggestedUsers, setSuggestedUsers] = useState<UserProfile[]>([]);
+  const [reportTargetId, setReportTargetId] = useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const { user } = useAuth();
+  const { user, blockedUserIds } = useAuth();
 
   const commentsContainerRef = React.useRef<HTMLDivElement>(null);
   const touchStartY = React.useRef(0);
@@ -339,6 +352,8 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
             exit={{ opacity: 0 }}
             onClick={onClose}
             onTouchStart={onClose}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
             className="absolute inset-0 bg-black/60 z-40 backdrop-blur-sm"
           />
           <motion.div
@@ -357,6 +372,8 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
             className="absolute inset-x-0 bottom-0 top-[30%] bg-zinc-900 rounded-t-3xl z-50 flex flex-col"
           >
             {/* Grab/Drag Handle Bar */}
@@ -365,7 +382,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
             </div>
 
             <div className="flex items-center justify-between px-4 pb-4 pt-1 border-b border-white/10">
-              <h3 className="font-bold text-lg">{comments.length} Comments</h3>
+              <h3 className="font-bold text-lg">{comments.filter(c => !blockedUserIds.includes(c.authorId)).length} Comments</h3>
               <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 <X size={20} />
               </button>
@@ -377,17 +394,20 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
             >
               {loading ? (
                 <div className="text-center text-zinc-500 py-4">Loading comments...</div>
-              ) : comments.length === 0 ? (
+              ) : comments.filter(c => !blockedUserIds.includes(c.authorId)).length === 0 ? (
                 <div className="text-center text-zinc-500 py-8">Be the first to comment!</div>
               ) : (
-                comments.map(comment => (
-                  <CommentItem 
-                    key={comment.id} 
-                    comment={comment} 
-                    onDelete={handleDelete} 
-                    currentUserId={user?.uid} 
-                  />
-                ))
+                comments
+                  .filter(c => !blockedUserIds.includes(c.authorId))
+                  .map(comment => (
+                    <CommentItem 
+                      key={comment.id} 
+                      comment={comment} 
+                      onDelete={handleDelete} 
+                      onReport={setReportTargetId}
+                      currentUserId={user?.uid} 
+                    />
+                  ))
               )}
             </div>
             
@@ -438,6 +458,13 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
               </form>
             </div>
           </motion.div>
+
+          <ReportModal
+            isOpen={reportTargetId !== null}
+            onClose={() => setReportTargetId(null)}
+            targetId={reportTargetId || ''}
+            targetType="comment"
+          />
         </>
       )}
     </AnimatePresence>

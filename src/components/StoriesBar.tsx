@@ -14,7 +14,7 @@ interface StoriesGroup {
 }
 
 export function StoriesBar({ onSelectUser }: { onSelectUser: (userId: string | null) => void }) {
-  const { user, profile } = useAuth();
+  const { user, profile, blockedUserIds } = useAuth();
   const [groupedStories, setGroupedStories] = useState<StoriesGroup[]>([]);
   const userCache = useRef<Record<string, UserProfile>>({});
 
@@ -61,6 +61,7 @@ export function StoriesBar({ onSelectUser }: { onSelectUser: (userId: string | n
 
         for (const uid of sortedUids) {
            if (uid === user.uid) continue;
+           if (blockedUserIds.includes(uid)) continue;
            if (userCache.current[uid]) {
               newGroups.push({
                  authorId: uid,

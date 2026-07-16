@@ -5,12 +5,13 @@ import { DuoGarageView } from './DuoGarageView';
 import { AddCarModal } from './AddCarModal';
 import { EditProfileModal } from './EditProfileModal';
 import { SettingsModal } from './SettingsModal';
-import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Award, Info, Sparkles, ThumbsUp, Lock, Unlock, Check } from 'lucide-react';
+import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Award, Info, Sparkles, ThumbsUp, Lock, Unlock, Check, MoreVertical, Flag, UserX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Post, UserProfile, Car, Comment } from '../types';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, where, orderBy, getDocs, onSnapshot, doc, getDoc, deleteDoc, setDoc, updateDoc, increment, limit } from 'firebase/firestore';
 import { PostCard } from './PostCard';
+import { ReportModal } from './ReportModal';
 
 import { FollowListModal } from './FollowListModal';
 
@@ -231,11 +232,24 @@ interface ProfileProps {
 }
 
 export function Profile({ userId: propUserId, username: propUsername, initialTab = 'garage' }: ProfileProps) {
-  const { user: currentUser, profile: currentProfile, logout } = useAuth();
+  const { 
+    user: currentUser, 
+    profile: currentProfile, 
+    logout,
+    blockedUserIds,
+    myBlockedIds,
+    blockUser,
+    unblockUser
+  } = useAuth();
   const [targetProfile, setTargetProfile] = useState<UserProfile | null>(null);
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'garage' | 'posts' | 'duo'>(initialTab);
+
+  const [showSafetyMenu, setShowSafetyMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [blockingInProgress, setBlockingInProgress] = useState(false);
   
   // Reputation states
   const [showRepDetails, setShowRepDetails] = useState(false);
@@ -438,8 +452,9 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const pointsFromComments = repData.commentsCount * 5; // 5 points per comment made
   const pointsFromVotes = repData.helpfulVotesCount * 15; // 15 points per helpful vote received
   const pointsFromPosts = repData.postsCount * 10; // 10 points per post shared
+  const pointsFromAdMob = (targetProfile as any)?.reputationBonus || 0;
 
-  const totalPoints = pointsFromCars + pointsFromLogs + pointsFromComments + pointsFromVotes + pointsFromPosts;
+  const totalPoints = pointsFromCars + pointsFromLogs + pointsFromComments + pointsFromVotes + pointsFromPosts + pointsFromAdMob;
 
   useEffect(() => {
     if (isOwnProfile || !effectiveUserId || !currentUser) return;
@@ -547,6 +562,24 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     }
   };
 
+  const handleBlockAction = async () => {
+    if (!effectiveUserId || blockingInProgress) return;
+    setBlockingInProgress(true);
+    try {
+      const isBlocked = myBlockedIds?.includes(effectiveUserId) || false;
+      if (isBlocked) {
+        await unblockUser(effectiveUserId);
+      } else {
+        await blockUser(effectiveUserId);
+      }
+      setShowBlockConfirm(false);
+    } catch (err) {
+      console.error('Error block/unblock user:', err);
+    } finally {
+      setBlockingInProgress(false);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-full bg-black flex items-center justify-center pb-20">
       <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -591,6 +624,52 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
              >
                 <Share2 size={20} />
              </button>
+             {!isOwnProfile && (
+               <div className="relative">
+                 <button 
+                   onClick={() => setShowSafetyMenu(!showSafetyMenu)}
+                   className="p-2 text-zinc-400 hover:text-white active:scale-95 transition-transform"
+                   title="Safety options"
+                 >
+                   <MoreVertical size={20} />
+                 </button>
+                 
+                 <AnimatePresence>
+                   {showSafetyMenu && (
+                     <>
+                       <div className="fixed inset-0 z-40" onClick={() => setShowSafetyMenu(false)} />
+                       <motion.div
+                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                         animate={{ opacity: 1, scale: 1, y: 0 }}
+                         exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                         className="absolute right-0 top-10 w-44 bg-zinc-950 border border-zinc-850 rounded-2xl shadow-2xl overflow-hidden z-50 p-1.5"
+                       >
+                         <button
+                           onClick={() => {
+                             setShowSafetyMenu(false);
+                             setShowReportModal(true);
+                           }}
+                           className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
+                         >
+                           <Flag size={14} className="text-zinc-500" />
+                           Report User
+                         </button>
+                         <button
+                           onClick={() => {
+                             setShowSafetyMenu(false);
+                             setShowBlockConfirm(true);
+                           }}
+                           className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
+                         >
+                           <UserX size={14} className="text-zinc-500" />
+                           {myBlockedIds?.includes(effectiveUserId || '') ? 'Unblock User' : 'Block User'}
+                         </button>
+                       </motion.div>
+                     </>
+                   )}
+                 </AnimatePresence>
+               </div>
+             )}
              {isOwnProfile ? (
                <>
                 <button 
@@ -630,158 +709,180 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
         </div>
       </div>
 
-      {/* Profile Info */}
-      <div className="px-6 py-8 flex flex-col items-center space-y-6">
-        <div className="w-24 h-24 rounded-full border-4 border-zinc-900 overflow-hidden bg-zinc-800">
-           {targetProfile.profilePic ? (
-             <img src={targetProfile.profilePic} className="w-full h-full object-cover" alt={targetProfile.username} />
-           ) : (
-             <div className="w-full h-full flex items-center justify-center text-zinc-600 text-3xl font-black">
-               {targetProfile.username[0].toUpperCase()}
-             </div>
-           )}
-        </div>
-
-        <div className="text-center space-y-4 flex flex-col items-center animate-fade-in">
-          <div className="space-y-1">
-            <h2 className="text-2xl font-bold tracking-tight">{targetProfile.username}</h2>
-            <p className="text-sm text-zinc-500 max-w-[250px] mx-auto">{targetProfile.bio || "RevItUp enthusiast"}</p>
+      {effectiveUserId && blockedUserIds?.includes(effectiveUserId) ? (
+        <div className="px-6 py-24 flex flex-col items-center justify-center text-center space-y-5 animate-fade-in">
+          <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center border border-red-500/20 shadow-lg">
+            <UserX size={26} />
           </div>
-
-          {/* Dynamic Reputation Badge */}
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-black uppercase italic tracking-tight text-zinc-100">User Blocked</h3>
+            <p className="text-xs text-zinc-400 max-w-xs mx-auto leading-relaxed font-medium">
+              You have blocked @{targetProfile?.username || 'this user'}. You cannot view their garage, duo status, or posts.
+            </p>
+          </div>
           <button
-            onClick={() => setShowRepDetails(true)}
-            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 cursor-pointer select-none bg-zinc-950/60 leading-none ${
-              getCurrentTier(totalPoints).badgeColor
-            }`}
+            onClick={() => setShowBlockConfirm(true)}
+            className="px-6 py-3 bg-white text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-zinc-200 transition-all active:scale-95 shadow-xl"
           >
-            <Award size={11} className="text-yellow-400 fill-yellow-400 animate-pulse" />
-            <span>{getCurrentTier(totalPoints).name}</span>
-            <span className="opacity-30">|</span>
-            <span className="text-white font-black tracking-normal">{totalPoints} REP</span>
+            UNBLOCK USER
           </button>
         </div>
+      ) : (
+        <>
+          {/* Profile Info */}
+          <div className="px-6 py-8 flex flex-col items-center space-y-6">
+            <div className="w-24 h-24 rounded-full border-4 border-zinc-900 overflow-hidden bg-zinc-800">
+               {targetProfile.profilePic ? (
+                 <img src={targetProfile.profilePic} className="w-full h-full object-cover" alt={targetProfile.username} />
+               ) : (
+                 <div className="w-full h-full flex items-center justify-center text-zinc-600 text-3xl font-black">
+                   {targetProfile.username[0].toUpperCase()}
+                 </div>
+               )}
+            </div>
 
-        {/* Action Button Area (EDIT PROFILE or FOLLOW & MESSAGE) - Rendered ABOVE stats */}
-        <div className="w-full max-w-[240px] flex items-center justify-center gap-3">
-          {isOwnProfile ? (
-            <button 
-              onClick={() => setShowEditProfile(true)}
-              className="w-full h-11 border border-zinc-800 rounded-full font-bold text-sm bg-zinc-900/50 hover:bg-white hover:text-black transition-all active:scale-95"
-            >
-              EDIT PROFILE
-            </button>
-          ) : (
-            <>
-              <button 
-                onClick={handleFollowClick}
-                disabled={checkingFollow}
-                className={`flex-1 h-11 text-xs font-bold rounded-full active:scale-95 transition-all ${
-                  isFollowing 
-                    ? 'bg-zinc-800 text-white border border-zinc-700' 
-                    : 'bg-white text-black'
+            <div className="text-center space-y-4 flex flex-col items-center animate-fade-in">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold tracking-tight">{targetProfile.username}</h2>
+                <p className="text-sm text-zinc-500 max-w-[250px] mx-auto">{targetProfile.bio || "RevItUp enthusiast"}</p>
+              </div>
+
+              {/* Dynamic Reputation Badge */}
+              <button
+                onClick={() => setShowRepDetails(true)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 cursor-pointer select-none bg-zinc-950/60 leading-none ${
+                  getCurrentTier(totalPoints).badgeColor
                 }`}
               >
-                {isFollowing ? 'FOLLOWING' : 'FOLLOW'}
+                <Award size={11} className="text-yellow-400 fill-yellow-400 animate-pulse" />
+                <span>{getCurrentTier(totalPoints).name}</span>
+                <span className="opacity-30">|</span>
+                <span className="text-white font-black tracking-normal">{totalPoints} REP</span>
               </button>
-              <button 
-                onClick={handleMessageClick}
-                className="w-11 h-11 bg-zinc-900 text-white rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors border border-zinc-800 active:scale-95 shadow-lg"
-              >
-                <MessageSquare size={18} />
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-12 text-center pb-4 w-full justify-center">
-          <button onClick={() => setFollowModalConfig({ type: 'followers', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
-            <p className="text-lg font-black">{targetProfile.followersCount}</p>
-            <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Followers</p>
-          </button>
-          <button onClick={() => setFollowModalConfig({ type: 'following', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
-            <p className="text-lg font-black">{targetProfile.followingCount}</p>
-            <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Following</p>
-          </button>
-          <div className="space-y-0.5">
-            <p className="text-lg font-black">{targetProfile.garage?.length || 0}</p>
-            <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Cars</p>
-          </div>
-        </div>
-
-        {/* Owner Analytics Console */}
-        {isOwner && ownerStats && (
-          <div className="w-full max-w-xs p-4 rounded-3xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 border border-yellow-500/20 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/5 rounded-full blur-2xl pointer-events-none" />
-            <div className="flex items-center justify-between mb-3 border-b border-zinc-900 pb-2">
-              <div className="flex items-center gap-1.5">
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
-                </span>
-                <p className="text-[9px] font-black text-yellow-500 tracking-widest uppercase">Owner Console</p>
-              </div>
-              <span className="text-[7px] font-black bg-yellow-500/10 text-yellow-500 px-1.5 py-0.5 rounded uppercase tracking-wider border border-yellow-500/20">Active</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
-                <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Joined</p>
-                <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.usersCount}</p>
-              </div>
-              <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
-                <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Garages</p>
-                <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.carsCount}</p>
-              </div>
-              <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
-                <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Logs</p>
-                <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.postsCount}</p>
+
+            {/* Action Button Area (EDIT PROFILE or FOLLOW & MESSAGE) - Rendered ABOVE stats */}
+            <div className="w-full max-w-[240px] flex items-center justify-center gap-3">
+              {isOwnProfile ? (
+                <button 
+                  onClick={() => setShowEditProfile(true)}
+                  className="w-full h-11 border border-zinc-800 rounded-full font-bold text-sm bg-zinc-900/50 hover:bg-white hover:text-black transition-all active:scale-95"
+                >
+                  EDIT PROFILE
+                </button>
+              ) : (
+                <>
+                  <button 
+                    onClick={handleFollowClick}
+                    disabled={checkingFollow}
+                    className={`flex-1 h-11 text-xs font-bold rounded-full active:scale-95 transition-all ${
+                      isFollowing 
+                        ? 'bg-zinc-800 text-white border border-zinc-700' 
+                        : 'bg-white text-black'
+                    }`}
+                  >
+                    {isFollowing ? 'FOLLOWING' : 'FOLLOW'}
+                  </button>
+                  <button 
+                    onClick={handleMessageClick}
+                    className="w-11 h-11 bg-zinc-900 text-white rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors border border-zinc-800 active:scale-95 shadow-lg"
+                  >
+                    <MessageSquare size={18} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-12 text-center pb-4 w-full justify-center">
+              <button onClick={() => setFollowModalConfig({ type: 'followers', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
+                <p className="text-lg font-black">{targetProfile.followersCount}</p>
+                <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Followers</p>
+              </button>
+              <button onClick={() => setFollowModalConfig({ type: 'following', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
+                <p className="text-lg font-black">{targetProfile.followingCount}</p>
+                <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Following</p>
+              </button>
+              <div className="space-y-0.5">
+                <p className="text-lg font-black">{targetProfile.garage?.length || 0}</p>
+                <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Cars</p>
               </div>
             </div>
+
+            {/* Owner Analytics Console */}
+            {isOwner && ownerStats && (
+              <div className="w-full max-w-xs p-4 rounded-3xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 border border-yellow-500/20 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/5 rounded-full blur-2xl pointer-events-none" />
+                <div className="flex items-center justify-between mb-3 border-b border-zinc-900 pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                    </span>
+                    <p className="text-[9px] font-black text-yellow-500 tracking-widest uppercase">Owner Console</p>
+                  </div>
+                  <span className="text-[7px] font-black bg-yellow-500/10 text-yellow-500 px-1.5 py-0.5 rounded uppercase tracking-wider border border-yellow-500/20">Active</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
+                    <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Joined</p>
+                    <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.usersCount}</p>
+                  </div>
+                  <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
+                    <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Garages</p>
+                    <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.carsCount}</p>
+                  </div>
+                  <div className="bg-zinc-950/40 p-2 rounded-xl border border-zinc-900/60 text-center">
+                    <p className="text-[7.5px] font-black text-zinc-500 tracking-wider uppercase mb-0.5">Logs</p>
+                    <p className="text-sm font-black text-white italic tracking-tighter">{ownerStats.postsCount}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-zinc-900 sticky top-[72px] bg-black z-10 translate-y-[-1px]">
-        <button 
-          onClick={() => setActiveTab('garage')}
-          className={`flex-1 py-4 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'garage' ? 'border-white text-white' : 'border-transparent text-zinc-500'}`}
-        >
-          <Grid size={18} />
-          <span className="text-xs font-black tracking-widest">GARAGE</span>
-        </button>
-        {targetProfile.partnerId && partnerProfile && (
-           <button 
-             onClick={() => setActiveTab('duo')}
-             className={`flex-1 py-4 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'duo' ? 'border-red-500 text-red-500' : 'border-transparent text-zinc-500'}`}
-           >
-             <Heart size={18} fill={activeTab === 'duo' ? 'currentColor' : 'none'} />
-             <span className="text-xs font-black tracking-widest">DUO</span>
-           </button>
-        )}
-        <button 
-          onClick={() => setActiveTab('posts')}
-          className={`flex-1 py-4 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'posts' ? 'border-white text-white' : 'border-transparent text-zinc-500'}`}
-        >
-          <Play size={18} />
-          <span className="text-xs font-black tracking-widest">POSTS</span>
-        </button>
-      </div>
+          {/* Tabs */}
+          <div className="flex border-b border-zinc-900 sticky top-[72px] bg-black z-10 translate-y-[-1px]">
+            <button 
+              onClick={() => setActiveTab('garage')}
+              className={`flex-1 py-4 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'garage' ? 'border-white text-white' : 'border-transparent text-zinc-500'}`}
+            >
+              <Grid size={18} />
+              <span className="text-xs font-black tracking-widest">GARAGE</span>
+            </button>
+            {targetProfile.partnerId && partnerProfile && (
+               <button 
+                 onClick={() => setActiveTab('duo')}
+                 className={`flex-1 py-4 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'duo' ? 'border-red-500 text-red-500' : 'border-transparent text-zinc-500'}`}
+               >
+                 <Heart size={18} fill={activeTab === 'duo' ? 'currentColor' : 'none'} />
+                 <span className="text-xs font-black tracking-widest">DUO</span>
+               </button>
+            )}
+            <button 
+              onClick={() => setActiveTab('posts')}
+              className={`flex-1 py-4 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'posts' ? 'border-white text-white' : 'border-transparent text-zinc-500'}`}
+            >
+              <Play size={18} />
+              <span className="text-xs font-black tracking-widest">POSTS</span>
+            </button>
+          </div>
 
-      <div className="py-6">
-        {activeTab === 'garage' ? (
-          <Garage userId={effectiveUserId} isOwner={isOwnProfile} onAddCar={() => setShowAddCar(true)} />
-        ) : activeTab === 'duo' && effectiveUserId && targetProfile.partnerId && partnerProfile ? (
-          <DuoGarageView 
-            userId1={effectiveUserId} 
-            userId2={targetProfile.partnerId} 
-            user1={targetProfile}
-            user2={partnerProfile}
-          />
-        ) : (
-          <UserPosts userId={effectiveUserId} />
-        )}
-      </div>
+          <div className="py-6">
+            {activeTab === 'garage' ? (
+              <Garage userId={effectiveUserId} isOwner={isOwnProfile} onAddCar={() => setShowAddCar(true)} />
+            ) : activeTab === 'duo' && effectiveUserId && targetProfile.partnerId && partnerProfile ? (
+              <DuoGarageView 
+                userId1={effectiveUserId} 
+                userId2={targetProfile.partnerId} 
+                user1={targetProfile}
+                user2={partnerProfile}
+              />
+            ) : (
+              <UserPosts userId={effectiveUserId} />
+            )}
+          </div>
+        </>
+      )}
 
       {showAddCar && <AddCarModal onClose={() => setShowAddCar(false)} />}
       {showEditProfile && <EditProfileModal onClose={() => setShowEditProfile(false)} />}
@@ -1008,6 +1109,54 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
         onUserClick={(uid) => {
           window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId: uid } }));
         }}
+      />
+
+      {/* Block Confirmation Modal */}
+      <AnimatePresence>
+        {showBlockConfirm && (
+          <>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110]" onClick={() => setShowBlockConfirm(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm bg-zinc-950 border border-zinc-900 rounded-[32px] p-6 shadow-2xl z-[120] space-y-6"
+            >
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-black uppercase italic tracking-tight">
+                  {myBlockedIds?.includes(effectiveUserId || '') ? 'Unblock User?' : 'Block User?'}
+                </h3>
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                  {myBlockedIds?.includes(effectiveUserId || '')
+                    ? "Unblocking this user will allow them to view your shared builds, duo status, and posts again."
+                    : "Blocking this user will prevent them from seeing your builds, posts, or messaging you. You will also not see their content in your feed."}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBlockConfirm(false)}
+                  className="flex-1 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-xs font-bold rounded-2xl transition-all active:scale-95 text-zinc-300"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleBlockAction}
+                  disabled={blockingInProgress}
+                  className="flex-1 py-3.5 bg-white hover:bg-zinc-200 text-black text-xs font-bold rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {blockingInProgress ? 'PROCESSING...' : myBlockedIds?.includes(effectiveUserId || '') ? 'UNBLOCK' : 'BLOCK'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        targetId={effectiveUserId || ''}
+        targetType="user"
       />
     </div>
   );

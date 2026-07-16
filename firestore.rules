@@ -39,8 +39,8 @@ service cloud.firestore {
              data.usernameLower is string && data.usernameLower.size() <= 30 &&
              (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
              (!('profilePic' in data) || (data.profilePic is string && data.profilePic.size() <= 500)) &&
-             (!('followersCount' in data) || (data.followersCount is number && data.followersCount >= 0)) &&
-             (!('followingCount' in data) || (data.followingCount is number && data.followingCount >= 0)) &&
+             (!('followersCount' in data) || (data.followersCount is int && data.followersCount >= 0)) &&
+             (!('followingCount' in data) || (data.followingCount is int && data.followingCount >= 0)) &&
              (!('partnerId' in data) || (data.partnerId is string && data.partnerId.size() <= 128)) &&
              (!('garage' in data) || (data.garage is list && data.garage.size() <= 100)) &&
              (!('fcmTokens' in data) || (data.fcmTokens is list && data.fcmTokens.size() <= 20));
@@ -92,15 +92,15 @@ service cloud.firestore {
              ) &&
              (
                !('likesCount' in data) || 
-               (data.likesCount is number && data.likesCount >= 0)
+               (data.likesCount is int && data.likesCount >= 0)
              ) &&
              (
                !('commentsCount' in data) || 
-               (data.commentsCount is number && data.commentsCount >= 0)
+               (data.commentsCount is int && data.commentsCount >= 0)
              ) &&
              (
                !('viewCount' in data) || 
-               (data.viewCount is number && data.viewCount >= 0)
+               (data.viewCount is int && data.viewCount >= 0)
              ) &&
              (
                !('views' in data) || 
@@ -120,7 +120,7 @@ service cloud.firestore {
              ) &&
              (
                !('createdAt' in data) || 
-               data.createdAt is number
+               data.createdAt is int
              );
     }
 
@@ -167,10 +167,10 @@ service cloud.firestore {
       return data.ownerId == request.auth.uid &&
              data.carId is string && isValidId(data.carId) &&
              data.proofUrl is string && data.proofUrl.size() <= 1000 &&
-             (!('horsepower' in data) || data.horsepower is number) &&
-             (!('torque' in data) || data.torque is number) &&
-             (!('quarterMileTime' in data) || data.quarterMileTime is number) &&
-             data.createdAt is number;
+             (!('horsepower' in data) || (data.horsepower is int || data.horsepower is float)) &&
+             (!('torque' in data) || (data.torque is int || data.torque is float)) &&
+             (!('quarterMileTime' in data) || (data.quarterMileTime is int || data.quarterMileTime is float)) &&
+             data.createdAt is int;
     }
 
     match /performance_board/{recordId} {
@@ -266,11 +266,39 @@ service cloud.firestore {
       allow create: if isEmailVerified() && isValidId(messageId) && 
                       incoming().senderId == request.auth.uid && 
                       request.auth.uid in get(/databases/$(database)/documents/chats/$(incoming().chatId)).data.participantIds &&
-                      incoming().createdAt is number &&
+                      incoming().createdAt is int &&
                       incoming().text is string && incoming().text.size() <= 2000;
       allow delete: if isEmailVerified() && isValidId(messageId) && 
                       (resource.data.senderId == request.auth.uid || 
                        request.auth.uid in get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.participantIds);
+    }
+
+    // --- Blocks ---
+    function isValidBlock(data) {
+      return data.blockerId == request.auth.uid &&
+             data.blockedId is string && isValidId(data.blockedId) &&
+             data.createdAt is int;
+    }
+
+    match /blocks/{blockId} {
+      allow read: if isEmailVerified() && (resource.data.blockerId == request.auth.uid || resource.data.blockedId == request.auth.uid);
+      allow create: if isEmailVerified() && isValidId(blockId) && isValidBlock(incoming());
+      allow delete: if isEmailVerified() && isValidId(blockId) && resource.data.blockerId == request.auth.uid;
+    }
+
+    // --- Reports ---
+    function isValidReport(data) {
+      return data.reporterId == request.auth.uid &&
+             data.targetId is string && isValidId(data.targetId) &&
+             data.targetType is string && (data.targetType == 'post' || data.targetType == 'comment' || data.targetType == 'user' || data.targetType == 'message' || data.targetType == 'story') &&
+             data.reason is string && data.reason.size() <= 100 &&
+             (!('details' in data) || (data.details is string && data.details.size() <= 1000)) &&
+             data.createdAt is int;
+    }
+
+    match /reports/{reportId} {
+      allow create: if isEmailVerified() && isValidId(reportId) && isValidReport(incoming());
+      allow read: if isEmailVerified() && resource.data.reporterId == request.auth.uid;
     }
   }
 }

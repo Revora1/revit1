@@ -1,0 +1,8 @@
+{
+	"appId": "today.revitup.app",
+	"appName": "RevitUp",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	}
+}

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { X, LogOut, Shield, Bell, HelpCircle, UserX, Moon, Smartphone, ChevronLeft, Trash2, Database, Info, Share2, Lock } from 'lucide-react';
+import { X, LogOut, Shield, Bell, HelpCircle, UserX, Moon, Smartphone, ChevronLeft, Trash2, Database, Info, Share2, Lock, Tv, Award, Sparkles, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { deleteUser } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType, requestNotificationPermissionAndGetToken } from '../lib/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
+import { admobService } from '../lib/admobService';
+import { Capacitor } from '@capacitor/core';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -54,6 +56,29 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [consent, setConsent] = useState(localStorage.getItem('gdpr-consent') || 'none');
 
+  // AdMob Local Settings State
+  const [bannerEnabled, setBannerEnabled] = useState(localStorage.getItem('admob-banner-enabled') === 'true');
+  const [bannerPosition, setBannerPosition] = useState<'top' | 'bottom'>((localStorage.getItem('admob-banner-position') as 'top' | 'bottom') || 'bottom');
+  const [adFeedback, setAdFeedback] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (bannerEnabled) {
+      admobService.showBanner(bannerPosition);
+    } else {
+      admobService.hideBanner();
+    }
+  }, [bannerEnabled, bannerPosition]);
+
+  const handleBannerToggle = (checked: boolean) => {
+    setBannerEnabled(checked);
+    localStorage.setItem('admob-banner-enabled', checked ? 'true' : 'false');
+  };
+
+  const handlePositionToggle = (pos: 'top' | 'bottom') => {
+    setBannerPosition(pos);
+    localStorage.setItem('admob-banner-position', pos);
+  };
+
   const toggleConsent = () => {
     const next = consent === 'accepted' ? 'declined' : 'accepted';
     localStorage.setItem('gdpr-consent', next);
@@ -61,10 +86,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     // Reload to apply script changes
     window.location.reload();
   };
-
-  if (showPrivacy) {
-    return <PrivacyPolicy onBack={() => setShowPrivacy(false)} />;
-  }
 
   const handleShare = async () => {
     if (sharing) return;
@@ -135,6 +156,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     { id: 'appearance', icon: Moon, label: 'Appearance', description: 'Dark mode, themes' },
     { id: 'data', icon: Database, label: 'Data & Storage', description: 'Manage cache & data usage' },
     { id: 'devices', icon: Smartphone, label: 'Connected Devices', description: 'Manage active sessions' },
+    { id: 'admob', icon: Tv, label: 'Google AdMob', description: 'Configure & test mobile ads' },
     { id: 'support', icon: HelpCircle, label: 'Support', description: 'Get help with RevItUp' },
     { id: 'about', icon: Info, label: 'About', description: 'App version, terms, privacy policy' },
   ];
@@ -339,6 +361,144 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
              </div>
           </div>
         );
+      case 'admob':
+        return (
+          <div className="space-y-6">
+            {/* Banner Ads Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-sm">Persistent Banner Ads</div>
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-tight">Toggle smart adaptive banners</div>
+                </div>
+                <button 
+                  onClick={() => handleBannerToggle(!bannerEnabled)}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${bannerEnabled ? 'bg-white' : 'bg-zinc-800'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 rounded-full transition-all ${bannerEnabled ? 'bg-black left-7' : 'bg-zinc-400 left-1'}`} />
+                </button>
+              </div>
+
+              {bannerEnabled && (
+                <div className="bg-zinc-900/60 border border-zinc-900 rounded-2xl p-4 space-y-3">
+                  <div className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Banner Position</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => handlePositionToggle('top')}
+                      className={`py-3 rounded-xl border text-xs font-black uppercase tracking-widest transition-all ${bannerPosition === 'top' ? 'bg-white text-black border-white' : 'bg-zinc-950 text-zinc-400 border-zinc-855'}`}
+                    >
+                      Top Center
+                    </button>
+                    <button 
+                      onClick={() => handlePositionToggle('bottom')}
+                      className={`py-3 rounded-xl border text-xs font-black uppercase tracking-widest transition-all ${bannerPosition === 'bottom' ? 'bg-white text-black border-white' : 'bg-zinc-950 text-zinc-400 border-zinc-855'}`}
+                    >
+                      Bottom Center
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-zinc-850" />
+
+            {/* Test Ads Panel */}
+            <div className="space-y-4">
+              <div className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Interactive Test Suite</div>
+              
+              <div className="grid grid-cols-1 gap-3">
+                {/* Interstitial Ad Button */}
+                <button 
+                  onClick={async () => {
+                    setAdFeedback('Loading Interstitial Ad...');
+                    await admobService.showInterstitial(() => {
+                      setAdFeedback('Interstitial Ad Dismissed!');
+                      setTimeout(() => setAdFeedback(null), 3000);
+                    });
+                  }}
+                  className="w-full flex items-center justify-between p-4 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 transition-all rounded-2xl text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-zinc-800 rounded-xl text-zinc-300">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <span className="font-bold text-sm block">Trigger Interstitial Ad</span>
+                      <span className="text-[9px] text-zinc-500 uppercase font-semibold">Loads a full-screen display ad</span>
+                    </div>
+                  </div>
+                  <ChevronLeft size={16} className="rotate-180 text-zinc-500" />
+                </button>
+
+                {/* Rewarded Video Ad Button */}
+                <button 
+                  onClick={async () => {
+                    setAdFeedback('Loading Rewarded Video...');
+                    await admobService.showRewarded((type, amount) => {
+                      setAdFeedback(`Rewarded successfully: ${amount} ${type}!`);
+                      setTimeout(() => setAdFeedback(null), 4000);
+                    }, () => {
+                      console.log('Rewarded Video completed/dismissed');
+                    });
+                  }}
+                  className="w-full flex items-center justify-between p-4 bg-zinc-900 border border-zinc-855 hover:border-zinc-800 transition-all rounded-2xl text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-zinc-800 rounded-xl text-yellow-500">
+                      <Award size={18} />
+                    </div>
+                    <div>
+                      <span className="font-bold text-sm block">Watch Rewarded Video</span>
+                      <span className="text-[9px] text-zinc-500 uppercase font-semibold">Earn +50 Reputation Points instantly</span>
+                    </div>
+                  </div>
+                  <ChevronLeft size={16} className="rotate-180 text-zinc-500" />
+                </button>
+              </div>
+
+              {adFeedback && (
+                <div className="p-3.5 bg-zinc-950 border border-zinc-850 rounded-xl flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wide">
+                  <AlertCircle size={14} className="text-zinc-500" />
+                  <span>{adFeedback}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-zinc-850" />
+
+            {/* Diagnostics View */}
+            <div className="p-4 bg-zinc-950 border border-zinc-850 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                <span>Google AdMob SDK Diagnostics</span>
+                <span className={`h-2 w-2 rounded-full ${admobService.isNative() ? 'bg-green-500' : 'bg-blue-400'} animate-pulse`} />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-900">
+                  <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wide">Environment</span>
+                  <span className="font-black uppercase text-[10px] text-zinc-300">
+                    {admobService.isNative() ? '● Native Mobile' : '● Web Preview Simulator'}
+                  </span>
+                </div>
+                <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-900">
+                  <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wide">Device Platform</span>
+                  <span className="font-black uppercase text-[10px] text-zinc-300">
+                    {Capacitor.getPlatform() === 'web' ? 'Web Browser' : Capacitor.getPlatform().toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/40 p-3 rounded-xl border border-zinc-900 space-y-1">
+                <span className="text-zinc-500 text-[9px] font-bold block uppercase tracking-wide">Active Ad Unit IDs</span>
+                <div className="text-[9px] font-mono text-zinc-400 space-y-0.5 truncate">
+                  <p>Banner: {admobService.getAdUnitId('banner')}</p>
+                  <p>Interstitial: {admobService.getAdUnitId('interstitial')}</p>
+                  <p>Rewarded: {admobService.getAdUnitId('rewarded')}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
       case 'about':
         return (
           <div className="space-y-6 text-center py-4">
@@ -376,23 +536,27 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         );
       case 'privacy_policy':
         return (
-          <div className="space-y-4 text-sm text-zinc-400 max-h-[60vh] overflow-y-auto scrollbar-hide">
-            <p className="font-bold text-white mb-2">Last Updated: May 5, 2026</p>
-            <p>RevItUp ("us", "we", or "our") operates this application. This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service and the choices you have associated with that data.</p>
-            <p className="font-bold text-white mt-4">1. Information Collection and Use</p>
-            <p>We collect several different types of information for various purposes to provide and improve our Service to you. Types of Data collected include Email address, First name and last name, Phone number, and Usage Data.</p>
-            <p className="font-bold text-white mt-4">2. Use of Data</p>
-            <p>RevItUp uses the collected data for various purposes: To provide and maintain the Service, to notify you about changes to our Service, to allow you to participate in interactive features of our Service when you choose to do so, to provide customer care and support, and to monitor the usage of the Service.</p>
-            <p className="font-bold text-white mt-4">3. Transfer of Data</p>
-            <p>Your information, including Personal Data, may be transferred to — and maintained on — computers located outside of your state, province, country or other governmental jurisdiction where the data protection laws may differ than those from your jurisdiction.</p>
-            <p className="font-bold text-white mt-4">4. Security of Data</p>
-            <p>The security of your data is important to us, but remember that no method of transmission over the Internet, or method of electronic storage is 100% secure. While we strive to use commercially acceptable means to protect your Personal Data, we cannot guarantee its absolute security.</p>
-          </div>
+          <PrivacyPolicy onBack={() => setActiveSubView('about')} hideHeader={true} />
         );
       default:
         return null;
     }
   };
+
+  if (showPrivacy) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm">
+        <motion.div 
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          className="w-full max-w-lg bg-zinc-950 rounded-t-[32px] sm:rounded-3xl border border-zinc-800 p-8 pt-6 space-y-8 max-h-[90vh] flex flex-col relative shadow-2xl overflow-y-auto"
+        >
+          <PrivacyPolicy onBack={() => setShowPrivacy(false)} />
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm">

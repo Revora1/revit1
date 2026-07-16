@@ -4,8 +4,10 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Post } from '../types';
 import { PostCard } from './PostCard';
 import { ChevronLeft } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: string, onBack: () => void, autoOpenComments?: boolean }) {
+  const { blockedUserIds } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,10 +35,10 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
     );
   }
 
-  if (!post) {
+  if (!post || blockedUserIds.includes(post.authorId)) {
     return (
       <div className="h-full bg-black flex flex-col items-center justify-center text-zinc-500 space-y-4">
-        <p>Post not found or deleted.</p>
+        <p>Post not found or unavailable.</p>
         <button onClick={onBack} className="text-white px-4 py-2 bg-zinc-800 rounded-full font-medium">Go Back</button>
       </div>
     );

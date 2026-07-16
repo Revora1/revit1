@@ -4,10 +4,12 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { PerformanceRecord } from '../types';
 import { Trophy, Zap, Gauge, Timer, ChevronRight, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../context/AuthContext';
 
 type SortCategory = 'horsepower' | 'torque' | 'quarterMileTime';
 
 export function DynoBoard({ hideHeader }: { hideHeader?: boolean } = {}) {
+  const { blockedUserIds } = useAuth();
   const [records, setRecords] = useState<PerformanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<SortCategory>('horsepower');
@@ -32,8 +34,8 @@ export function DynoBoard({ hideHeader }: { hideHeader?: boolean } = {}) {
         ...doc.data()
       })) as PerformanceRecord[];
       
-      // Filter out records where the active category stat is missing
-      const validRecords = fetched.filter(r => r[activeCategory] !== undefined);
+      // Filter out records where the active category stat is missing and exclude blocked users
+      const validRecords = fetched.filter(r => r[activeCategory] !== undefined && !blockedUserIds.includes(r.ownerId));
       setRecords(validRecords);
       setLoading(false);
     }, (error) => {

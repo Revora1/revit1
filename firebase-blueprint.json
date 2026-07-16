@@ -181,6 +181,31 @@
         "createdAt": { "type": "integer" }
       },
       "required": ["voterId", "commentId", "commentAuthorId", "createdAt"]
+    },
+    "Block": {
+      "title": "Block",
+      "description": "User block action",
+      "type": "object",
+      "properties": {
+        "blockerId": { "type": "string" },
+        "blockedId": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["blockerId", "blockedId", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "User report against content or users",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string" },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["reporterId", "targetId", "targetType", "reason", "createdAt"]
     }
   },
   "firestore": {
@@ -235,6 +260,14 @@
     "/performance_board/{recordId}": {
       "schema": "PerformanceRecord",
       "description": "Verified performance stats and proof"
+    },
+    "/blocks/{blockId}": {
+      "schema": "Block",
+      "description": "User block actions"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Content or user reports"
     }
   }
 }

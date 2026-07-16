@@ -1,11 +1,12 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Post, UserProfile, Car } from '../types';
-import { Heart, MessageCircle, Share2, User, Check, Trash2, Plus, X, Eye, Clock, Users, Music, Play } from 'lucide-react';
+import { Heart, MessageCircle, Share2, User, Check, Trash2, Plus, X, Eye, Clock, Users, Music, Play, MoreVertical, Flag, UserX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { CommentsSheet } from './CommentsSheet';
+import { ReportModal } from './ReportModal';
 
 interface PostCardProps {
   post: Post;
@@ -242,9 +243,13 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
   const [isFollowingLoading, setIsFollowingLoading] = useState(false);
   const [author, setAuthor] = useState<UserProfile | null>(AUTHOR_CACHE[post.authorId] || null);
   const [taggedCar, setTaggedCar] = useState<Car | null>(post.carTagId ? CAR_CACHE[post.carTagId] : null);
-  const { user } = useAuth();
+  const { user, blockUser, reportContent } = useAuth();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSafetyMenu, setShowSafetyMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [blockingInProgress, setBlockingInProgress] = useState(false);
 
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
@@ -466,6 +471,19 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
     }
   };
 
+  const handleConfirmBlockUser = async () => {
+    if (!user || user.uid === post.authorId || blockingInProgress) return;
+    setBlockingInProgress(true);
+    try {
+      await blockUser(post.authorId);
+      setShowBlockConfirm(false);
+    } catch (err) {
+      console.error('Error blocking user:', err);
+    } finally {
+      setBlockingInProgress(false);
+    }
+  };
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -643,6 +661,54 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           </button>
         )}
 
+        {user && user.uid !== post.authorId && (
+          <div className="relative flex-shrink-0">
+            <button 
+              onClick={() => setShowSafetyMenu(!showSafetyMenu)}
+              className={`w-10 h-10 backdrop-blur-md rounded-full flex items-center justify-center active:scale-95 transition-all border shadow-lg ${
+                showSafetyMenu ? 'bg-red-600 border-red-500 text-white' : 'bg-black/25 text-white border-white/10 hover:bg-zinc-800'
+              }`}
+            >
+              <MoreVertical size={20} />
+            </button>
+            
+            <AnimatePresence>
+              {showSafetyMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowSafetyMenu(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                    className="absolute right-0 bottom-12 w-44 bg-zinc-950 border border-zinc-850 rounded-2xl shadow-2xl overflow-hidden z-50 p-1.5"
+                  >
+                    <button
+                      onClick={() => {
+                        setShowSafetyMenu(false);
+                        setShowReportModal(true);
+                      }}
+                      className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
+                    >
+                      <Flag size={14} className="text-zinc-500" />
+                      Report Post
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSafetyMenu(false);
+                        setShowBlockConfirm(true);
+                      }}
+                      className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
+                    >
+                      <UserX size={14} className="text-zinc-500" />
+                      Block User
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
         {/* User Profile Hook */}
         <div className="relative w-10 h-12 flex flex-col items-center flex-shrink-0 mb-2 mt-1">
           <button 
@@ -757,6 +823,8 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowViewers(false)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
               className="absolute inset-0 bg-black/60 z-[60] backdrop-blur-sm"
               id="viewers-backdrop"
             />
@@ -764,6 +832,8 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
               className="absolute bottom-0 left-0 right-0 bg-zinc-950 border-t border-zinc-900 rounded-t-[32px] z-[70] p-6 pb-24 sm:pb-12 max-h-[60vh] overflow-y-auto flex flex-col"
               id="viewers-panel"
             >
@@ -801,6 +871,58 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        targetId={post.id}
+        targetType="post"
+      />
+
+      {/* Block Confirmation Dialog */}
+      <AnimatePresence>
+        {showBlockConfirm && (
+          <div 
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-zinc-950 border border-zinc-800 p-6 rounded-2xl shadow-2xl space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+                  <UserX size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-zinc-100">Block @{author?.username || 'this user'}?</h4>
+                  <p className="text-xs text-zinc-400">You won't see their posts, comments, or stories, and they won't see yours.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBlockConfirm(false)}
+                  disabled={blockingInProgress}
+                  className="flex-1 py-2.5 text-xs font-semibold text-zinc-300 bg-zinc-900 hover:bg-zinc-850 transition-colors rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmBlockUser}
+                  disabled={blockingInProgress}
+                  className="flex-1 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 active:bg-red-700 transition-colors rounded-xl"
+                >
+                  {blockingInProgress ? 'Blocking...' : 'Block User'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </article>

@@ -272,6 +272,8 @@ export function StoryViewer({ userId, onClose, onNextUser, onPrevUser }: StoryVi
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 1.05 }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
       className="fixed inset-0 bg-black z-[100] flex flex-col"
     >
       <div className="absolute top-0 left-0 right-0 z-50 pt-[max(12px,env(safe-area-inset-top))] px-4 pb-12 bg-gradient-to-b from-black/80 via-black/30 to-transparent flex flex-col gap-4 pointer-events-none">

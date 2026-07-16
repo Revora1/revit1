@@ -7,9 +7,16 @@
     "dev": "tsx server.ts",
     "build": "node scripts/unpack-icons.cjs && tsc -b && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "cap sync",
+    "cap:add-ios": "cap add ios",
+    "cap:add-android": "cap add android",
+    "cap:open-ios": "cap open ios",
+    "cap:open-android": "cap open android"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.0.0",
+    "@capacitor/core": "^8.4.1",
     "@google/genai": "1.29.0",
     "@vis.gl/react-google-maps": "^1.8.3",
     "baseline-browser-mapping": "^2.10.29",
@@ -26,6 +33,9 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@types/express": "4.17.21",
     "@types/node": "22.14.0",

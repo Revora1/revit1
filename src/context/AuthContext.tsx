@@ -1,8 +1,8 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
@@ -13,6 +13,11 @@ interface AuthContextType {
   isIOS: boolean;
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
+  blockedUserIds: string[];
+  myBlockedIds: string[];
+  blockUser: (blockedId: string) => Promise<void>;
+  unblockUser: (blockedId: string) => Promise<void>;
+  reportContent: (targetId: string, targetType: 'post' | 'comment' | 'user' | 'message' | 'story', reason: string, details?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +28,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isIOS, setIsIOS] = useState(false);
+  const [myBlockedIds, setMyBlockedIds] = useState<string[]>([]);
+  const [blockedByIds, setBlockedByIds] = useState<string[]>([]);
+
+  const blockedUserIds = Array.from(new Set([...myBlockedIds, ...blockedByIds]));
 
   useEffect(() => {
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
@@ -91,8 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const privateInfoRef = doc(db, 'users', user.uid, 'private', 'info');
               await setDoc(privateInfoRef, privateInfo);
               // Profile state will be set by the next snapshot trigger
-            } catch (error) {
-              console.error('Failed to create user profile:', error);
+            } catch (err: any) {
+              console.error('Failed to create user profile:', err);
+              setError(`Failed to create user profile: ${err?.message || err}`);
             }
           }
           setLoading(false);
@@ -101,9 +111,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
         });
 
-        return () => unsubscribeProfile();
+        // Real-time listener for blocks created by me
+        const qMyBlocks = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
+        const unsubscribeMyBlocks = onSnapshot(qMyBlocks, (snap) => {
+          const ids = snap.docs.map(doc => doc.data().blockedId as string);
+          setMyBlockedIds(ids);
+        }, (err) => {
+          console.error('My blocks listener error:', err);
+        });
+
+        // Real-time listener for blocks created by others against me
+        const qBlockedBy = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
+        const unsubscribeBlockedBy = onSnapshot(qBlockedBy, (snap) => {
+          const ids = snap.docs.map(doc => doc.data().blockerId as string);
+          setBlockedByIds(ids);
+        }, (err) => {
+          console.error('Blocked by listener error:', err);
+        });
+
+        return () => {
+          unsubscribeProfile();
+          unsubscribeMyBlocks();
+          unsubscribeBlockedBy();
+        };
       } else {
         setProfile(null);
+        setMyBlockedIds([]);
+        setBlockedByIds([]);
         setLoading(false);
       }
     });
@@ -142,8 +176,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signOut(auth);
   };
 
+  const blockUser = async (blockedId: string) => {
+    if (!user) return;
+    const blockId = `${user.uid}_${blockedId}`;
+    try {
+      await setDoc(doc(db, 'blocks', blockId), {
+        blockerId: user.uid,
+        blockedId,
+        createdAt: Date.now()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `blocks/${blockId}`);
+    }
+  };
+
+  const unblockUser = async (blockedId: string) => {
+    if (!user) return;
+    const blockId = `${user.uid}_${blockedId}`;
+    try {
+      await deleteDoc(doc(db, 'blocks', blockId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `blocks/${blockId}`);
+    }
+  };
+
+  const reportContent = async (
+    targetId: string,
+    targetType: 'post' | 'comment' | 'user' | 'message' | 'story',
+    reason: string,
+    details?: string
+  ) => {
+    if (!user) return;
+    const reportId = `${user.uid}_${targetId}_${Date.now()}`;
+    try {
+      await setDoc(doc(db, 'reports', reportId), {
+        reporterId: user.uid,
+        targetId,
+        targetType,
+        reason,
+        details: details || '',
+        createdAt: Date.now()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `reports/${reportId}`);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, error, isIOS, signIn, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      profile, 
+      loading, 
+      error, 
+      isIOS, 
+      signIn, 
+      logout,
+      blockedUserIds,
+      myBlockedIds,
+      blockUser,
+      unblockUser,
+      reportContent
+    }}>
       {children}
     </AuthContext.Provider>
   );

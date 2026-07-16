@@ -9,6 +9,7 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { UserProfile, Car, PerformanceRecord, CarStage } from '../types';
 import { CarDetailsModal } from './CarDetailsModal';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../context/AuthContext';
 
 type SearchTab = 'accounts' | 'builds';
 
@@ -23,6 +24,7 @@ interface SearchFilters {
 }
 
 export function SearchView() {
+  const { blockedUserIds } = useAuth();
   const [activeTab, setActiveTab] = useState<SearchTab>('accounts');
   
   // Accounts Search State
@@ -87,7 +89,7 @@ export function SearchView() {
           const snapNormal = await getDocs(qNormal);
           users = snapNormal.docs.map(doc => doc.data() as UserProfile);
         }
-        setResults(users);
+        setResults(users.filter(u => !blockedUserIds.includes(u.uid)));
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, 'users');
       } finally {
@@ -181,6 +183,11 @@ export function SearchView() {
   // Apply filtering rules client side
   // ------------------------------------------
   const filteredCars = cars.filter(car => {
+    // Hide builds belonging to blocked users
+    if (blockedUserIds.includes(car.ownerId)) {
+      return false;
+    }
+
     // Search keyword query
     if (buildSearchTerm.trim()) {
       const q = buildSearchTerm.toLowerCase();

@@ -11,8 +11,10 @@ import { ADSENSE_CLIENT_ID } from '../constants';
 import { trackOutboundClick } from '../lib/analytics';
 import { MessageSquare, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useAuth } from '../context/AuthContext';
 
 export function Feed() {
+  const { blockedUserIds } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -57,12 +59,13 @@ export function Feed() {
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, textarea, select, [role="button"]')) {
+      return;
+    }
     if (containerRef.current && containerRef.current.scrollTop === 0 && !refreshing) {
       pullStartY.current = e.clientY;
       pullStarted.current = true;
-      try {
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      } catch (err) {}
     }
   };
 
@@ -80,9 +83,6 @@ export function Feed() {
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!pullStarted.current) return;
     pullStarted.current = false;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch (err) {}
 
     if (pullOffset >= 50) {
       setRefreshing(true);
@@ -98,7 +98,8 @@ export function Feed() {
   };
 
   const feedItems = [];
-  posts.forEach((post, index) => {
+  const filteredPosts = posts.filter(post => !blockedUserIds.includes(post.authorId));
+  filteredPosts.forEach((post, index) => {
     feedItems.push({ type: 'post', data: post, id: post.id });
     if ((index + 1) % 4 === 0) {
       feedItems.push({ type: 'ad', id: `ad-${index}` });

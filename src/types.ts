@@ -9,6 +9,7 @@ export interface UserProfile {
   followingCount: number;
   garage: string[]; // List of car IDs
   partnerId?: string; // UID of their partner
+  reputationBonus?: number; // Reputation points rewarded via AdMob
 }
 
 export type MediaType = 'image';

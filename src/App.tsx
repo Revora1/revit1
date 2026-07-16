@@ -15,12 +15,44 @@ import { TopTuners } from './components/TopTuners';
 import { CookieConsent } from './components/CookieConsent';
 import { messaging } from './lib/firebase';
 import { onMessage } from 'firebase/messaging';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { admobService } from './lib/admobService';
+import { AdMobOverlays } from './components/AdMobOverlays';
 
 export default function App() {
+  const [isPrivacyRoute, setIsPrivacyRoute] = useState(false);
+
+  React.useEffect(() => {
+    // Initialize AdMob on app startup
+    admobService.initialize();
+  }, []);
+
+  React.useEffect(() => {
+    try {
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      if (path === '/privacy-policy') {
+        setIsPrivacyRoute(true);
+      }
+    } catch (e) {
+      console.error("Failed to parse pathname:", e);
+    }
+  }, []);
+
+  if (isPrivacyRoute) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <PrivacyPolicy onBack={() => {
+          window.location.href = '/';
+        }} />
+      </div>
+    );
+  }
+
   return (
     <AuthProvider>
       <InnerAppContent />
       <CookieConsent />
+      <AdMobOverlays />
     </AuthProvider>
   );
 }
