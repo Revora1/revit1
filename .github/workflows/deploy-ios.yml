@@ -31,6 +31,11 @@ jobs:
         run: |
           npx cap sync ios
 
+      - name: Install Cocoapods Pods
+        run: |
+          cd ios/App
+          pod install
+
       - name: Install Apple Certificate and Provisioning Profile
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
