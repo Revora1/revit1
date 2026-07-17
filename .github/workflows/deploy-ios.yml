@@ -34,9 +34,26 @@ jobs:
       - name: Decode Apple Certificate
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          BUILD_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
         run: |
           CERTIFICATE_PATH="$RUNNER_TEMP/build_certificate.p12"
           echo "$BUILD_CERTIFICATE_BASE64" | tr -d '\r \n' | base64 --decode -o "$CERTIFICATE_PATH"
+          
+          # Detect openssl 3 (Homebrew) or fallback to system openssl
+          OPENSSL_CMD="openssl"
+          if [ -f "/opt/homebrew/opt/openssl@3/bin/openssl" ]; then
+            OPENSSL_CMD="/opt/homebrew/opt/openssl@3/bin/openssl"
+          elif [ -f "/usr/local/opt/openssl@3/bin/openssl" ]; then
+            OPENSSL_CMD="/usr/local/opt/openssl@3/bin/openssl"
+          fi
+          
+          # Convert certificate to macOS-compatible legacy format
+          if "$OPENSSL_CMD" version | grep -q "OpenSSL 3"; then
+            echo "Converting PKCS12 to compatible legacy format (TripleDES/SHA1)..."
+            "$OPENSSL_CMD" pkcs12 -in "$CERTIFICATE_PATH" -nodes -passin pass:"$BUILD_CERT_PASSWORD" -out "$RUNNER_TEMP/temp.pem"
+            "$OPENSSL_CMD" pkcs12 -export -legacy -provider legacy -provider default -in "$RUNNER_TEMP/temp.pem" -out "$CERTIFICATE_PATH" -passout pass:"$BUILD_CERT_PASSWORD"
+            rm "$RUNNER_TEMP/temp.pem"
+          fi
 
       - name: Install Apple Certificate
         uses: apple-actions/import-codesign-certs@v3
