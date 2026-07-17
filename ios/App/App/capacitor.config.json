@@ -5,5 +5,12 @@
 	"server": {
 		"androidScheme": "https"
 	},
-	"packageClassList": []
+	"plugins": {
+		"AdMob": {
+			"initializeOnTesting": true
+		}
+	},
+	"packageClassList": [
+		"AdMobPlugin"
+	]
 }

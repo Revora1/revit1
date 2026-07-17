@@ -7,11 +7,13 @@ const ADMOB_IDS = {
     banner: 'ca-app-pub-3940256099942544/6300978111',
     interstitial: 'ca-app-pub-3940256099942544/1033173712',
     rewarded: 'ca-app-pub-3940256099942544/5224354917',
+    native: 'ca-app-pub-3940256099942544/2247696110',
   },
   ios: {
     banner: 'ca-app-pub-3940256099942544/2934735716',
     interstitial: 'ca-app-pub-3940256099942544/4411468910',
     rewarded: 'ca-app-pub-3940256099942544/1712485313',
+    native: 'ca-app-pub-3940256099942544/3986624511',
   }
 };
 
@@ -22,7 +24,7 @@ export const admobService = {
     return Capacitor.isNativePlatform();
   },
 
-  getAdUnitId: (type: 'banner' | 'interstitial' | 'rewarded'): string => {
+  getAdUnitId: (type: 'banner' | 'interstitial' | 'rewarded' | 'native'): string => {
     const platform = Capacitor.getPlatform();
     if (platform === 'ios') {
       return ADMOB_IDS.ios[type];
@@ -32,7 +34,7 @@ export const admobService = {
 
   initialize: async () => {
     if (!Capacitor.isNativePlatform()) {
-      console.log('[AdMob Web Mock] Initializing AdMob system...');
+      console.log('[AdMob Web Mock] Initializing AdMob system (Native Ad in Feed)...');
       isAdMobInitialized = true;
       return true;
     }
@@ -66,179 +68,31 @@ export const admobService = {
   },
 
   showBanner: async (position: 'top' | 'bottom' = 'bottom') => {
-    const adId = admobService.getAdUnitId('banner');
-    
-    if (!Capacitor.isNativePlatform()) {
-      console.log(`[AdMob Web Mock] Showing Banner Ad at ${position.toUpperCase()} with ID: ${adId}`);
-      // Dispatch a custom event to notify web-mock banners in the DOM to show
-      window.dispatchEvent(new CustomEvent('web-admob-banner-state', {
-        detail: { visible: true, position }
-      }));
-      return true;
-    }
-
-    try {
-      await admobService.initialize();
-      
-      const bannerPosition = position === 'top' 
-        ? BannerAdPosition.TOP_CENTER 
-        : BannerAdPosition.BOTTOM_CENTER;
-
-      console.log(`[AdMob Native] Launching Banner Ad... ID: ${adId}`);
-      await AdMob.showBanner({
-        adId: adId,
-        adSize: BannerAdSize.ADAPTIVE_BANNER,
-        position: bannerPosition,
-        margin: position === 'bottom' ? 52 : 0, // avoid overlapping bottom navbar or status bars
-        isTesting: true
-      });
-      return true;
-    } catch (error) {
-      console.error('[AdMob Native] Error presenting banner ad:', error);
-      return false;
-    }
+    console.log(`[AdMob] Banner ads have been disabled. AdMob is integrated strictly as native ads in the feed.`);
+    return false;
   },
 
   hideBanner: async () => {
-    if (!Capacitor.isNativePlatform()) {
-      console.log('[AdMob Web Mock] Hiding Banner Ad');
-      window.dispatchEvent(new CustomEvent('web-admob-banner-state', {
-        detail: { visible: false }
-      }));
-      return true;
-    }
-
-    try {
-      await AdMob.hideBanner();
-      console.log('[AdMob Native] Banner Ad Hidden Successfully');
-      return true;
-    } catch (error) {
-      console.error('[AdMob Native] Error hiding banner ad:', error);
-      return false;
-    }
+    return true;
   },
 
   resumeBanner: async () => {
-    if (!Capacitor.isNativePlatform()) {
-      console.log('[AdMob Web Mock] Resuming Banner Ad');
-      return true;
-    }
-
-    try {
-      await AdMob.resumeBanner();
-      return true;
-    } catch (error) {
-      console.error('[AdMob Native] Error resuming banner ad:', error);
-      return false;
-    }
+    return true;
   },
 
   removeBanner: async () => {
-    if (!Capacitor.isNativePlatform()) {
-      console.log('[AdMob Web Mock] Removing Banner Ad');
-      window.dispatchEvent(new CustomEvent('web-admob-banner-state', {
-        detail: { visible: false }
-      }));
-      return true;
-    }
-
-    try {
-      await AdMob.removeBanner();
-      return true;
-    } catch (error) {
-      console.error('[AdMob Native] Error removing banner ad:', error);
-      return false;
-    }
+    return true;
   },
 
   showInterstitial: async (onAdDismissed?: () => void): Promise<boolean> => {
-    const adId = admobService.getAdUnitId('interstitial');
-
-    if (!Capacitor.isNativePlatform()) {
-      console.log('[AdMob Web Mock] Triggering Mock Interstitial Ad with ID:', adId);
-      // Dispatch a custom event to show the full screen mock ad
-      window.dispatchEvent(new CustomEvent('web-admob-interstitial-trigger', {
-        detail: { onDismiss: onAdDismissed }
-      }));
-      return true;
-    }
-
-    try {
-      await admobService.initialize();
-      
-      console.log('[AdMob Native] Preloading Interstitial Ad...');
-      await AdMob.prepareInterstitial({
-        adId: adId,
-        isTesting: true,
-      });
-
-      // Show interstitial
-      console.log('[AdMob Native] Presenting Interstitial Ad...');
-      await AdMob.showInterstitial();
-      
-      if (onAdDismissed) {
-        onAdDismissed();
-      }
-      return true;
-    } catch (error) {
-      console.error('[AdMob Native] Error presenting interstitial ad:', error);
-      // Fallback on failure
-      if (onAdDismissed) onAdDismissed();
-      return false;
-    }
+    console.log(`[AdMob] Interstitial ads have been disabled. AdMob is integrated strictly as native ads in the feed.`);
+    if (onAdDismissed) onAdDismissed();
+    return false;
   },
 
   showRewarded: async (onRewarded: (rewardType: string, rewardAmount: number) => void, onAdDismissed?: () => void): Promise<boolean> => {
-    const adId = admobService.getAdUnitId('rewarded');
-
-    if (!Capacitor.isNativePlatform()) {
-      console.log('[AdMob Web Mock] Triggering Mock Rewarded Ad with ID:', adId);
-      // Dispatch a custom event to show the full screen mock rewarded ad
-      window.dispatchEvent(new CustomEvent('web-admob-rewarded-trigger', {
-        detail: { 
-          onRewarded: () => onRewarded('Reputation Points', 50),
-          onDismiss: onAdDismissed 
-        }
-      }));
-      return true;
-    }
-
-    try {
-      await admobService.initialize();
-
-      console.log('[AdMob Native] Preloading Rewarded Video Ad...');
-      await AdMob.prepareRewardVideoAd({
-        adId: adId,
-        isTesting: true,
-      });
-
-      // Add single-use event listener for reward
-      const rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: any) => {
-        console.log('[AdMob Native] User earned reward:', reward);
-        onRewarded(reward?.type || 'Reputation Points', reward?.amount || 50);
-      });
-
-      console.log('[AdMob Native] Presenting Rewarded Video Ad...');
-      await AdMob.showRewardVideoAd();
-
-      // Clean up listener
-      setTimeout(() => {
-        try {
-          rewardListener.remove();
-        } catch (e) {
-          console.warn('Could not remove rewarded listener:', e);
-        }
-      }, 5000);
-
-      if (onAdDismissed) {
-        onAdDismissed();
-      }
-      return true;
-    } catch (error) {
-      console.error('[AdMob Native] Error presenting rewarded video ad:', error);
-      // Fallback
-      if (onAdDismissed) onAdDismissed();
-      return false;
-    }
+    console.log(`[AdMob] Rewarded ads have been disabled. AdMob is integrated strictly as native ads in the feed.`);
+    if (onAdDismissed) onAdDismissed();
+    return false;
   }
 };

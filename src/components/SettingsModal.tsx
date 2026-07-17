@@ -364,107 +364,17 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       case 'admob':
         return (
           <div className="space-y-6">
-            {/* Banner Ads Section */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-sm">Persistent Banner Ads</div>
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-tight">Toggle smart adaptive banners</div>
-                </div>
-                <button 
-                  onClick={() => handleBannerToggle(!bannerEnabled)}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${bannerEnabled ? 'bg-white' : 'bg-zinc-800'}`}
-                >
-                  <div className={`absolute top-1 w-4 h-4 rounded-full transition-all ${bannerEnabled ? 'bg-black left-7' : 'bg-zinc-400 left-1'}`} />
-                </button>
+            {/* Native Ads Overview Section */}
+            <div className="space-y-3 p-4 bg-zinc-900 border border-zinc-850 rounded-2xl">
+              <div className="flex items-center gap-2 text-yellow-500">
+                <Sparkles size={16} className="fill-current" />
+                <span className="font-black text-xs uppercase tracking-widest">Feed Integration Only</span>
               </div>
-
-              {bannerEnabled && (
-                <div className="bg-zinc-900/60 border border-zinc-900 rounded-2xl p-4 space-y-3">
-                  <div className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Banner Position</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={() => handlePositionToggle('top')}
-                      className={`py-3 rounded-xl border text-xs font-black uppercase tracking-widest transition-all ${bannerPosition === 'top' ? 'bg-white text-black border-white' : 'bg-zinc-950 text-zinc-400 border-zinc-855'}`}
-                    >
-                      Top Center
-                    </button>
-                    <button 
-                      onClick={() => handlePositionToggle('bottom')}
-                      className={`py-3 rounded-xl border text-xs font-black uppercase tracking-widest transition-all ${bannerPosition === 'bottom' ? 'bg-white text-black border-white' : 'bg-zinc-950 text-zinc-400 border-zinc-855'}`}
-                    >
-                      Bottom Center
-                    </button>
-                  </div>
-                </div>
-              )}
+              <h3 className="text-white font-black text-sm uppercase italic">Premium Native Feed Ads</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                To maximize UI consistency and respect user focus, other intrusive ad formats (Banners, Interstitial popups, and Rewarded video overlays) are completely disabled. Google AdMob is integrated strictly as a beautifully customized native ad inside your feed.
+              </p>
             </div>
-
-            <div className="h-px bg-zinc-850" />
-
-            {/* Test Ads Panel */}
-            <div className="space-y-4">
-              <div className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Interactive Test Suite</div>
-              
-              <div className="grid grid-cols-1 gap-3">
-                {/* Interstitial Ad Button */}
-                <button 
-                  onClick={async () => {
-                    setAdFeedback('Loading Interstitial Ad...');
-                    await admobService.showInterstitial(() => {
-                      setAdFeedback('Interstitial Ad Dismissed!');
-                      setTimeout(() => setAdFeedback(null), 3000);
-                    });
-                  }}
-                  className="w-full flex items-center justify-between p-4 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 transition-all rounded-2xl text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-zinc-800 rounded-xl text-zinc-300">
-                      <Sparkles size={18} />
-                    </div>
-                    <div>
-                      <span className="font-bold text-sm block">Trigger Interstitial Ad</span>
-                      <span className="text-[9px] text-zinc-500 uppercase font-semibold">Loads a full-screen display ad</span>
-                    </div>
-                  </div>
-                  <ChevronLeft size={16} className="rotate-180 text-zinc-500" />
-                </button>
-
-                {/* Rewarded Video Ad Button */}
-                <button 
-                  onClick={async () => {
-                    setAdFeedback('Loading Rewarded Video...');
-                    await admobService.showRewarded((type, amount) => {
-                      setAdFeedback(`Rewarded successfully: ${amount} ${type}!`);
-                      setTimeout(() => setAdFeedback(null), 4000);
-                    }, () => {
-                      console.log('Rewarded Video completed/dismissed');
-                    });
-                  }}
-                  className="w-full flex items-center justify-between p-4 bg-zinc-900 border border-zinc-855 hover:border-zinc-800 transition-all rounded-2xl text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-zinc-800 rounded-xl text-yellow-500">
-                      <Award size={18} />
-                    </div>
-                    <div>
-                      <span className="font-bold text-sm block">Watch Rewarded Video</span>
-                      <span className="text-[9px] text-zinc-500 uppercase font-semibold">Earn +50 Reputation Points instantly</span>
-                    </div>
-                  </div>
-                  <ChevronLeft size={16} className="rotate-180 text-zinc-500" />
-                </button>
-              </div>
-
-              {adFeedback && (
-                <div className="p-3.5 bg-zinc-950 border border-zinc-850 rounded-xl flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wide">
-                  <AlertCircle size={14} className="text-zinc-500" />
-                  <span>{adFeedback}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="h-px bg-zinc-850" />
 
             {/* Diagnostics View */}
             <div className="p-4 bg-zinc-950 border border-zinc-850 rounded-2xl space-y-3">
@@ -491,9 +401,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <div className="bg-zinc-900/40 p-3 rounded-xl border border-zinc-900 space-y-1">
                 <span className="text-zinc-500 text-[9px] font-bold block uppercase tracking-wide">Active Ad Unit IDs</span>
                 <div className="text-[9px] font-mono text-zinc-400 space-y-0.5 truncate">
-                  <p>Banner: {admobService.getAdUnitId('banner')}</p>
-                  <p>Interstitial: {admobService.getAdUnitId('interstitial')}</p>
-                  <p>Rewarded: {admobService.getAdUnitId('rewarded')}</p>
+                  <p className="text-yellow-500">Native Feed: {admobService.getAdUnitId('native')}</p>
+                  <p className="text-zinc-600 line-through">Banner: Disabled</p>
+                  <p className="text-zinc-600 line-through">Interstitial: Disabled</p>
+                  <p className="text-zinc-600 line-through">Rewarded: Disabled</p>
                 </div>
               </div>
             </div>

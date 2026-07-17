@@ -9,9 +9,10 @@ import { StoryCreator } from './StoryCreator';
 import { AdSlot } from './AdSlot';
 import { ADSENSE_CLIENT_ID } from '../constants';
 import { trackOutboundClick } from '../lib/analytics';
-import { MessageSquare, RefreshCw } from 'lucide-react';
-import { motion } from 'motion/react';
+import { MessageSquare, RefreshCw, Star, ExternalLink, ShieldAlert, Sparkles, Check } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+import { admobService } from '../lib/admobService';
 
 export function Feed() {
   const { blockedUserIds } = useAuth();
@@ -250,43 +251,48 @@ export function Feed() {
               />
             );
           } else {
+            // Cycle through different premium sponsors based on index
+            const creatives = [
+              {
+                sponsor: 'Brembo Brakes',
+                handle: 'bremboracing',
+                avatar: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&q=80&w=120&h=120',
+                headline: 'CARBON-CERAMIC ROTORS',
+                description: 'Engineered for absolute thermal stability. Stop from 100-0 MPH in world-record distance.',
+                image: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&q=80&w=800',
+                cta: 'UPGRADE CALIPERS',
+                rating: '4.9',
+                installs: '8.4M'
+              },
+              {
+                sponsor: 'Michelin Tires',
+                handle: 'michelinmotorsport',
+                avatar: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&q=80&w=120&h=120',
+                headline: 'PILOT SPORT CUP 2 R',
+                description: 'Extreme dry grip designed for hypercars. Shave seconds off your personal best lap times.',
+                image: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80&w=800',
+                cta: 'FIND YOUR SIZE',
+                rating: '4.8',
+                installs: '14.2M'
+              },
+              {
+                sponsor: 'Mobil 1 Racing',
+                handle: 'mobil1motorsport',
+                avatar: 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&q=80&w=120&h=120',
+                headline: 'SYNTHETIC 0W-40 FLUIDS',
+                description: 'Advanced fluid friction protection under high boost. Keep your built motor safe.',
+                image: 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&q=80&w=800',
+                cta: 'BOOST LUBRICITY',
+                rating: '4.9',
+                installs: '22.1M'
+              }
+            ];
+
+            const adIndex = Math.floor(index / 2) % creatives.length;
+            const creative = creatives[adIndex];
+
             return (
-              <div key={item.id} className="h-full w-full snap-start snap-always relative bg-zinc-950 flex flex-col items-center justify-center group overflow-hidden">
-                {/* Ad content */}
-                <div className="absolute top-24 left-4 bg-zinc-800/80 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-black tracking-widest text-zinc-400 border border-zinc-700/50 z-10 shadow-lg flex items-center gap-2 uppercase">
-                   SPONSORED
-                </div>
-                <div className="w-[85%] max-w-[320px] aspect-[4/5] bg-zinc-900/80 rounded-[32px] flex flex-col items-center justify-center border border-zinc-800 relative shadow-2xl backdrop-blur-xl overflow-hidden mt-10">
-                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-red-500/10 opacity-30"></div>
-                   <div className="w-full flex-1 flex flex-col items-center justify-center p-4 text-center space-y-5 relative z-10">
-                      {!ADSENSE_CLIENT_ID ? (
-                        <div className="space-y-4">
-                          <div className="w-20 h-20 bg-white rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.2)] mb-2">
-                              <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                 <path d="M21.35 11.1H12.18V13.83H17.38C17.15 15.01 16.03 16.7 12.18 16.7C9.36 16.7 7.07 14.34 7.07 11.5C7.07 8.66 9.36 6.3 12.18 6.3C13.79 6.3 14.88 7.01 15.48 7.6L17.51 5.4C16.14 4.04 14.34 3.2 12.18 3.2C7.59 3.2 3.86 6.91 3.86 11.5C3.86 16.09 7.59 19.8 12.18 19.8C17.65 19.8 21.46 15.95 21.46 11.75C21.46 10.91 21.37 10.45 21.35 11.1Z" fill="#313131"/>
-                              </svg>
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-black text-white tracking-tight leading-tight uppercase italic mb-2">Connect AdSense</h3>
-                            <p className="text-[10px] text-zinc-400 font-medium px-4 leading-relaxed">
-                              Add your AdSense Client ID in <code className="text-red-500">src/constants.ts</code> to see real ads.
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <AdSlot className="w-full h-full flex items-center justify-center" />
-                      )}
-                   </div>
-                   <div className="w-full p-4 border-t border-white/5 bg-zinc-900/50 relative z-10 backdrop-blur-md">
-                      <button 
-                        onClick={trackOutboundClick}
-                        className="w-full py-4 bg-white text-black font-black uppercase italic tracking-widest text-sm rounded-2xl hover:bg-zinc-200 transition-colors"
-                      >
-                        Learn More
-                      </button>
-                   </div>
-                </div>
-              </div>
+              <AdMobNativeFeedCard key={item.id} creative={creative} />
             );
           }
         })}
@@ -302,6 +308,154 @@ export function Feed() {
           onClose={() => setSelectedStoryUserId(null)} 
         />
       )}
+    </div>
+  );
+}
+
+interface AdMobNativeFeedCardProps {
+  creative: {
+    sponsor: string;
+    handle: string;
+    avatar: string;
+    headline: string;
+    description: string;
+    image: string;
+    cta: string;
+    rating: string;
+    installs: string;
+  };
+}
+
+export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
+  const [clicked, setClicked] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const handleCtaClick = () => {
+    if (clicked || installing) return;
+    setInstalling(true);
+    setProgress(0);
+    
+    // Simulate interactive ad install progress
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setInstalling(false);
+          setClicked(true);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 150);
+
+    // Track analytics event
+    trackOutboundClick();
+  };
+
+  const adUnitId = admobService.getAdUnitId('native');
+
+  return (
+    <div className="h-full w-full snap-start snap-always relative bg-zinc-950 flex flex-col justify-between pt-[calc(env(safe-area-inset-top,24px)+52px)] pb-24 px-4 font-sans overflow-hidden">
+      {/* Background glow overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-zinc-900/40 pointer-events-none" />
+
+      {/* Top Header Row */}
+      <div className="relative z-10 flex items-center justify-between w-full px-2 mt-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full border border-white/10 overflow-hidden bg-zinc-900 flex-shrink-0">
+            <img src={creative.avatar} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-white text-xs font-black uppercase tracking-tight">{creative.sponsor}</span>
+              <span className="bg-yellow-500 text-black text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                <Sparkles size={6} className="fill-current" /> SPONSOR
+              </span>
+            </div>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">@{creative.handle} • Verified Partner</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2 bg-zinc-900/80 border border-zinc-800/80 px-2.5 py-1 rounded-full text-[8px] font-mono font-black text-zinc-400 tracking-widest uppercase">
+          <ShieldAlert size={10} className="text-yellow-500 animate-pulse" /> ADMOB NATIVE
+        </div>
+      </div>
+
+      {/* Main Creative Container */}
+      <div className="relative z-10 w-full max-w-sm mx-auto flex-1 flex flex-col justify-center my-4">
+        <div className="w-full aspect-[4/5] bg-zinc-900/80 border border-zinc-850 rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl relative backdrop-blur-md group">
+          
+          {/* Ad Image & Gradient Overlay */}
+          <div className="absolute inset-0 w-full h-full">
+            <img 
+              src={creative.image} 
+              className="w-full h-full object-cover scale-102 group-hover:scale-105 transition-transform duration-700 brightness-90 contrast-[1.05]" 
+              alt="" 
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/10" />
+          </div>
+
+          {/* Top Info Tag */}
+          <div className="relative z-10 p-4 flex justify-between items-start">
+            <span className="bg-black/45 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full text-[8px] font-mono font-bold uppercase tracking-wider text-zinc-300">
+              {creative.installs} Tuners Upgraded
+            </span>
+            <div className="flex items-center gap-1 bg-black/45 backdrop-blur-md border border-white/10 px-2 py-0.5 rounded-md text-[9px] font-black text-yellow-500">
+              <Star size={9} fill="currentColor" /> {creative.rating}
+            </div>
+          </div>
+
+          {/* Bottom Info Content */}
+          <div className="relative z-10 p-6 space-y-3 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
+            <h3 className="text-xl font-black italic text-white tracking-tighter uppercase leading-none">
+              {creative.headline}
+            </h3>
+            <p className="text-xs text-zinc-300 font-medium leading-relaxed">
+              {creative.description}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Button & Diagnostics Bottom Row */}
+      <div className="relative z-10 w-full max-w-sm mx-auto space-y-4 px-2">
+        {/* Interactive CTA */}
+        <button 
+          onClick={handleCtaClick}
+          disabled={installing || clicked}
+          className="w-full relative overflow-hidden h-14 bg-white text-black font-black uppercase italic tracking-widest text-xs rounded-2xl flex items-center justify-center transition-all active:scale-98 shadow-[0_12px_32px_rgba(255,255,255,0.15)] hover:bg-zinc-100"
+        >
+          {installing && (
+            <div 
+              className="absolute left-0 top-0 bottom-0 bg-red-500/20 transition-all duration-150"
+              style={{ width: `${progress}%` }}
+            />
+          )}
+
+          <div className="relative z-10 flex items-center gap-2">
+            {installing ? (
+              <span>STAGING BUILD... {progress}%</span>
+            ) : clicked ? (
+              <span className="text-green-600 flex items-center gap-1.5 uppercase font-black">
+                <Check size={14} className="stroke-[3]" /> INSTALLED SUCCESSFULLY
+              </span>
+            ) : (
+              <>
+                <span>{creative.cta}</span>
+                <ExternalLink size={12} />
+              </>
+            )}
+          </div>
+        </button>
+
+        {/* AdMob Active Unit ID Status */}
+        <div className="text-center font-mono text-[8px] text-zinc-600 uppercase tracking-widest flex items-center justify-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+          <span>Active Ad Unit ID: <span className="text-zinc-500 font-bold">{adUnitId}</span></span>
+        </div>
+      </div>
     </div>
   );
 }
