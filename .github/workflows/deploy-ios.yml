@@ -83,6 +83,7 @@ jobs:
 
           # Ensure the temporary keychain is in the search list (important for xcodebuild search path)
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -s "$KEYCHAIN_PATH"
 
           # Allow codesign to access the key without visual prompts
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -100,7 +101,8 @@ jobs:
                      DEVELOPMENT_TEAM="ZLHX8SG89D" \
                      CODE_SIGN_STYLE="Manual" \
                      PROVISIONING_PROFILE_SPECIFIER="RevitUp App Store Profile" \
-                     CODE_SIGN_IDENTITY="iPhone Distribution"
+                     CODE_SIGN_IDENTITY="iPhone Distribution" \
+                     OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH"
 
           # Export the IPA file from archive
           # We generate a simple exportOptions.plist on the fly
