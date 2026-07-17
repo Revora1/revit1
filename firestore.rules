@@ -212,7 +212,7 @@ service cloud.firestore {
 
     // --- Helpful Votes ---
     match /helpful_votes/{voteId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow create: if isEmailVerified() && isValidId(voteId) && incoming().voterId == request.auth.uid &&
                       exists(/databases/$(database)/documents/comments/$(incoming().commentId)) &&
                       incoming().commentAuthorId is string;

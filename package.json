@@ -8,6 +8,7 @@
     "build": "node scripts/unpack-icons.cjs && tsc -b && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
+    "lint": "eslint .",
     "cap:sync": "cap sync",
     "cap:add-ios": "cap add ios",
     "cap:add-android": "cap add android",

@@ -76,16 +76,15 @@ jobs:
           # Create and configure a temporary keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-
-          # Ensure the temporary keychain is in the search list (important for xcodebuild search path) without overwriting system keychains
-          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security default-keychain -s "$KEYCHAIN_PATH"
 
           # Import certificate into the temporary keychain
           security import "$CERTIFICATE_PATH" -P "$BUILD_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
 
-          # Allow codesign to access the key
+          # Ensure the temporary keychain is in the search list (important for xcodebuild search path)
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          # Allow codesign to access the key without visual prompts
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
           # Install provisioning profile
