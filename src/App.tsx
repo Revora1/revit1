@@ -1,3 +1,4 @@
+import { AgeAssuranceView } from "./components/AgeAssuranceView";
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout, View } from './components/Layout';
@@ -58,8 +59,16 @@ export default function App() {
 }
 
 function InnerAppContent() {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   
+  const isKid = React.useMemo(() => {
+    if (!profile?.birthdate) return false;
+    const dob = new Date(profile.birthdate);
+    const ageDifMs = Date.now() - dob.getTime();
+    const ageDate = new Date(ageDifMs);
+    return Math.abs(ageDate.getUTCFullYear() - 1970) < 16;
+  }, [profile?.birthdate]);
+
   // Parse shared post from URL query params
   const sharedPostId = React.useMemo(() => {
     try {
@@ -78,6 +87,12 @@ function InnerAppContent() {
   const [targetChatInfo, setTargetChatInfo] = useState<{ chatId: string, otherUser: any, ts: number } | null>(null);
   const [initialProfileTab, setInitialProfileTab] = useState<'garage' | 'posts' | 'duo'>('garage');
   const [inboxTargetTab, setInboxTargetTab] = useState<'notifications' | 'messages' | 'garage' | 'leaderboards' | 'leaderboards-dyno' | null>(null);
+
+  React.useEffect(() => {
+    if (isKid && activeView === 'feed') {
+      setActiveView('search');
+    }
+  }, [isKid, activeView]);
   const [navigationHistory, setNavigationHistory] = useState<{
     view: View;
     targetUserId: string | null;
@@ -179,8 +194,8 @@ function InnerAppContent() {
     const handleNavigateBack = () => {
       setNavigationHistory(prev => {
         if (prev.length === 0) {
-          // If no history, default back to feed
-          setActiveView('feed');
+          // If no history, default back to feed or search
+          setActiveView(isKid ? 'search' : 'feed');
           setTargetUserId(null);
           setTargetUsername(null);
           setTargetPostId(null);
@@ -214,7 +229,7 @@ function InnerAppContent() {
       window.removeEventListener('navigate-dyno', handleDynoNav);
       window.removeEventListener('navigate-back', handleNavigateBack);
     };
-  }, []);
+  }, [isKid]);
 
   React.useEffect(() => {
     if (!messaging) return;
@@ -278,6 +293,8 @@ function InnerAppContent() {
     );
   } else if (!user) {
     content = <AuthView />;
+  } else if (profile && !profile.birthdate) {
+    content = <AgeAssuranceView />;
   } else {
     content = (
       <Layout activeView={activeView} onViewChange={handleViewChange}>

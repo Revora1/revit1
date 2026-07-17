@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { MessagesView } from './MessagesView';
 import { NotificationsView } from './NotificationsView';
 import { CommunityGarageView } from './CommunityGarageView';
@@ -12,10 +13,19 @@ export function InboxView({
   initialTab?: 'notifications' | 'messages' | 'garage' | 'leaderboards' | 'leaderboards-dyno', 
   initialChat?: { chatId: string, otherUser: any, ts?: number } 
 }) {
+  const { profile } = useAuth();
+  const isKid = useMemo(() => {
+    if (!profile?.birthdate) return false;
+    const dob = new Date(profile.birthdate);
+    const ageDifMs = Date.now() - dob.getTime();
+    const ageDate = new Date(ageDifMs);
+    return Math.abs(ageDate.getUTCFullYear() - 1970) < 16;
+  }, [profile?.birthdate]);
+
   const [activeTab, setActiveTab] = useState<'notifications' | 'messages' | 'garage' | 'leaderboards'>(
     initialTab === 'leaderboards-dyno' 
       ? 'leaderboards' 
-      : (initialTab as any || (initialChat ? 'messages' : 'notifications'))
+      : (initialTab as any || (initialChat && !isKid ? 'messages' : 'notifications'))
   );
   const [leaderboardSubTab, setLeaderboardSubTab] = useState<'rep' | 'dyno'>(
     initialTab === 'leaderboards-dyno' ? 'dyno' : 'rep'
@@ -47,14 +57,16 @@ export function InboxView({
           >
             Alerts
           </button>
-          <button
-            onClick={() => setActiveTab('messages')}
-            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors ${
-              activeTab === 'messages' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            Chats
-          </button>
+          {!isKid && (
+            <button
+              onClick={() => setActiveTab('messages')}
+              className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors ${
+                activeTab === 'messages' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Chats
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('garage')}
             className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors ${
@@ -104,7 +116,7 @@ export function InboxView({
         {activeTab === 'notifications' && (
           <NotificationsView hideHeader />
         )}
-        {activeTab === 'messages' && (
+        {activeTab === 'messages' && !isKid && (
           <MessagesView 
             hideHeader 
             initialChatId={initialChat?.chatId} 

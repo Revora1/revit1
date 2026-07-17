@@ -43,17 +43,18 @@ service cloud.firestore {
              (!('followingCount' in data) || (data.followingCount is int && data.followingCount >= 0)) &&
              (!('partnerId' in data) || (data.partnerId is string && data.partnerId.size() <= 128)) &&
              (!('garage' in data) || (data.garage is list && data.garage.size() <= 100)) &&
-             (!('fcmTokens' in data) || (data.fcmTokens is list && data.fcmTokens.size() <= 20));
+             (!('fcmTokens' in data) || (data.fcmTokens is list && data.fcmTokens.size() <= 20)) &&
+             (!('birthdate' in data) || (data.birthdate is string && data.birthdate.size() <= 20));
     }
 
     match /users/{userId} {
       allow get: if isSignedIn() && isValidId(userId);
       allow list: if isSignedIn();
       allow create: if isEmailVerified() && isValidId(userId) && userId == request.auth.uid && 
-                      isValidUser(incoming()) && incoming().keys().size() >= 3 && incoming().keys().size() <= 11;
+                      isValidUser(incoming()) && incoming().keys().size() >= 3 && incoming().keys().size() <= 12;
       allow update: if isEmailVerified() && isValidId(userId) && (
         (isOwner(userId) && isValidUser(incoming()) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['username', 'usernameLower', 'bio', 'profilePic', 'garage', 'followersCount', 'followingCount', 'partnerId', 'fcmTokens'])) ||
+         incoming().diff(existing()).affectedKeys().hasOnly(['username', 'usernameLower', 'bio', 'profilePic', 'garage', 'followersCount', 'followingCount', 'partnerId', 'fcmTokens', 'birthdate'])) ||
         (!isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['followersCount']))
       );
 

@@ -20,7 +20,7 @@ export function PrivacyPolicy({ onBack, hideHeader = false }: PrivacyPolicyProps
 
       <div className={`flex-1 space-y-8 ${hideHeader ? 'p-0 max-h-[60vh] overflow-y-auto scrollbar-hide' : 'p-6 pb-24 overflow-y-auto'}`}>
         <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
-          Last Updated: July 12, 2026
+          Last Updated: July 17, 2026
         </p>
 
         <section className="space-y-4">
@@ -39,11 +39,11 @@ export function PrivacyPolicy({ onBack, hideHeader = false }: PrivacyPolicyProps
           </h3>
           <div className="space-y-3">
             <p className="text-sm text-white font-semibold leading-relaxed">
-              RevitUp uses Google Sign-In for user registration and secure authentication.
+              RevitUp uses Google Sign-In and Email/Password for user registration and secure authentication.
             </p>
             <ul className="space-y-2 list-disc pl-5 text-sm text-zinc-400">
               <li>
-                <span className="text-white font-semibold">What is accessed:</span> We access your public Google profile information (such as your name, email address, and profile picture) solely to create and manage your secure user account.
+                <span className="text-white font-semibold">What is accessed:</span> We access your public Google profile information (such as your name, email address, and profile picture) or your provided email address solely to create and manage your secure user account.
               </li>
               <li>
                 <span className="text-white font-semibold">No direct collection:</span> We do not directly collect, request, store, or sell your email address or any personal contact details for marketing or promotional purposes.
@@ -115,7 +115,7 @@ export function PrivacyPolicy({ onBack, hideHeader = false }: PrivacyPolicyProps
 
         <div className="pt-8 border-t border-zinc-900">
           <p className="text-[10px] text-zinc-600 font-medium uppercase text-center tracking-widest">
-            Last Updated: July 12, 2026
+            Last Updated: July 17, 2026
           </p>
         </div>
       </div>

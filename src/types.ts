@@ -2,6 +2,7 @@ export interface UserProfile {
   uid: string;
   username: string;
   usernameLower: string;
+  birthdate?: string;
   email?: string; // Optional: Only available for owner via private subcollection
   bio?: string;
   profilePic?: string;

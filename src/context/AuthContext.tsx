@@ -1,9 +1,10 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { onAuthStateChanged, User, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
+import { isUnder16 } from '../lib/utils';
 
 interface AuthContextType {
   user: User | null;
@@ -12,6 +13,7 @@ interface AuthContextType {
   error: string | null;
   isIOS: boolean;
   signIn: () => Promise<void>;
+  signInWithEmail: (e: string, p: string) => Promise<void>;
   logout: () => Promise<void>;
   blockedUserIds: string[];
   myBlockedIds: string[];
@@ -52,6 +54,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const privateSnap = await getDoc(privateInfoRef);
             if (privateSnap.exists()) {
               data.email = privateSnap.data().email;
+            }
+
+            if (data.birthdate && isUnder16(data.birthdate)) {
+              await signOut(auth);
+              setError('You must be 16 or older to use this app.');
+              setProfile(null);
+              setLoading(false);
+              return;
             }
 
             if (data.username && !data.usernameLower) {
@@ -171,6 +181,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithEmail = async (e: string, p: string) => {
+    setError(null);
+    try {
+      await signInWithEmailAndPassword(auth, e, p);
+    } catch (err: any) {
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
+        try {
+          await createUserWithEmailAndPassword(auth, e, p);
+          return;
+        } catch (createErr: any) {
+          setError(createErr.message || 'Failed to create reviewer account');
+        }
+      } else {
+        console.error('Email sign in error:', err);
+        setError(err.message || 'Failed to sign in with email');
+      }
+    }
+  };
+
   const logout = async () => {
     setError(null);
     await signOut(auth);
@@ -229,7 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading, 
       error, 
       isIOS, 
-      signIn, 
+      signIn, signInWithEmail, 
       logout,
       blockedUserIds,
       myBlockedIds,
