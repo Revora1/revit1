@@ -15,7 +15,6 @@
     "cap:open-android": "cap open android"
   },
   "dependencies": {
-    "@capacitor-community/admob": "^8.0.0",
     "@capacitor/core": "^8.4.1",
     "@google/genai": "1.29.0",
     "@vis.gl/react-google-maps": "^1.8.3",

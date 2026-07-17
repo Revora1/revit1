@@ -370,7 +370,7 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
             <div className="flex items-center gap-1.5">
               <span className="text-white text-xs font-black uppercase tracking-tight">{creative.sponsor}</span>
               <span className="bg-yellow-500 text-black text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                <Sparkles size={6} className="fill-current" /> SPONSOR
+                <Sparkles size={6} className="fill-current" /> SPONSORED
               </span>
             </div>
             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">@{creative.handle} • Verified Partner</p>
@@ -384,6 +384,12 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
 
       {/* Main Creative Container */}
       <div className="relative z-10 w-full max-w-sm mx-auto flex-1 flex flex-col justify-center my-4">
+        {/* Elegant SPONSORED Logo Header */}
+        <div className="flex items-center justify-center gap-2 mb-3 bg-yellow-500 text-black py-1 px-4 rounded-full self-center shadow-[0_4px_12px_rgba(234,179,8,0.25)] border border-yellow-400 animate-pulse">
+          <Sparkles size={10} className="fill-black" />
+          <span className="text-[9px] font-black tracking-[0.2em] uppercase font-sans">SPONSORED</span>
+          <Sparkles size={10} className="fill-black" />
+        </div>
         <div className="w-full aspect-[4/5] bg-zinc-900/80 border border-zinc-850 rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl relative backdrop-blur-md group">
           
           {/* Ad Image & Gradient Overlay */}

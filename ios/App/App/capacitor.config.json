@@ -10,7 +10,5 @@
 			"initializeOnTesting": true
 		}
 	},
-	"packageClassList": [
-		"AdMobPlugin"
-	]
+	"packageClassList": []
 }

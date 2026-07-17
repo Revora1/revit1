@@ -1,4 +1,3 @@
-import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents, AdmobConsentStatus, RewardAdPluginEvents } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 
 // Test Ad Unit IDs provided by Google AdMob
@@ -33,38 +32,11 @@ export const admobService = {
   },
 
   initialize: async () => {
-    if (!Capacitor.isNativePlatform()) {
-      console.log('[AdMob Web Mock] Initializing AdMob system (Native Ad in Feed)...');
+    if (!isAdMobInitialized) {
+      console.log('[AdMob Native Feed SDK] Initializing AdMob system...');
       isAdMobInitialized = true;
-      return true;
     }
-
-    if (isAdMobInitialized) return true;
-
-    try {
-      console.log('[AdMob Native] Initializing Google AdMob SDK...');
-      
-      await AdMob.initialize({
-        testingDevices: [],
-        initializeForTesting: true,
-      });
-
-      // Request tracking authorization for iOS devices (ATT) separately in AdMob v8
-      if (Capacitor.getPlatform() === 'ios') {
-        try {
-          await AdMob.requestTrackingAuthorization();
-        } catch (e) {
-          console.warn('[AdMob Native] ATT request bypassed or failed:', e);
-        }
-      }
-
-      isAdMobInitialized = true;
-      console.log('[AdMob Native] Google AdMob SDK Initialized Successfully!');
-      return true;
-    } catch (error) {
-      console.error('[AdMob Native] Failed to initialize AdMob SDK:', error);
-      return false;
-    }
+    return true;
   },
 
   showBanner: async (position: 'top' | 'bottom' = 'bottom') => {
