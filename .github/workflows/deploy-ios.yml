@@ -31,67 +31,21 @@ jobs:
         run: |
           npx cap sync ios
 
-      - name: Install Apple Certificate, Provisioning Profile & Build iOS App
+      - name: Install Apple Certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with: 
+          p12-file-base64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+
+      - name: Install Provisioning Profile
         env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
-          BUILD_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: "temporary-keychain-password-123"
         run: |
-          set -euo pipefail
-
-          CERTIFICATE_PATH="$RUNNER_TEMP/build_certificate.p12"
-          PP_PATH="$RUNNER_TEMP/build_pp.mobileprovision"
-          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
-
-          # Decode secrets to files
-          echo "$BUILD_CERTIFICATE_BASE64" | tr -d '\r \n' | base64 --decode -o "$CERTIFICATE_PATH"
-          echo "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r \n' | base64 --decode -o "$PP_PATH"
-
-          # Detect openssl 3 (Homebrew) or fallback to system openssl
-          OPENSSL_CMD="openssl"
-          if [ -f "/opt/homebrew/opt/openssl@3/bin/openssl" ]; then
-            OPENSSL_CMD="/opt/homebrew/opt/openssl@3/bin/openssl"
-          elif [ -f "/usr/local/opt/openssl@3/bin/openssl" ]; then
-            OPENSSL_CMD="/usr/local/opt/openssl@3/bin/openssl"
-          fi
-          echo "Using openssl binary: $OPENSSL_CMD"
-
-          # Quick check: ensure the p12 can be read with the provided password
-          if ! "$OPENSSL_CMD" pkcs12 -in "$CERTIFICATE_PATH" -nokeys -passin pass:"$BUILD_CERT_PASSWORD" -noout >/dev/null 2>&1; then
-            echo "ERROR: Unable to read p12 with provided password using $OPENSSL_CMD."
-            echo "Please check if IOS_DISTRIBUTION_CERTIFICATE_BASE64 is valid and IOS_DISTRIBUTION_CERT_PASSWORD matches."
-            exit 1
-          fi
-
-          # Convert certificate to macOS-compatible legacy format if needed
-          # (only if openssl supports legacy provider - OpenSSL 3)
-          if "$OPENSSL_CMD" version | grep -q "OpenSSL 3"; then
-            echo "Converting PKCS12 to compatible legacy format (TripleDES/SHA1)..."
-            "$OPENSSL_CMD" pkcs12 -in "$CERTIFICATE_PATH" -nodes -passin pass:"$BUILD_CERT_PASSWORD" -out "$RUNNER_TEMP/temp.pem"
-            "$OPENSSL_CMD" pkcs12 -export -legacy -provider legacy -provider default -in "$RUNNER_TEMP/temp.pem" -out "$CERTIFICATE_PATH" -passout pass:"$BUILD_CERT_PASSWORD"
-            rm "$RUNNER_TEMP/temp.pem"
-          fi
-
-          # Create and configure a temporary keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import certificate into the temporary keychain
-          security import "$CERTIFICATE_PATH" -P "$BUILD_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH" -T /usr/bin/codesign -T /usr/bin/security
-
-          # Ensure the temporary keychain is in the search list (important for xcodebuild search path)
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
-          security default-keychain -s "$KEYCHAIN_PATH"
-
-          # Allow codesign to access the key without visual prompts
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Install provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r \n' | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
 
+      - name: Build iOS App
+        run: |
           # Use xcodebuild to archive the app with manual code signing
           xcodebuild -project ios/App/App.xcodeproj \
                      -scheme App \
@@ -101,8 +55,7 @@ jobs:
                      DEVELOPMENT_TEAM="ZLHX8SG89D" \
                      CODE_SIGN_STYLE="Manual" \
                      PROVISIONING_PROFILE_SPECIFIER="RevitUp App Store Profile" \
-                     CODE_SIGN_IDENTITY="iPhone Distribution" \
-                     OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH"
+                     CODE_SIGN_IDENTITY="iPhone Distribution"
 
           # Export the IPA file from archive
           # We generate a simple exportOptions.plist on the fly
