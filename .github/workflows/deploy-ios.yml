@@ -31,7 +31,7 @@ jobs:
         run: |
           npx cap sync ios
 
-      - name: Install Apple Certificate and Provisioning Profile
+      - name: Install Apple Certificate, Provisioning Profile & Build iOS App
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
           BUILD_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
@@ -92,10 +92,6 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      - name: Build iOS Archive & Export IPA
-        env:
-          KEYCHAIN_PASSWORD: "temporary-keychain-password-123"
-        run: |
           # Use xcodebuild to archive the app with manual code signing
           xcodebuild -project ios/App/App.xcodeproj \
                      -scheme App \
