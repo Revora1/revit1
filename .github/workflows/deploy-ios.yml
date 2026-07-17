@@ -31,6 +31,45 @@ jobs:
         run: |
           npx cap sync ios
 
+      - name: Recreate iOS Assets
+        run: |
+          echo "Cleaning up corrupted or outdated iOS assets..."
+          rm -rf ios/App/App/Assets.xcassets/AppIcon.appiconset
+          rm -rf ios/App/App/Assets.xcassets/Splash.imageset
+          mkdir -p ios/App/App/Assets.xcassets/AppIcon.appiconset
+          mkdir -p ios/App/App/Assets.xcassets/Splash.imageset
+          cat << 'EOF' > ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
+          {
+            "images": [
+              {
+                "idiom": "universal",
+                "platform": "ios",
+                "size": "1024x1024",
+                "filename": "AppIcon-512@2x.png"
+              }
+            ],
+            "info": {
+              "author": "xcode",
+              "version": 1
+            }
+          }
+          EOF
+          cat << 'EOF' > ios/App/App/Assets.xcassets/Splash.imageset/Contents.json
+          {
+            "images": [
+              { "idiom": "universal", "scale": "1x", "filename": "Default@1x~universal~anyany.png" },
+              { "idiom": "universal", "scale": "2x", "filename": "Default@2x~universal~anyany.png" },
+              { "idiom": "universal", "scale": "3x", "filename": "Default@3x~universal~anyany.png" },
+              { "appearances": [{ "appearance": "luminosity", "value": "dark" }], "idiom": "universal", "scale": "1x", "filename": "Default@1x~universal~anyany-dark.png" },
+              { "appearances": [{ "appearance": "luminosity", "value": "dark" }], "idiom": "universal", "scale": "2x", "filename": "Default@2x~universal~anyany-dark.png" },
+              { "appearances": [{ "appearance": "luminosity", "value": "dark" }], "idiom": "universal", "scale": "3x", "filename": "Default@3x~universal~anyany-dark.png" }
+            ],
+            "info": { "author": "xcode", "version": 1 }
+          }
+          EOF
+          npm i -D @capacitor/assets
+          npx @capacitor/assets generate --ios
+
       - name: Install Apple Certificate, Provisioning Profile & Build iOS App
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
