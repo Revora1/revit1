@@ -418,7 +418,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
              </div>
              <div>
                 <h3 className="font-black text-xl italic tracking-tight">REVITUP</h3>
-                <p className="text-zinc-500 text-xs">Version 1.0.0 (Build 492)</p>
+                <p className="text-zinc-500 text-xs">Version 1.0.4 (Build 4)</p>
              </div>
              
              <div className="space-y-2 pt-4">
