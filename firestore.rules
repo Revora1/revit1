@@ -108,6 +108,14 @@ service cloud.firestore {
                (data.views is list && data.views.size() <= 10000)
              ) &&
              (
+               !('sharesCount' in data) || 
+               (data.sharesCount is int && data.sharesCount >= 0)
+             ) &&
+             (
+               !('loopsCount' in data) || 
+               (data.loopsCount is int && data.loopsCount >= 0)
+             ) &&
+             (
                !('isDuo' in data) || 
                data.isDuo is bool
              ) &&
@@ -130,12 +138,12 @@ service cloud.firestore {
       allow list: if isSignedIn(); // Public posts are readable
       allow create: if isEmailVerified() && isValidId(postId) && isPostValid(incoming()) && 
                       incoming().authorId == request.auth.uid &&
-                      incoming().keys().size() >= 6 && incoming().keys().size() <= 14;
+                      incoming().keys().size() >= 6 && incoming().keys().size() <= 16;
       allow update: if isValidId(postId) && isPostValid(incoming()) && (
         // Author update
         (isEmailVerified() && resource.data.authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'carTagId', 'isDuo', 'songId'])) ||
         // Engagement update (likes/comments/views count)
-        (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'viewCount', 'views']))
+        (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'viewCount', 'views', 'sharesCount', 'loopsCount']))
       );
       allow delete: if isEmailVerified() && isValidId(postId) && resource.data.authorId == request.auth.uid;
     }

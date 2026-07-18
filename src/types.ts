@@ -28,6 +28,8 @@ export interface Post {
   likesCount: number;
   commentsCount: number;
   viewCount?: number;
+  sharesCount?: number;
+  loopsCount?: number;
   views?: string[];
   isDuo?: boolean;
   songId?: string; // Optional track ID attached to the post

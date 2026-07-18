@@ -33,14 +33,36 @@ export function Feed() {
     const q = query(
       collection(db, 'posts'),
       orderBy('createdAt', 'desc'),
-      limit(10)
+      limit(50)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedPosts = snapshot.docs.map(doc => ({
+      let fetchedPosts = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Post[];
+      
+      const TIME_DECAY_GRAVITY = 2.5; // Points deducted per hour
+      
+      // Calculate dynamic weight score
+      fetchedPosts = fetchedPosts.sort((a, b) => {
+        const calculateScore = (post: Post) => {
+          const likes = post.likesCount || 0;
+          const comments = post.commentsCount || 0;
+          const shares = post.sharesCount || 0;
+          const loops = post.loopsCount || 0;
+          
+          const rawScore = (likes * 1) + (comments * 5) + (shares * 10) + (loops * 15);
+          
+          const hoursSinceCreation = (Date.now() - post.createdAt) / (1000 * 60 * 60);
+          const timeDecay = hoursSinceCreation * TIME_DECAY_GRAVITY;
+          
+          return rawScore - timeDecay;
+        };
+        
+        return calculateScore(b) - calculateScore(a);
+      });
+
       setPosts(fetchedPosts);
       setLoading(false);
     }, (error) => {

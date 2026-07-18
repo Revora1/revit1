@@ -171,6 +171,7 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
 export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, initialShowComments = false }) => {
   const [liked, setLiked] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Parse associated song if any
@@ -244,6 +245,27 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
   const [author, setAuthor] = useState<UserProfile | null>(AUTHOR_CACHE[post.authorId] || null);
   const [taggedCar, setTaggedCar] = useState<Car | null>(post.carTagId ? CAR_CACHE[post.carTagId] : null);
   const { user, blockUser, reportContent } = useAuth();
+  const [activeDuration, setActiveDuration] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isActive) {
+      interval = setInterval(() => {
+        setActiveDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      setActiveDuration(0);
+    }
+    return () => clearInterval(interval);
+  }, [isActive]);
+
+  useEffect(() => {
+    if (activeDuration > 0 && activeDuration % 15 === 0) {
+      if (!user) return;
+      const postRef = doc(db, 'posts', post.id);
+      updateDoc(postRef, { loopsCount: increment(1) }).catch(e => console.error(e));
+    }
+  }, [activeDuration, post.id, user]);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSafetyMenu, setShowSafetyMenu] = useState(false);
@@ -613,6 +635,11 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
               setIsSharing(true);
               const shareUrl = `${window.location.origin}${window.location.pathname}?p=${post.id}`;
               try {
+                // Increment share count
+                if (user) {
+                  const postRef = doc(db, 'posts', post.id);
+                  updateDoc(postRef, { sharesCount: increment(1) }).catch(e => console.error(e));
+                }
                 if (navigator.share) {
                   await navigator.share({
                     title: 'RevItUp Post',
