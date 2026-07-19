@@ -5,14 +5,29 @@ const rootDir = process.cwd();
 
 console.log('[Auto-Increment] Starting build number incrementation...');
 
-// Read package.json version
+// Read and increment package.json version
 const packageJsonPath = path.join(rootDir, 'package.json');
 let packageVersion = '1.0.0';
 try {
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-  packageVersion = packageJson.version || '1.0.0';
+  const currentVersion = packageJson.version || '1.0.0';
+  const versionParts = currentVersion.split('.');
+  if (versionParts.length === 3) {
+    const patch = parseInt(versionParts[2], 10);
+    if (!isNaN(patch)) {
+      versionParts[2] = (patch + 1).toString();
+      packageVersion = versionParts.join('.');
+    } else {
+      packageVersion = currentVersion;
+    }
+  } else {
+    packageVersion = currentVersion;
+  }
+  packageJson.version = packageVersion;
+  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf8');
+  console.log(`[Auto-Increment] package.json version bumped from ${currentVersion} to ${packageVersion}`);
 } catch (e) {
-  console.error('[Auto-Increment] Failed to read package.json version:', e);
+  console.error('[Auto-Increment] Failed to read or update package.json version:', e);
 }
 
 let androidBuildNum = 1;

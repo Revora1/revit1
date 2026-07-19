@@ -5,13 +5,14 @@ import { DuoGarageView } from './DuoGarageView';
 import { AddCarModal } from './AddCarModal';
 import { EditProfileModal } from './EditProfileModal';
 import { SettingsModal } from './SettingsModal';
-import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Award, Info, Sparkles, ThumbsUp, Lock, Unlock, Check, MoreVertical, Flag, UserX } from 'lucide-react';
+import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Award, Info, Sparkles, ThumbsUp, Lock, Unlock, Check, MoreVertical, Flag, UserX, RefreshCw, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Post, UserProfile, Car, Comment } from '../types';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, where, orderBy, getDocs, onSnapshot, doc, getDoc, deleteDoc, setDoc, updateDoc, increment, limit, getCountFromServer } from 'firebase/firestore';
 import { PostCard } from './PostCard';
 import { ReportModal } from './ReportModal';
+import { Capacitor } from '@capacitor/core';
 
 import { FollowListModal } from './FollowListModal';
 
@@ -246,6 +247,54 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'garage' | 'posts' | 'duo'>(initialTab);
 
+  // Pull to refresh states
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [pullOffset, setPullOffset] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullStartY = useRef(0);
+  const pullStarted = useRef(false);
+
+  const refreshAllProfileData = async () => {
+    if (!resolvedUserId || resolvedUserId === 'not_found') return;
+    try {
+      // 1. Fetch user profile document manually
+      const userRef = doc(db, 'users', resolvedUserId);
+      const docSnap = await getDoc(userRef);
+      if (docSnap.exists()) {
+        setTargetProfile(docSnap.data() as UserProfile);
+      }
+
+      // 2. Fetch partner profile
+      const currentTarget = docSnap.exists() ? docSnap.data() as UserProfile : targetProfile;
+      if (currentTarget?.partnerId) {
+        const pSnap = await getDoc(doc(db, 'users', currentTarget.partnerId));
+        if (pSnap.exists()) {
+          setPartnerProfile(pSnap.data() as UserProfile);
+        }
+      }
+
+      // 3. If isOwner, fetch ownerStats
+      if (resolvedUserId === currentUser?.uid && currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
+        const [usersCountSnap, garageCountSnap, postsCountSnap] = await Promise.all([
+          getCountFromServer(collection(db, 'users')),
+          getCountFromServer(collection(db, 'garage')),
+          getCountFromServer(collection(db, 'posts'))
+        ]);
+        setOwnerStats({
+          usersCount: usersCountSnap.data().count,
+          carsCount: garageCountSnap.data().count,
+          postsCount: postsCountSnap.data().count
+        });
+      }
+
+      // 4. Force refresh nested tabs
+      setRefreshKey(prev => prev + 1);
+
+    } catch (err) {
+      console.error("Error manual refreshing profile data:", err);
+    }
+  };
+
   const [showSafetyMenu, setShowSafetyMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
@@ -389,7 +438,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
       });
       return unsubscribe;
     }
-  }, [effectiveUserId, isOwnProfile, currentProfile]);
+  }, [effectiveUserId, isOwnProfile, currentProfile, refreshKey]);
 
   useEffect(() => {
     const fetchPartner = async () => {
@@ -407,7 +456,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
       }
     };
     fetchPartner();
-  }, [targetProfile?.partnerId]);
+  }, [targetProfile?.partnerId, refreshKey]);
 
   useEffect(() => {
     if (!effectiveUserId || effectiveUserId === 'not_found') return;
@@ -453,7 +502,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
       unsubHelpful();
       unsubPosts();
     };
-  }, [effectiveUserId]);
+  }, [effectiveUserId, refreshKey]);
 
   const pointsFromCars = repData.carsCount * 20; // 20 points per car
   const pointsFromLogs = repData.buildLogsCount * 10; // 10 points per mod log entry
@@ -588,6 +637,49 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     }
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, textarea, select, [role="button"]')) {
+      return;
+    }
+    const scrollContainer = document.querySelector('main.overflow-y-auto') || document.documentElement;
+    if (scrollContainer && scrollContainer.scrollTop === 0 && !refreshing) {
+      pullStartY.current = e.clientY;
+      pullStarted.current = true;
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pullStarted.current || refreshing) return;
+    const currentY = e.clientY;
+    const deltaY = currentY - pullStartY.current;
+    
+    const scrollContainer = document.querySelector('main.overflow-y-auto') || document.documentElement;
+    if (deltaY > 0 && scrollContainer && scrollContainer.scrollTop === 0) {
+      const dampened = Math.min(80, deltaY * 0.45);
+      setPullOffset(dampened);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!pullStarted.current) return;
+    pullStarted.current = false;
+
+    if (pullOffset >= 50) {
+      setRefreshing(true);
+      setPullOffset(50);
+      
+      refreshAllProfileData().finally(() => {
+        setTimeout(() => {
+          setRefreshing(false);
+          setPullOffset(0);
+        }, 800);
+      });
+    } else {
+      setPullOffset(0);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-full bg-black flex items-center justify-center pb-20">
       <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -607,7 +699,40 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   if (!targetProfile) return null;
 
   return (
-    <div className="min-h-full bg-black pb-20">
+    <div 
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      className="relative min-h-full bg-black pb-20 select-none touch-pan-y"
+      style={{
+        transform: `translateY(${pullOffset}px)`,
+        transition: pullStarted.current ? 'none' : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)'
+      }}
+    >
+      {/* Pull down to refresh indicator */}
+      {(pullOffset > 0 || refreshing) && (
+        <div 
+          className="absolute left-0 right-0 z-[100] flex justify-center pointer-events-none"
+          style={{ 
+            top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+            transform: `translateY(${Math.min(100, pullOffset * 0.9)}px)`,
+            opacity: Math.min(1, pullOffset / 30)
+          }}
+        >
+          <div className="bg-white/95 backdrop-blur-xl border border-zinc-200/80 px-4 py-1.5 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.15)] flex items-center gap-2">
+            <motion.div
+              animate={refreshing ? { rotate: 360 } : { rotate: pullOffset * 6 }}
+              transition={refreshing ? { repeat: Infinity, duration: 1, ease: "linear" } : { duration: 0 }}
+            >
+              <RefreshCw size={12} className={refreshing ? "text-red-500 animate-spin" : "text-red-500"} />
+            </motion.div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-800 font-mono">
+              {refreshing ? "TUNING SYNCS..." : pullOffset >= 50 ? "RELEASE TO SYNC" : "PULL TO REFRESH"}
+            </span>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-10 font-sans">
         <div className="flex items-center justify-between">
@@ -877,16 +1002,17 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
 
           <div className="py-6">
             {activeTab === 'garage' ? (
-              <Garage userId={effectiveUserId} isOwner={isOwnProfile} onAddCar={() => setShowAddCar(true)} />
+              <Garage key={`garage_${effectiveUserId}_${refreshKey}`} userId={effectiveUserId} isOwner={isOwnProfile} onAddCar={() => setShowAddCar(true)} />
             ) : activeTab === 'duo' && effectiveUserId && targetProfile.partnerId && partnerProfile ? (
               <DuoGarageView 
+                key={`duo_${effectiveUserId}_${refreshKey}`}
                 userId1={effectiveUserId} 
                 userId2={targetProfile.partnerId} 
                 user1={targetProfile}
                 user2={partnerProfile}
               />
             ) : (
-              <UserPosts userId={effectiveUserId} />
+              <UserPosts key={`posts_${effectiveUserId}_${refreshKey}`} userId={effectiveUserId} />
             )}
           </div>
         </>

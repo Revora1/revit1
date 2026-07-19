@@ -166,8 +166,19 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const renderSubViewContent = () => {
     switch (activeSubView) {
       case 'notifications':
+        const isNative = Capacitor.isNativePlatform();
+        const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(window.navigator.userAgent);
+        const isStandalone = typeof window !== 'undefined' && (
+          (window.navigator as any).standalone || 
+          window.matchMedia('(display-mode: standalone)').matches
+        );
+
         const handlePushToggle = async (enabled: boolean) => {
           if (enabled && user) {
+            if (isNative) {
+              alert('Push notifications are integrated with your device system settings. Please ensure notifications are enabled for the RevItUp app in your Phone Settings!');
+              return;
+            }
             const token = await requestNotificationPermissionAndGetToken(user.uid);
             if (token) {
               if ('Notification' in window && Notification.permission === 'granted') {
@@ -190,13 +201,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           }
         };
 
-        const defaultPushChecked = typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
-
-        const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(window.navigator.userAgent);
-        const isStandalone = typeof window !== 'undefined' && (
-          (window.navigator as any).standalone || 
-          window.matchMedia('(display-mode: standalone)').matches
-        );
+        const defaultPushChecked = isNative ? true : (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted');
         const currentPermission = typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
 
         return (
@@ -219,20 +224,36 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-900">
                   <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wide">Status</span>
-                  <span className={`font-black uppercase text-[10px] ${currentPermission === 'granted' ? 'text-green-400' : 'text-zinc-400'}`}>
-                    {currentPermission === 'granted' ? '● Active' : currentPermission === 'denied' ? '● Blocked/Denied' : '● Not Configured'}
+                  <span className="font-black uppercase text-[10px] text-green-400">
+                    {isNative ? '● Active' : currentPermission === 'granted' ? '● Active' : currentPermission === 'denied' ? '● Blocked/Denied' : '● Not Configured'}
                   </span>
                 </div>
                 <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-900">
                   <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wide">App Mode</span>
-                  <span className={`font-black uppercase text-[10px] ${isStandalone ? 'text-blue-400' : 'text-yellow-500'}`}>
-                    {isStandalone ? 'Standalone PWA' : 'Web Browser'}
+                  <span className={`font-black uppercase text-[10px] ${isNative ? 'text-emerald-400' : isStandalone ? 'text-blue-400' : 'text-yellow-500'}`}>
+                    {isNative ? (isIOS ? 'Native App (iOS)' : 'Native App (Android)') : isStandalone ? 'Standalone PWA' : 'Web Browser'}
                   </span>
                 </div>
               </div>
 
-              {/* iOS Mobile-Specific Troubleshooting Instructions */}
-              {isIOS && !isStandalone && (
+              {/* Native Mobile Integration Status Card */}
+              {isNative && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl space-y-2 mt-2">
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <Smartphone size={14} />
+                    <span className="text-[10px] font-black uppercase tracking-wide">Mobile Integration Mode</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-300 leading-normal">
+                    You are running the official RevItUp {isIOS ? 'iOS (TestFlight)' : 'Android'} mobile application. Native alerts are integrated directly with your device's system settings.
+                  </p>
+                  <p className="text-[9px] text-zinc-400 leading-relaxed">
+                    To manage your alerts, go to your phone's <span className="text-white font-bold">Settings &gt; Notifications &gt; RevItUp</span> and make sure <span className="text-white font-bold">"Allow Notifications"</span> is turned on.
+                  </p>
+                </div>
+              )}
+
+              {/* iOS Web PWA-Specific Troubleshooting Instructions */}
+              {isIOS && !isStandalone && !isNative && (
                 <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl space-y-2 mt-2">
                   <div className="flex items-center gap-1.5 text-red-400">
                     <Smartphone size={14} />
@@ -250,8 +271,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 </div>
               )}
 
-              {/* Android & general troubleshooting instructions */}
-              {(!isIOS || isStandalone) && currentPermission !== 'granted' && (
+              {/* Android & general web troubleshooting instructions */}
+              {(!isIOS || isStandalone) && !isNative && currentPermission !== 'granted' && (
                 <div className="bg-zinc-900 p-3 rounded-xl space-y-1 text-zinc-400">
                   <div className="flex items-center gap-1 text-zinc-300">
                     <HelpCircle size={14} />

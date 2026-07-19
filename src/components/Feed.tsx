@@ -23,6 +23,7 @@ export function Feed() {
   const [selectedStoryUserId, setSelectedStoryUserId] = useState<string | null>(null);
 
   // Pull to refresh states
+  const [refreshKey, setRefreshKey] = useState(0);
   const [pullOffset, setPullOffset] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const pullStartY = useRef(0);
@@ -71,7 +72,7 @@ export function Feed() {
     });
 
     return unsubscribe;
-  }, []);
+  }, [refreshKey]);
 
   const handleScroll = () => {
     if (!containerRef.current) return;
@@ -110,6 +111,8 @@ export function Feed() {
     if (pullOffset >= 50) {
       setRefreshing(true);
       setPullOffset(50);
+      
+      setRefreshKey(prev => prev + 1);
       
       setTimeout(() => {
         setRefreshing(false);
@@ -220,14 +223,14 @@ export function Feed() {
             opacity: Math.min(1, pullOffset / 30)
           }}
         >
-          <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-800/80 px-4 py-1.5 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.8)] flex items-center gap-2">
+          <div className="bg-white/95 backdrop-blur-xl border border-zinc-200/80 px-4 py-1.5 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.15)] flex items-center gap-2">
             <motion.div
               animate={refreshing ? { rotate: 360 } : { rotate: pullOffset * 6 }}
               transition={refreshing ? { repeat: Infinity, duration: 1, ease: "linear" } : { duration: 0 }}
             >
-              <RefreshCw size={12} className={refreshing ? "text-yellow-500 animate-pulse" : "text-zinc-400"} />
+              <RefreshCw size={12} className={refreshing ? "text-amber-500 animate-spin" : "text-amber-500"} />
             </motion.div>
-            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-300 font-mono">
+            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-800 font-mono">
               {refreshing ? "STAGING GREEN LIGHT..." : pullOffset >= 50 ? "RELEASE TO SPIN" : "DRAG TO REFRESH"}
             </span>
           </div>
@@ -245,7 +248,7 @@ export function Feed() {
            </button>
         </div>
         <div className="pointer-events-auto">
-           <StoriesBar onSelectUser={(id) => setSelectedStoryUserId(id)} />
+           <StoriesBar key={`stories_${refreshKey}`} onSelectUser={(id) => setSelectedStoryUserId(id)} />
         </div>
       </div>
       <main 
