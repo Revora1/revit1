@@ -37,93 +37,144 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+
+    // Safety timeout to ensure loading spinner does not get stuck forever (e.g. 10 seconds)
+    const safetyTimeout = setTimeout(() => {
+      setLoading((currLoading) => {
+        if (currLoading) {
+          console.warn("Auth initialization timed out after 10 seconds.");
+          return false;
+        }
+        return currLoading;
+      });
+    }, 10000);
+
+    let unsubscribeProfile: (() => void) | null = null;
+    let unsubscribeMyBlocks: (() => void) | null = null;
+    let unsubscribeBlockedBy: (() => void) | null = null;
+
+    const cleanupSubscribers = () => {
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+      if (unsubscribeMyBlocks) {
+        unsubscribeMyBlocks();
+        unsubscribeMyBlocks = null;
+      }
+      if (unsubscribeBlockedBy) {
+        unsubscribeBlockedBy();
+        unsubscribeBlockedBy = null;
+      }
+    };
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+      cleanupSubscribers();
+
       if (user) {
         setError(null);
         // Fetch or create profile
         const profileRef = doc(db, 'users', user.uid);
         
         // Use onSnapshot for real-time updates
-        const unsubscribeProfile = onSnapshot(profileRef, async (profileSnap) => {
-          if (profileSnap.exists()) {
-            const data = profileSnap.data() as UserProfile;
-            
-            // Fetch private info if it's the owner (one-time fetch is fine for email)
-            const privateInfoRef = doc(db, 'users', user.uid, 'private', 'info');
-            const privateSnap = await getDoc(privateInfoRef);
-            if (privateSnap.exists()) {
-              data.email = privateSnap.data().email;
-            }
+        unsubscribeProfile = onSnapshot(profileRef, async (profileSnap) => {
+          try {
+            clearTimeout(safetyTimeout);
+            if (profileSnap.exists()) {
+              const data = profileSnap.data() as UserProfile;
+              
+              // Fetch private info if it's the owner (one-time fetch is fine for email)
+              try {
+                const privateInfoRef = doc(db, 'users', user.uid, 'private', 'info');
+                const privateSnap = await getDoc(privateInfoRef);
+                if (privateSnap.exists()) {
+                  data.email = privateSnap.data().email;
+                }
+              } catch (privateErr) {
+                console.warn("Failed to fetch private email profile info:", privateErr);
+              }
 
-            if (data.birthdate && isUnder16(data.birthdate)) {
-              await signOut(auth);
-              setError('You must be 16 or older to use this app.');
-              setProfile(null);
-              setLoading(false);
-              return;
-            }
+              if (data.birthdate && isUnder16(data.birthdate)) {
+                await signOut(auth);
+                setError('You must be 16 or older to use this app.');
+                setProfile(null);
+                setLoading(false);
+                return;
+              }
 
-            if (data.username && !data.usernameLower) {
-              const updatedProfile = { ...data, usernameLower: data.username.toLowerCase() };
-              const { email, ...publicProfile } = updatedProfile;
-              await setDoc(profileRef, publicProfile, { merge: true });
-              setProfile(updatedProfile);
-            } else {
-              setProfile(data);
-            }
-          } else {
-            // Logic for new user profile creation
-            let baseUsername = user.email?.split('@')[0] || 'User';
-            let newUsername = baseUsername;
-            let isUnique = false;
-            let counter = 1;
-
-            const usersRef = collection(db, 'users');
-
-            while (!isUnique) {
-              const q = query(usersRef, where('username', '==', newUsername));
-              const querySnapshot = await getDocs(q);
-              if (querySnapshot.empty) {
-                isUnique = true;
+              if (data.username && !data.usernameLower) {
+                const updatedProfile = { ...data, usernameLower: data.username.toLowerCase() };
+                const { email, ...publicProfile } = updatedProfile;
+                await setDoc(profileRef, publicProfile, { merge: true });
+                setProfile(updatedProfile);
               } else {
-                newUsername = `${baseUsername}${Math.floor(Math.random() * 10000)}`;
-                counter++;
+                setProfile(data);
+              }
+            } else {
+              // Logic for new user profile creation
+              let baseUsername = user.email?.split('@')[0] || 'User';
+              let newUsername = baseUsername;
+              let isUnique = false;
+              let counter = 1;
+
+              const usersRef = collection(db, 'users');
+
+              while (!isUnique) {
+                try {
+                  const q = query(usersRef, where('username', '==', newUsername));
+                  const querySnapshot = await getDocs(q);
+                  if (querySnapshot.empty) {
+                    isUnique = true;
+                  } else {
+                    newUsername = `${baseUsername}${Math.floor(Math.random() * 10000)}`;
+                    counter++;
+                  }
+                } catch (loopErr) {
+                  console.error("Error checking username uniqueness in signup loop:", loopErr);
+                  newUsername = `${baseUsername}${Math.floor(Math.random() * 100000)}`;
+                  isUnique = true;
+                }
+              }
+
+              const newProfile: UserProfile = {
+                uid: user.uid,
+                username: newUsername,
+                usernameLower: newUsername.toLowerCase(),
+                followersCount: 0,
+                followingCount: 0,
+                garage: [],
+              };
+              
+              const privateInfo = {
+                email: user.email || ''
+              };
+
+              try {
+                await setDoc(profileRef, newProfile);
+                const privateInfoRef = doc(db, 'users', user.uid, 'private', 'info');
+                await setDoc(privateInfoRef, privateInfo);
+                // Profile state will be set by the next snapshot trigger
+              } catch (err: any) {
+                console.error('Failed to create user profile:', err);
+                setError(`Failed to create user profile: ${err?.message || err}`);
               }
             }
-
-            const newProfile: UserProfile = {
-              uid: user.uid,
-              username: newUsername,
-              usernameLower: newUsername.toLowerCase(),
-              followersCount: 0,
-              followingCount: 0,
-              garage: [],
-            };
-            
-            const privateInfo = {
-              email: user.email || ''
-            };
-
-            try {
-              await setDoc(profileRef, newProfile);
-              const privateInfoRef = doc(db, 'users', user.uid, 'private', 'info');
-              await setDoc(privateInfoRef, privateInfo);
-              // Profile state will be set by the next snapshot trigger
-            } catch (err: any) {
-              console.error('Failed to create user profile:', err);
-              setError(`Failed to create user profile: ${err?.message || err}`);
-            }
+          } catch (snapshotErr: any) {
+            console.error("Error inside profile snap listener:", snapshotErr);
+            setError(snapshotErr?.message || "Error occurred while sync-loading profile.");
+          } finally {
+            setLoading(false);
           }
-          setLoading(false);
         }, (err) => {
           console.error('Profile listener error:', err);
+          clearTimeout(safetyTimeout);
           setLoading(false);
         });
 
         // Real-time listener for blocks created by me
         const qMyBlocks = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
-        const unsubscribeMyBlocks = onSnapshot(qMyBlocks, (snap) => {
+        unsubscribeMyBlocks = onSnapshot(qMyBlocks, (snap) => {
           const ids = snap.docs.map(doc => doc.data().blockedId as string);
           setMyBlockedIds(ids);
         }, (err) => {
@@ -132,19 +183,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Real-time listener for blocks created by others against me
         const qBlockedBy = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
-        const unsubscribeBlockedBy = onSnapshot(qBlockedBy, (snap) => {
+        unsubscribeBlockedBy = onSnapshot(qBlockedBy, (snap) => {
           const ids = snap.docs.map(doc => doc.data().blockerId as string);
           setBlockedByIds(ids);
         }, (err) => {
           console.error('Blocked by listener error:', err);
         });
 
-        return () => {
-          unsubscribeProfile();
-          unsubscribeMyBlocks();
-          unsubscribeBlockedBy();
-        };
       } else {
+        clearTimeout(safetyTimeout);
         setProfile(null);
         setMyBlockedIds([]);
         setBlockedByIds([]);
@@ -152,7 +199,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      clearTimeout(safetyTimeout);
+      unsubscribe();
+      cleanupSubscribers();
+    };
   }, []);
 
   const signIn = async () => {
