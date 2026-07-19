@@ -45,6 +45,7 @@ function ToggleItem({ label, description, defaultChecked = false, onChange }: To
 }
 
 import { PrivacyPolicy } from './PrivacyPolicy';
+import { UserGuide } from './UserGuide';
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const { user, logout } = useAuth();
@@ -422,6 +423,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
              </div>
              
              <div className="space-y-2 pt-4">
+                <button onClick={() => setActiveSubView('user_guide')} className="text-sm font-bold text-zinc-400 hover:text-white transition-colors">User Guide / How to Use</button>
+                <br />
                 <button onClick={() => setActiveSubView('tos')} className="text-sm font-bold text-zinc-400 hover:text-white transition-colors">Terms of Service</button>
                 <br />
                 <button onClick={() => setActiveSubView('privacy_policy')} className="text-sm font-bold text-zinc-400 hover:text-white transition-colors">Privacy Policy</button>
@@ -448,6 +451,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       case 'privacy_policy':
         return (
           <PrivacyPolicy onBack={() => setActiveSubView('about')} hideHeader={true} />
+        );
+      case 'user_guide':
+        return (
+          <UserGuide onBack={() => setActiveSubView('about')} hideHeader={true} />
         );
       default:
         return null;
@@ -603,7 +610,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <div className="flex items-center gap-4">
                 <button 
                   onClick={() => {
-                    if (activeSubView === 'tos' || activeSubView === 'privacy_policy') {
+                    if (activeSubView === 'tos' || activeSubView === 'privacy_policy' || activeSubView === 'user_guide') {
                       setActiveSubView('about');
                     } else {
                       setActiveSubView(null);

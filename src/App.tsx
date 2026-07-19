@@ -17,11 +17,13 @@ import { CookieConsent } from './components/CookieConsent';
 import { messaging } from './lib/firebase';
 import { onMessage } from 'firebase/messaging';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { UserGuide } from './components/UserGuide';
 import { admobService } from './lib/admobService';
 import { AdMobOverlays } from './components/AdMobOverlays';
 
 export default function App() {
   const [isPrivacyRoute, setIsPrivacyRoute] = useState(false);
+  const [isGuideRoute, setIsGuideRoute] = useState(false);
 
   React.useEffect(() => {
     // Initialize AdMob on app startup
@@ -33,6 +35,8 @@ export default function App() {
       const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
       if (path === '/privacy-policy') {
         setIsPrivacyRoute(true);
+      } else if (path === '/guide' || path === '/how-to-use' || path === '/help') {
+        setIsGuideRoute(true);
       }
     } catch (e) {
       console.error("Failed to parse pathname:", e);
@@ -41,8 +45,18 @@ export default function App() {
 
   if (isPrivacyRoute) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="h-screen w-full overflow-y-auto bg-black text-white">
         <PrivacyPolicy onBack={() => {
+          window.location.href = '/';
+        }} />
+      </div>
+    );
+  }
+
+  if (isGuideRoute) {
+    return (
+      <div className="h-screen w-full overflow-y-auto bg-black text-white">
+        <UserGuide onBack={() => {
           window.location.href = '/';
         }} />
       </div>
