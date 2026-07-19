@@ -1,6 +1,7 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, User, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
@@ -37,6 +38,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+
+    // If running in a native Capacitor app (iOS/Android), handle the Google redirect result on mount
+    if (Capacitor.isNativePlatform()) {
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result?.user) {
+            console.log("Redirect sign-in successful:", result.user.email);
+          }
+        })
+        .catch((err: any) => {
+          console.error("Redirect sign-in error:", err);
+          if (err.code !== 'auth/redirect-cancelled-by-user') {
+            setError(`Redirect Sign In Error: ${err.message || err}`);
+          }
+        });
+    }
 
     // Safety timeout to ensure loading spinner does not get stuck forever (e.g. 10 seconds)
     const safetyTimeout = setTimeout(() => {
@@ -213,7 +230,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Force user selection even if already signed in to a Google account
       provider.setCustomParameters({ prompt: 'select_account' });
       
-      await signInWithPopup(auth, provider);
+      if (Capacitor.isNativePlatform()) {
+        console.log("Native platform detected. Initiating signInWithRedirect...");
+        await signInWithRedirect(auth, provider);
+      } else {
+        console.log("Web/Iframe platform detected. Initiating signInWithPopup...");
+        await signInWithPopup(auth, provider);
+      }
     } catch (err: any) {
       console.error('Sign in error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
