@@ -73,7 +73,7 @@ export default function App() {
 }
 
 function InnerAppContent() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, error, logout } = useAuth();
   
   const isKid = React.useMemo(() => {
     if (!profile?.birthdate) return false;
@@ -299,10 +299,35 @@ function InnerAppContent() {
   };
 
   let content;
-  if (loading || (user && !profile)) {
+  if (loading) {
     content = (
       <div className="h-full bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    );
+  } else if (user && !profile) {
+    content = (
+      <div className="h-full bg-black flex flex-col items-center justify-center p-6 text-center space-y-6">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-white tracking-tight">PROFILE LOADING ISSUE</h2>
+          <p className="text-zinc-400 max-w-sm text-sm">
+            {error || "We encountered a problem sync-loading your profile. Please check your internet connection or try again."}
+          </p>
+        </div>
+        <div className="flex gap-4">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-2.5 bg-white text-black rounded-lg font-bold hover:bg-zinc-200 transition-colors cursor-pointer text-xs uppercase tracking-wider"
+          >
+            RETRY
+          </button>
+          <button
+            onClick={logout}
+            className="px-6 py-2.5 bg-zinc-900 text-white rounded-lg font-bold border border-zinc-800 hover:bg-zinc-800 transition-colors cursor-pointer text-xs uppercase tracking-wider"
+          >
+            SIGN OUT
+          </button>
+        </div>
       </div>
     );
   } else if (!user) {

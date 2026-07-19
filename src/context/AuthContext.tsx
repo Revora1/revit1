@@ -187,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }, (err) => {
           console.error('Profile listener error:', err);
           clearTimeout(safetyTimeout);
+          setError(`Profile Loading Error: ${err.message || err}`);
           setLoading(false);
         });
 
