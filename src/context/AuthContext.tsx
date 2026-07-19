@@ -90,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cleanupSubscribers();
 
       if (user) {
+        setLoading(true);
         setError(null);
         // Fetch or create profile
         const profileRef = doc(db, 'users', user.uid);

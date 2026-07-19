@@ -299,7 +299,7 @@ function InnerAppContent() {
   };
 
   let content;
-  if (loading) {
+  if (loading || (user && !profile)) {
     content = (
       <div className="h-full bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
