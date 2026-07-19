@@ -128,15 +128,23 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
     { id: 'profile', icon: User, label: 'Profile' } as const,
   ];
 
+  const selfScrollingViews: View[] = ['feed', 'upload', 'inbox'];
+  const isSelfScrolling = selfScrollingViews.includes(activeView);
+
   return (
     <div className="fixed inset-0 flex flex-col bg-black text-white font-sans overflow-hidden">
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto relative pb-[calc(52px+env(safe-area-inset-bottom,0px))]">
+      <main className={cn(
+        "flex-1 relative w-full max-w-full overflow-x-hidden",
+        isSelfScrolling 
+          ? "overflow-hidden h-full pb-0" 
+          : "overflow-y-auto pb-[calc(52px+env(safe-area-inset-bottom,0px))]"
+      )}>
         {children}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="mobile-navbar fixed bottom-0 left-0 right-0 select-none border-t border-zinc-900/60 flex items-center justify-around px-1 sm:px-4 bg-black/95 backdrop-blur-md z-50">
+      <nav className="mobile-navbar fixed bottom-0 left-0 right-0 select-none border-t border-zinc-900/60 flex items-center justify-around bg-black/95 backdrop-blur-md z-50 px-4 sm:px-8 pl-[calc(16px+env(safe-area-inset-left,0px))] pr-[calc(16px+env(safe-area-inset-right,0px))]">
         {navItems.map(({ id, icon: Icon, label }) => (
           <button
             key={id}
