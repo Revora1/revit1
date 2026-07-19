@@ -231,8 +231,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       provider.setCustomParameters({ prompt: 'select_account' });
       
       if (Capacitor.isNativePlatform()) {
-        console.log("Native platform detected. Initiating signInWithRedirect...");
-        await signInWithRedirect(auth, provider);
+        console.log("Native platform detected. Standard web redirect/popup Google sign-in is blocked in native webviews.");
+        setError("Google Sign-In is not supported natively. Please use 'Continue with Email'—it is fully supported and works instantly!");
+        return;
       } else {
         console.log("Web/Iframe platform detected. Initiating signInWithPopup...");
         await signInWithPopup(auth, provider);
@@ -257,16 +258,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithEmail = async (e: string, p: string) => {
     setError(null);
+    const sanitizedEmail = e.trim().toLowerCase();
     try {
-      await signInWithEmailAndPassword(auth, e, p);
+      await signInWithEmailAndPassword(auth, sanitizedEmail, p);
     } catch (err: any) {
+      console.log('Firebase signInWithEmailAndPassword error code:', err.code, err);
+      // 'auth/user-not-found' or 'auth/invalid-credential' means they might need a new account
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
         try {
-          await createUserWithEmailAndPassword(auth, e, p);
+          await createUserWithEmailAndPassword(auth, sanitizedEmail, p);
           return;
         } catch (createErr: any) {
-          setError(createErr.message || 'Failed to create reviewer account');
+          console.error('Firebase createUserWithEmailAndPassword error:', createErr);
+          if (createErr.code === 'auth/weak-password') {
+            setError('The password is too weak. It must be at least 6 characters long.');
+          } else if (createErr.code === 'auth/email-already-in-use') {
+            setError('This email is already registered. Please check your password or try a different email.');
+          } else if (createErr.code === 'auth/operation-not-allowed') {
+            setError('Email/Password provider is disabled in your Firebase Console. Please enable it in Firebase Console -> Authentication -> Sign-in method.');
+          } else if (createErr.code === 'auth/invalid-email') {
+            setError('Please enter a valid email address.');
+          } else {
+            setError(createErr.message || 'Failed to create account');
+          }
         }
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError('Email/Password provider is disabled in your Firebase Console. Please enable it in Firebase Console -> Authentication -> Sign-in method.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
       } else {
         console.error('Email sign in error:', err);
         setError(err.message || 'Failed to sign in with email');
