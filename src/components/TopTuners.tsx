@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -136,39 +136,31 @@ export function TopTuners({ hideHeader }: { hideHeader?: boolean } = {}) {
   const [selectedUserStats, setSelectedUserStats] = useState<any | null>(null);
 
   useEffect(() => {
-    // We fetch all key collections reactively to compute points dynamically on client-side
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
-    }, (err) => console.error("Error loading users:", err));
-
-    const unsubGarage = onSnapshot(collection(db, 'garage'), (snap) => {
-      setCars(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.error("Error loading garage:", err));
-
-    const unsubPosts = onSnapshot(collection(db, 'posts'), (snap) => {
-      setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.error("Error loading posts:", err));
-
-    const unsubComments = onSnapshot(collection(db, 'comments'), (snap) => {
-      setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.error("Error loading comments:", err));
-
-    const unsubVotes = onSnapshot(collection(db, 'helpful_votes'), (snap) => {
-      setVotes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.error("Error loading votes:", err));
-
-    // Resolve loading once all metadata collections have a baseline
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1200);
-
+    let active = true;
+    const loadData = async () => {
+      try {
+        const [usersSnap, garageSnap, postsSnap, commentsSnap, votesSnap] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(collection(db, 'garage')),
+          getDocs(collection(db, 'posts')),
+          getDocs(collection(db, 'comments')),
+          getDocs(collection(db, 'helpful_votes'))
+        ]);
+        if (!active) return;
+        setUsers(usersSnap.docs.map(d => ({ uid: d.id, ...d.data() })));
+        setCars(garageSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setPosts(postsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setComments(commentsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setVotes(votesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      } catch (err) {
+        console.error("Error loading top tuners data:", err);
+        if (active) setLoading(false);
+      }
+    };
+    loadData();
     return () => {
-      unsubUsers();
-      unsubGarage();
-      unsubPosts();
-      unsubComments();
-      unsubVotes();
-      clearTimeout(timer);
+      active = false;
     };
   }, []);
 

@@ -105,63 +105,64 @@ export function SearchView() {
   // Fetch lists for Builds, Cars and Joined specs
   // ------------------------------------------
   useEffect(() => {
-    setCarsLoading(true);
-    
-    // Watch performance data
-    const unsubscribeRecords = onSnapshot(collection(db, 'performance_board'), (snap) => {
-      const recs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PerformanceRecord));
-      setRecords(recs);
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'performance_board');
-    });
-
-    // Watch garage cars data
-    const unsubscribeGarage = onSnapshot(collection(db, 'garage'), async (snapshot) => {
-      const fetchedCars = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Car));
-      
-      // Fetch profile data for car owners sequentially or using cache
-      const uniqueOwnerIds = [...new Set(fetchedCars.map(c => c.ownerId))].filter(id => !userCache.current[id]);
-      
-      if (uniqueOwnerIds.length > 0) {
-        const ownerDocs = await Promise.all(
-          uniqueOwnerIds.map(id => getDoc(doc(db, 'users', id)))
-        );
-        ownerDocs.forEach(snapElem => {
-          if (snapElem.exists()) {
-            userCache.current[snapElem.id] = snapElem.data() as UserProfile;
-          }
-        });
-      }
-
-      const joined = fetchedCars.map(car => {
-        // Link owner profile
-        const ownerProfile = userCache.current[car.ownerId];
+    let active = true;
+    const fetchBuildsAndGarage = async () => {
+      setCarsLoading(true);
+      try {
+        const [recordsSnap, garageSnap] = await Promise.all([
+          getDocs(collection(db, 'performance_board')),
+          getDocs(collection(db, 'garage'))
+        ]);
         
-        // Find maximum dyno verify record for horsepower or torque
-        const carRecords = records.filter(r => r.carId === car.id);
-        const maxHp = carRecords.length > 0 ? Math.max(...carRecords.map(r => r.horsepower || 0)) : undefined;
-        const maxTq = carRecords.length > 0 ? Math.max(...carRecords.map(r => r.torque || 0)) : undefined;
-
-        return {
-          ...car,
-          ownerProfile,
-          verifiedHp: maxHp && maxHp > 0 ? maxHp : undefined,
-          verifiedTq: maxTq && maxTq > 0 ? maxTq : undefined
-        };
-      });
-
-      setCars(joined);
-      setCarsLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'garage');
-      setCarsLoading(false);
-    });
-
-    return () => {
-      unsubscribeGarage();
-      unsubscribeRecords();
+        if (!active) return;
+        
+        const recs = recordsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PerformanceRecord));
+        setRecords(recs);
+        
+        const fetchedCars = garageSnap.docs.map(d => ({ id: d.id, ...d.data() } as Car));
+        
+        const uniqueOwnerIds = [...new Set(fetchedCars.map(c => c.ownerId))].filter(id => !userCache.current[id]);
+        
+        if (uniqueOwnerIds.length > 0) {
+          const ownerDocs = await Promise.all(
+            uniqueOwnerIds.map(id => getDoc(doc(db, 'users', id)))
+          );
+          ownerDocs.forEach(snapElem => {
+            if (snapElem.exists()) {
+              userCache.current[snapElem.id] = snapElem.data() as UserProfile;
+            }
+          });
+        }
+        
+        const joined = fetchedCars.map(car => {
+          const ownerProfile = userCache.current[car.ownerId];
+          const carRecords = recs.filter(r => r.carId === car.id);
+          const maxHp = carRecords.length > 0 ? Math.max(...carRecords.map(r => r.horsepower || 0)) : undefined;
+          const maxTq = carRecords.length > 0 ? Math.max(...carRecords.map(r => r.torque || 0)) : undefined;
+          
+          return {
+            ...car,
+            ownerProfile,
+            verifiedHp: maxHp && maxHp > 0 ? maxHp : undefined,
+            verifiedTq: maxTq && maxTq > 0 ? maxTq : undefined
+          };
+        });
+        
+        setCars(joined);
+        setCarsLoading(false);
+      } catch (err) {
+        console.error("Error fetching builds search data:", err);
+        if (active) {
+          setCarsLoading(false);
+        }
+      }
     };
-  }, [records.length]);
+    
+    fetchBuildsAndGarage();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const onUserClick = (uid: string) => {
     window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId: uid } }));

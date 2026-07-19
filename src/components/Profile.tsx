@@ -9,7 +9,7 @@ import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Awa
 import { motion, AnimatePresence } from 'motion/react';
 import { Post, UserProfile, Car, Comment } from '../types';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, where, orderBy, getDocs, onSnapshot, doc, getDoc, deleteDoc, setDoc, updateDoc, increment, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, onSnapshot, doc, getDoc, deleteDoc, setDoc, updateDoc, increment, limit, getCountFromServer } from 'firebase/firestore';
 import { PostCard } from './PostCard';
 import { ReportModal } from './ReportModal';
 
@@ -342,20 +342,28 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   useEffect(() => {
     if (!isOwner) return;
     
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-      setOwnerStats(prev => ({ ...(prev || { usersCount: 0, carsCount: 0, postsCount: 0 }), usersCount: snap.size }));
-    });
-    const unsubGarage = onSnapshot(collection(db, 'garage'), (snap) => {
-      setOwnerStats(prev => ({ ...(prev || { usersCount: 0, carsCount: 0, postsCount: 0 }), carsCount: snap.size }));
-    });
-    const unsubPosts = onSnapshot(collection(db, 'posts'), (snap) => {
-      setOwnerStats(prev => ({ ...(prev || { usersCount: 0, carsCount: 0, postsCount: 0 }), postsCount: snap.size }));
-    });
+    let active = true;
+    const fetchCounts = async () => {
+      try {
+        const [usersCountSnap, garageCountSnap, postsCountSnap] = await Promise.all([
+          getCountFromServer(collection(db, 'users')),
+          getCountFromServer(collection(db, 'garage')),
+          getCountFromServer(collection(db, 'posts'))
+        ]);
+        if (!active) return;
+        setOwnerStats({
+          usersCount: usersCountSnap.data().count,
+          carsCount: garageCountSnap.data().count,
+          postsCount: postsCountSnap.data().count
+        });
+      } catch (err) {
+        console.error("Error fetching owner console stats:", err);
+      }
+    };
 
+    fetchCounts();
     return () => {
-      unsubUsers();
-      unsubGarage();
-      unsubPosts();
+      active = false;
     };
   }, [isOwner]);
 

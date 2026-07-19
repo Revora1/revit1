@@ -46,6 +46,7 @@ function ToggleItem({ label, description, defaultChecked = false, onChange }: To
 
 import { PrivacyPolicy } from './PrivacyPolicy';
 import { UserGuide } from './UserGuide';
+import { VERSION_INFO } from '../version';
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const { user, logout } = useAuth();
@@ -419,7 +420,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
              </div>
              <div>
                 <h3 className="font-black text-xl italic tracking-tight">REVITUP</h3>
-                <p className="text-zinc-500 text-xs">Version 1.0.4 (Build 4)</p>
+                <p className="text-zinc-500 text-xs">Version {VERSION_INFO.version} (Build {VERSION_INFO.androidBuild})</p>
              </div>
              
              <div className="space-y-2 pt-4">

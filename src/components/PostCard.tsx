@@ -566,7 +566,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60 pointer-events-none" />
 
       {/* Right Side Actions */}
-      <div className="absolute right-4 bottom-16 flex flex-col items-center gap-4 z-20 select-none">
+      <div className="absolute right-4 bottom-[calc(52px+env(safe-area-inset-bottom,0px)+24px)] flex flex-col items-center gap-4 z-20 select-none">
         <div className="flex flex-col items-center gap-0.5 group flex-shrink-0">
           <button
             onClick={handleLike}
@@ -765,7 +765,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
       </div>
 
       {/* Bottom Info */}
-      <div className="absolute bottom-6 left-4 right-20 space-y-3 z-10">
+      <div className="absolute bottom-[calc(52px+env(safe-area-inset-bottom,0px)+16px)] left-4 right-20 space-y-3 z-10">
         <div className="flex flex-wrap items-center gap-2">
            <button 
              onClick={() => window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId: post.authorId } }))}
