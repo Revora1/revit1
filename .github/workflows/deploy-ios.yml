@@ -70,6 +70,20 @@ jobs:
           npm i -D @capacitor/assets
           npx @capacitor/assets generate --ios
 
+      - name: Auto-increment iOS Build Number
+        run: |
+          # Calculate a dynamic build number that is always unique and strictly increasing
+          # Base offset of 70 ensures we start well above previous uploads (e.g., 55)
+          OFFSET=70
+          BUILD_NUMBER=$(( $OFFSET + ${{ github.run_number }} ))
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+          echo "Calculated build number: $BUILD_NUMBER"
+          
+          # Update the Xcode project files using agvtool
+          cd ios/App
+          xcrun agvtool new-version -all "$BUILD_NUMBER"
+          cd ../..
+
       - name: Install Apple Certificate, Provisioning Profile & Build iOS App
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
