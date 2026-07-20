@@ -4,7 +4,7 @@ import { X, LogOut, Shield, Bell, HelpCircle, UserX, Moon, Smartphone, ChevronLe
 import { motion, AnimatePresence } from 'motion/react';
 import { deleteUser } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType, requestNotificationPermissionAndGetToken } from '../lib/firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { admobService } from '../lib/admobService';
 import { Capacitor } from '@capacitor/core';
 
@@ -57,6 +57,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [sharing, setSharing] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [consent, setConsent] = useState(localStorage.getItem('gdpr-consent') || 'none');
+
+  // GDPR State Hooks
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessSuccess, setAccessSuccess] = useState(false);
+  const [erasureLoading, setErasureLoading] = useState(false);
+  const [erasureConfirm, setErasureConfirm] = useState(false);
+  const [erasureError, setErasureError] = useState<string | null>(null);
 
   // AdMob Local Settings State
   const [bannerEnabled, setBannerEnabled] = useState(localStorage.getItem('admob-banner-enabled') === 'true');
@@ -130,25 +137,165 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     onClose();
   };
 
+  const handleRequestAccess = async () => {
+    if (!user) return;
+    setAccessLoading(true);
+    try {
+      // 1. Profile Doc
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const profile = userDoc.exists() ? userDoc.data() : null;
+
+      // 2. Garage Cars
+      const garageQuery = query(collection(db, 'garage'), where('ownerId', '==', user.uid));
+      const garageSnapshot = await getDocs(garageQuery);
+      const garage = garageSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // 3. Posts
+      const postsQuery = query(collection(db, 'posts'), where('authorId', '==', user.uid));
+      const postsSnapshot = await getDocs(postsQuery);
+      const posts = postsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // 4. Performance records
+      const perfQuery = query(collection(db, 'performance_board'), where('ownerId', '==', user.uid));
+      const perfSnapshot = await getDocs(perfQuery);
+      const performance_records = perfSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // 5. Comments
+      const commentsQuery = query(collection(db, 'comments'), where('authorId', '==', user.uid));
+      const commentsSnapshot = await getDocs(commentsQuery);
+      const comments = commentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      const exportData = {
+        meta: {
+          app: "RevItUp - The Social Garage",
+          requestedAt: new Date().toISOString(),
+          requestedBy: user.uid,
+          disclaimer: "This document contains a complete copy of all your custom build details, garage specs, posts, and profile associations stored in RevItUp, exported in compliance with GDPR and CCPA."
+        },
+        profile,
+        garage,
+        posts,
+        performance_records,
+        comments
+      };
+
+      // Download file
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `revitup_data_export_${user.uid}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setAccessSuccess(true);
+      setTimeout(() => setAccessSuccess(false), 5000);
+    } catch (error) {
+      console.error("Data access export failed:", error);
+      alert("Failed to compile your data copy. Please try again.");
+    } finally {
+      setAccessLoading(false);
+    }
+  };
+
+  const handleRequestErasure = async () => {
+    if (!user) return;
+    if (!erasureConfirm) {
+      setErasureConfirm(true);
+      setErasureError(null);
+      setTimeout(() => setErasureConfirm(false), 5000); // reset after 5s
+      return;
+    }
+
+    setErasureLoading(true);
+    setErasureError(null);
+    try {
+      // 1. Purge Profile Document
+      await deleteDoc(doc(db, 'users', user.uid));
+
+      // 2. Purge Garage cars
+      const garageQuery = query(collection(db, 'garage'), where('ownerId', '==', user.uid));
+      const garageSnapshot = await getDocs(garageQuery);
+      for (const d of garageSnapshot.docs) {
+        await deleteDoc(doc(db, 'garage', d.id));
+      }
+
+      // 3. Purge Posts
+      const postsQuery = query(collection(db, 'posts'), where('authorId', '==', user.uid));
+      const postsSnapshot = await getDocs(postsQuery);
+      for (const d of postsSnapshot.docs) {
+        await deleteDoc(doc(db, 'posts', d.id));
+      }
+
+      // 4. Purge Performance Records
+      const perfQuery = query(collection(db, 'performance_board'), where('ownerId', '==', user.uid));
+      const perfSnapshot = await getDocs(perfQuery);
+      for (const d of perfSnapshot.docs) {
+        await deleteDoc(doc(db, 'performance_board', d.id));
+      }
+
+      // 5. Purge Comments
+      const commentsQuery = query(collection(db, 'comments'), where('authorId', '==', user.uid));
+      const commentsSnapshot = await getDocs(commentsQuery);
+      for (const d of commentsSnapshot.docs) {
+        await deleteDoc(doc(db, 'comments', d.id));
+      }
+
+      // 6. Purge Follows
+      const follows1Query = query(collection(db, 'follows'), where('followerId', '==', user.uid));
+      const follows1Snapshot = await getDocs(follows1Query);
+      for (const d of follows1Snapshot.docs) {
+        await deleteDoc(doc(db, 'follows', d.id));
+      }
+
+      const follows2Query = query(collection(db, 'follows'), where('followingId', '==', user.uid));
+      const follows2Snapshot = await getDocs(follows2Query);
+      for (const d of follows2Snapshot.docs) {
+        await deleteDoc(doc(db, 'follows', d.id));
+      }
+
+      // 7. Purge Blocks
+      const blocks1Query = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
+      const blocks1Snapshot = await getDocs(blocks1Query);
+      for (const d of blocks1Snapshot.docs) {
+        await deleteDoc(doc(db, 'blocks', d.id));
+      }
+
+      const blocks2Query = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
+      const blocks2Snapshot = await getDocs(blocks2Query);
+      for (const d of blocks2Snapshot.docs) {
+        await deleteDoc(doc(db, 'blocks', d.id));
+      }
+
+      // 8. Delete Authentication Account
+      await deleteUser(user);
+      onClose();
+    } catch (error: any) {
+      console.error("Erasure failed:", error);
+      if (error?.code === 'auth/requires-recent-login') {
+        setErasureError("Sensitive actions require recent authentication. Please log out, log back in, and try again.");
+      } else {
+        setErasureError("Failed to permanently delete account. Please try again.");
+      }
+    } finally {
+      setErasureLoading(false);
+      setErasureConfirm(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
+    // Treat deletion as a unified permanent erasure request
     if (!deleteConfirm) {
       setDeleteConfirm(true);
       setTimeout(() => setDeleteConfirm(false), 3000); // reset after 3s
       return;
     }
-    
+
     if (user) {
-      try {
-        await deleteDoc(doc(db, 'users', user.uid));
-        await deleteUser(user);
-        onClose();
-      } catch (error: any) {
-        if (error?.code === 'auth/requires-recent-login') {
-          console.error("Please log out and log back in again before deleting your account.");
-        } else {
-          console.error("Failed to delete account. Please try again.", error);
-        }
-      }
+      setErasureConfirm(true);
+      await handleRequestErasure();
     }
   };
 
@@ -329,12 +476,95 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         );
       case 'data':
         return (
-          <div className="space-y-6">
+          <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1">
             <div className="space-y-4">
               <ToggleItem label="Push Notifications" description="Get notified on new likes and follows" defaultChecked />
               <ToggleItem label="High Quality Media" description="Always upload and view high-res photos" />
             </div>
+            
             <div className="h-px bg-zinc-800" />
+
+            {/* GDPR / CCPA Privacy Rights Section */}
+            <div className="space-y-4">
+              <div className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Privacy Rights (GDPR / CCPA)</div>
+              
+              {/* Request Access */}
+              <div className="p-4 bg-zinc-900 border border-zinc-850 rounded-2xl space-y-3">
+                <div>
+                  <h4 className="font-bold text-sm text-white">Request Access</h4>
+                  <p className="text-[11px] text-zinc-500 leading-normal">
+                    In compliance with data protection regulations, you can download a complete, readable JSON copy of all your custom build details, specs, posts, comments, and profile info stored on our servers.
+                  </p>
+                </div>
+                {accessSuccess ? (
+                  <div className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl">
+                    ✓ Data export file generated and downloaded successfully!
+                  </div>
+                ) : (
+                  <button 
+                    onClick={handleRequestAccess}
+                    disabled={accessLoading}
+                    className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 rounded-full transition-all flex items-center justify-center gap-2"
+                  >
+                    {accessLoading ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Compiling Build Details...
+                      </>
+                    ) : (
+                      <>
+                        <Database size={14} />
+                        Download Data Export (JSON)
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Request Erasure */}
+              <div className="p-4 bg-zinc-900 border border-zinc-850 rounded-2xl space-y-3">
+                <div>
+                  <h4 className="font-bold text-sm text-red-500">Request Erasure</h4>
+                  <p className="text-[11px] text-zinc-500 leading-normal">
+                    Instantly and permanently delete your user account. This will recursively purge your profile details, vehicles in your garage, social posts, dynamic metrics, and community associations from our servers.
+                  </p>
+                </div>
+                {erasureError && (
+                  <div className="text-xs text-red-400 font-bold bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl">
+                    {erasureError}
+                  </div>
+                )}
+                <button 
+                  onClick={handleRequestErasure}
+                  disabled={erasureLoading}
+                  className={`w-full font-bold text-xs py-2.5 rounded-full transition-all flex items-center justify-center gap-2 ${
+                    erasureConfirm 
+                      ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' 
+                      : 'bg-red-500/10 hover:bg-red-500/20 text-red-500'
+                  }`}
+                >
+                  {erasureLoading ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                      Purging All Data...
+                    </>
+                  ) : erasureConfirm ? (
+                    <>
+                      <AlertCircle size={14} />
+                      CONFIRM PERMANENT ERASURE (CLICK AGAIN)
+                    </>
+                  ) : (
+                    <>
+                      <UserX size={14} />
+                      Request Permanent Erasure
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="h-px bg-zinc-800" />
+            
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="font-bold text-sm">Cache Storage</span>

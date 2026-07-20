@@ -317,23 +317,28 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const [isFollower, setIsFollower] = useState(false);
   const [checkingFollow, setCheckingFollow] = useState(false);
   const [showShareToast, setShowShareToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("Link Copied to Clipboard");
   const [sharing, setSharing] = useState(false);
 
   const handleShareApp = async () => {
-    if (sharing) return;
+    if (sharing || !targetProfile) return;
     setSharing(true);
 
+    const profileUrl = `${window.location.origin}?u=${targetProfile.username}`;
     const shareData = {
-      title: 'RevitUp',
-      text: 'Join me on RevitUp - The Social Garage for Car Enthusiasts!',
-      url: window.location.origin
+      title: `RevItUp - @${targetProfile.username}`,
+      text: isOwnProfile 
+        ? `Check out my garage and build specs on RevItUp!` 
+        : `Check out @${targetProfile.username}'s garage and build specs on RevItUp!`,
+      url: profileUrl
     };
 
     try {
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(window.location.origin);
+        await navigator.clipboard.writeText(profileUrl);
+        setToastMessage(isOwnProfile ? "Personal profile link copied!" : "Profile link copied!");
         setShowShareToast(true);
         setTimeout(() => setShowShareToast(false), 2000);
       }
@@ -895,12 +900,21 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
             {/* Action Button Area (EDIT PROFILE or FOLLOW & MESSAGE) - Rendered ABOVE stats */}
             <div className="w-full max-w-[240px] flex items-center justify-center gap-3">
               {isOwnProfile ? (
-                <button 
-                  onClick={() => setShowEditProfile(true)}
-                  className="w-full h-11 border border-zinc-800 rounded-full font-bold text-sm bg-zinc-900/50 hover:bg-white hover:text-black transition-all active:scale-95"
-                >
-                  EDIT PROFILE
-                </button>
+                <div className="flex gap-2 w-full">
+                  <button 
+                    onClick={() => setShowEditProfile(true)}
+                    className="flex-1 h-11 border border-zinc-800 rounded-full font-bold text-sm bg-zinc-900/50 hover:bg-white hover:text-black transition-all active:scale-95"
+                  >
+                    EDIT PROFILE
+                  </button>
+                  <button 
+                    onClick={handleShareApp}
+                    className="w-11 h-11 border border-zinc-800 rounded-full bg-zinc-900/50 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all active:scale-95 shadow-lg"
+                    title="Share Personal Profile Link"
+                  >
+                    <Share2 size={18} />
+                  </button>
+                </div>
               ) : (
                 <>
                   <button 
@@ -1028,7 +1042,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
             className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] bg-white text-black px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl flex items-center gap-2"
           >
             <Share2 size={14} className="text-black" />
-            Link Copied to Clipboard
+            {toastMessage}
           </motion.div>
         )}
       </AnimatePresence>
