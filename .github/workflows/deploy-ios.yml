@@ -88,12 +88,20 @@ jobs:
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
 
           # Decode secrets to files
-          if ! echo "$BUILD_CERTIFICATE_BASE64" | tr -d '\r \n' | base64 --decode -o "$CERTIFICATE_PATH"; then
+          if echo "$BUILD_CERTIFICATE_BASE64" | tr -d '\r \n' | base64 --decode > "$CERTIFICATE_PATH" 2>/dev/null; then
+            echo "Decoded certificate using base64 --decode"
+          elif echo "$BUILD_CERTIFICATE_BASE64" | tr -d '\r \n' | base64 -D > "$CERTIFICATE_PATH" 2>/dev/null; then
+            echo "Decoded certificate using base64 -D"
+          else
             echo "::error::Failed to base64 decode the certificate. Check IOS_DISTRIBUTION_CERTIFICATE_BASE64 secret."
             exit 1
           fi
           
-          if ! echo "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r \n' | base64 --decode -o "$PP_PATH"; then
+          if echo "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r \n' | base64 --decode > "$PP_PATH" 2>/dev/null; then
+            echo "Decoded provisioning profile using base64 --decode"
+          elif echo "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r \n' | base64 -D > "$PP_PATH" 2>/dev/null; then
+            echo "Decoded provisioning profile using base64 -D"
+          else
             echo "::error::Failed to base64 decode the provisioning profile. Check IOS_PROVISIONING_PROFILE_BASE64 secret."
             exit 1
           fi
@@ -214,11 +222,18 @@ jobs:
         run: |
           # Create folder for Apple's private key and write it
           mkdir -p ~/.appstoreconnect/private_keys
-          echo -n "$API_KEY_BASE64" | base64 --decode -o ~/.appstoreconnect/private_keys/AuthKey_$API_KEY_ID.p8
+          KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_$API_KEY_ID.p8"
+          if echo -n "$API_KEY_BASE64" | base64 --decode > "$KEY_PATH" 2>/dev/null; then
+            echo "Decoded API key using base64 --decode"
+          elif echo -n "$API_KEY_BASE64" | base64 -D > "$KEY_PATH" 2>/dev/null; then
+            echo "Decoded API key using base64 -D"
+          else
+            echo "::error::Failed to base64 decode the API key. Check APP_STORE_CONNECT_API_KEY_BASE64 secret."
+            exit 1
+          fi
           
-          # Upload built .ipa file to Apple
-          xcrun altool --upload-app \
-                       --type ios \
-                       --file $RUNNER_TEMP/exported/App.ipa \
-                       --apiKey "$API_KEY_ID" \
-                       --apiIssuer "$API_ISSUER_ID"
+          # Upload built .ipa file to Apple using modern Transporter tool (altool successor)
+          xcrun iTMSTransporter -m upload \
+                               -apiKey "$API_KEY_ID" \
+                               -apiIssuer "$API_ISSUER_ID" \
+                               -f $RUNNER_TEMP/exported/App.ipa
