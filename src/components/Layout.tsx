@@ -158,7 +158,7 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
             <div className="relative">
               <Icon size={20} className="sm:w-6 sm:h-6" />
               {id === 'inbox' && unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1.5 bg-white text-black text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}

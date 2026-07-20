@@ -39,11 +39,11 @@ export function PrivacyPolicy({ onBack, hideHeader = false }: PrivacyPolicyProps
           </h3>
           <div className="space-y-3">
             <p className="text-sm text-white font-semibold leading-relaxed">
-              RevitUp uses Google Sign-In and Email/Password for user registration and secure authentication.
+              RevitUp uses secure Email/Password authentication for user registration and account management.
             </p>
             <ul className="space-y-2 list-disc pl-5 text-sm text-zinc-400">
               <li>
-                <span className="text-white font-semibold">What is accessed:</span> We access your public Google profile information (such as your name, email address, and profile picture) or your provided email address solely to create and manage your secure user account.
+                <span className="text-white font-semibold">What is accessed:</span> We use your provided email address solely to create, log in, and manage your secure user account.
               </li>
               <li>
                 <span className="text-white font-semibold">No direct collection:</span> We do not directly collect, request, store, or sell your email address or any personal contact details for marketing or promotional purposes.

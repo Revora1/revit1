@@ -6,13 +6,13 @@ const ADMOB_IDS = {
     banner: 'ca-app-pub-3940256099942544/6300978111',
     interstitial: 'ca-app-pub-3940256099942544/1033173712',
     rewarded: 'ca-app-pub-3940256099942544/5224354917',
-    native: 'ca-app-pub-3940256099942544/2247696110',
+    native: 'ca-app-pub-2103649447635694/7784451780',
   },
   ios: {
     banner: 'ca-app-pub-3940256099942544/2934735716',
     interstitial: 'ca-app-pub-3940256099942544/4411468910',
     rewarded: 'ca-app-pub-3940256099942544/1712485313',
-    native: 'ca-app-pub-3940256099942544/3986624511',
+    native: 'ca-app-pub-2103649447635694/7784451780',
   }
 };
 

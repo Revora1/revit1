@@ -1,7 +1,6 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { Capacitor } from '@capacitor/core';
+import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
@@ -13,7 +12,6 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   isIOS: boolean;
-  signIn: () => Promise<void>;
   signInWithEmail: (e: string, p: string) => Promise<void>;
   logout: () => Promise<void>;
   blockedUserIds: string[];
@@ -38,22 +36,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
-
-    // If running in a native Capacitor app (iOS/Android), handle the Google redirect result on mount
-    if (Capacitor.isNativePlatform()) {
-      getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            console.log("Redirect sign-in successful:", result.user.email);
-          }
-        })
-        .catch((err: any) => {
-          console.error("Redirect sign-in error:", err);
-          if (err.code !== 'auth/redirect-cancelled-by-user') {
-            setError(`Redirect Sign In Error: ${err.message || err}`);
-          }
-        });
-    }
 
     // Safety timeout to ensure loading spinner does not get stuck forever (e.g. 10 seconds)
     const safetyTimeout = setTimeout(() => {
@@ -225,39 +207,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signIn = async () => {
-    setError(null);
-    try {
-      const provider = new GoogleAuthProvider();
-      // Force user selection even if already signed in to a Google account
-      provider.setCustomParameters({ prompt: 'select_account' });
-      
-      if (Capacitor.isNativePlatform()) {
-        console.log("Native platform detected. Standard web redirect/popup Google sign-in is blocked in native webviews.");
-        setError("Google Sign-In is not supported natively. Please use 'Continue with Email'—it is fully supported and works instantly!");
-        return;
-      } else {
-        console.log("Web/Iframe platform detected. Initiating signInWithPopup...");
-        await signInWithPopup(auth, provider);
-      }
-    } catch (err: any) {
-      console.error('Sign in error:', err);
-      if (err.code === 'auth/popup-closed-by-user') {
-        setError('Sign in cancelled');
-      } else if (err.code === 'auth/popup-blocked') {
-        setError('The sign-in popup was blocked. Please enable popups or try a different browser.');
-      } else if (err.code === 'auth/operation-not-allowed') {
-        setError('Google sign-in is not enabled in Firebase Console');
-      } else if (err.code === 'auth/unauthorized-domain') {
-        setError('Domain not authorized in Firebase Console. Add this domain to authorized domains.');
-      } else if (err.code === 'auth/internal-error' && isIOS) {
-        setError('Safari on iOS may block sign-in inside iframes. Try opening in a new tab or "Settings > Safari > Prevent Cross-Site Tracking" (OFF).');
-      } else {
-        setError(err.message || 'Failed to sign in');
-      }
-    }
-  };
-
   const signInWithEmail = async (e: string, p: string) => {
     setError(null);
     const sanitizedEmail = e.trim().toLowerCase();
@@ -353,7 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading, 
       error, 
       isIOS, 
-      signIn, signInWithEmail, 
+      signInWithEmail, 
       logout,
       blockedUserIds,
       myBlockedIds,

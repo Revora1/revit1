@@ -120,9 +120,9 @@ app.get('/privacy-policy', (req, res) => {
 
     <section>
       <h3>1. Authentication and Personal Information</h3>
-      <p>RevitUp uses <strong class="highlight">Google Sign-In</strong> for user registration and secure authentication.</p>
+      <p>RevitUp uses secure <strong class="highlight">Email/Password</strong> authentication for user registration and account management.</p>
       <ul>
-        <li><strong class="highlight">What is accessed:</strong> We access your public Google profile information (such as your name, email address, and profile picture) solely to create and manage your secure user account.</li>
+        <li><strong class="highlight">What is accessed:</strong> We use your provided email address solely to create, log in, and manage your secure user account.</li>
         <li><strong class="highlight">No direct collection:</strong> We do not directly collect, request, store, or sell your email address or any personal contact details for marketing or promotional purposes.</li>
       </ul>
     </section>

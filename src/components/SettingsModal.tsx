@@ -424,7 +424,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <div className="bg-zinc-900/40 p-3 rounded-xl border border-zinc-900 space-y-1">
                 <span className="text-zinc-500 text-[9px] font-bold block uppercase tracking-wide">Active Ad Unit IDs</span>
                 <div className="text-[9px] font-mono text-zinc-400 space-y-0.5 truncate">
-                  <p className="text-yellow-500">Native Feed: {admobService.getAdUnitId('native')}</p>
+                  <p className="text-yellow-500">Native Feed: Active</p>
                   <p className="text-zinc-600 line-through">Banner: Disabled</p>
                   <p className="text-zinc-600 line-through">Interstitial: Disabled</p>
                   <p className="text-zinc-600 line-through">Rewarded: Disabled</p>
@@ -618,7 +618,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               </div>
 
               <p className="text-center text-[10px] font-black text-zinc-800 tracking-widest pt-4 uppercase">
-                RevItUp v1.0.0 • Google Cloud Edition
+                RevItUp v{VERSION_INFO.version} (Build {VERSION_INFO.androidBuild}) • Google Cloud Edition
               </p>
             </motion.div>
           ) : (

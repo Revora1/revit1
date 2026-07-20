@@ -4,7 +4,6 @@ import { Garage } from './Garage';
 import { DuoGarageView } from './DuoGarageView';
 import { AddCarModal } from './AddCarModal';
 import { EditProfileModal } from './EditProfileModal';
-import { SettingsModal } from './SettingsModal';
 import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Award, Info, Sparkles, ThumbsUp, Lock, Unlock, Check, MoreVertical, Flag, UserX, RefreshCw, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Post, UserProfile, Car, Comment } from '../types';
@@ -311,7 +310,6 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   });
   const [showAddCar, setShowAddCar] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [partnerProfile, setPartnerProfile] = useState<UserProfile | null>(null);
   const [followModalConfig, setFollowModalConfig] = useState<{ type: 'followers' | 'following', isOpen: boolean }>({ type: 'followers', isOpen: false });
 
@@ -806,7 +804,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
              {isOwnProfile ? (
                <>
                 <button 
-                  onClick={() => setShowSettings(true)}
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-settings'))}
                   className="p-2 text-zinc-400 hover:text-white"
                 >
                   <Settings size={20}/>
@@ -1020,7 +1018,6 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
 
       {showAddCar && <AddCarModal onClose={() => setShowAddCar(false)} />}
       {showEditProfile && <EditProfileModal onClose={() => setShowEditProfile(false)} />}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       
       <AnimatePresence>
         {showShareToast && (

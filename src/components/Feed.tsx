@@ -378,8 +378,6 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
     trackOutboundClick();
   };
 
-  const adUnitId = admobService.getAdUnitId('native');
-
   return (
     <div className="h-full w-full snap-start snap-always relative bg-zinc-950 flex flex-col justify-between pt-[calc(env(safe-area-inset-top,24px)+52px)] pb-24 px-4 font-sans overflow-hidden">
       {/* Background glow overlay */}
@@ -400,10 +398,6 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
             </div>
             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">@{creative.handle} • Verified Partner</p>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-2 bg-zinc-900/80 border border-zinc-800/80 px-2.5 py-1 rounded-full text-[8px] font-mono font-black text-zinc-400 tracking-widest uppercase">
-          <ShieldAlert size={10} className="text-yellow-500 animate-pulse" /> ADMOB NATIVE
         </div>
       </div>
 
@@ -480,12 +474,6 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
             )}
           </div>
         </button>
-
-        {/* AdMob Active Unit ID Status */}
-        <div className="text-center font-mono text-[8px] text-zinc-600 uppercase tracking-widest flex items-center justify-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-          <span>Active Ad Unit ID: <span className="text-zinc-500 font-bold">{adUnitId}</span></span>
-        </div>
       </div>
     </div>
   );

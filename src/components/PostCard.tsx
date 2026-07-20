@@ -170,7 +170,13 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
 
 export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, initialShowComments = false }) => {
   const [liked, setLiked] = useState(false);
+  const [localLikesCount, setLocalLikesCount] = useState(post.likesCount || 0);
+  const [isLiking, setIsLiking] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    setLocalLikesCount(post.likesCount || 0);
+  }, [post.likesCount]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -418,16 +424,27 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
   }, [post.id, post.authorId, post.carTagId, user]);
 
   const handleLike = async () => {
-    if (!user) return;
+    if (!user || isLiking) return;
+    setIsLiking(true);
+
+    const previousLiked = liked;
+    const previousCount = localLikesCount;
+
+    // Optimistic Update
+    const newLiked = !liked;
+    const newCount = liked ? Math.max(0, localLikesCount - 1) : localLikesCount + 1;
+
+    setLiked(newLiked);
+    setLocalLikesCount(newCount);
+
     const likeId = `${user.uid}_${post.id}`;
     const likeRef = doc(db, 'likes', likeId);
     const postRef = doc(db, 'posts', post.id);
 
     try {
-      if (liked) {
+      if (previousLiked) {
         await deleteDoc(likeRef);
         await updateDoc(postRef, { likesCount: increment(-1) });
-        setLiked(false);
       } else {
         await setDoc(likeRef, {
           userId: user.uid,
@@ -435,7 +452,6 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           createdAt: Date.now()
         });
         await updateDoc(postRef, { likesCount: increment(1) });
-        setLiked(true);
         if (post.authorId !== user.uid) {
           const notifId = `${Date.now()}_${user.uid}_like_${post.id}`;
           await setDoc(doc(db, 'notifications', notifId), {
@@ -449,7 +465,13 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         }
       }
     } catch (error) {
+      // Revert on error
+      setLiked(previousLiked);
+      setLocalLikesCount(previousCount);
+      console.error("Liking post failed:", error);
       handleFirestoreError(error, OperationType.WRITE, 'likes');
+    } finally {
+      setIsLiking(false);
     }
   };
 
@@ -589,7 +611,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           <span className={`text-[10px] font-bold tracking-wider drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transition-colors ${
             liked ? 'text-red-500' : 'text-white'
           }`}>
-            {post.likesCount}
+            {localLikesCount}
           </span>
         </div>
 

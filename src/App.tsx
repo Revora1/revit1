@@ -12,6 +12,7 @@ import { SinglePostView } from './components/SinglePostView';
 import { DynoBoard } from './components/DynoBoard';
 import { CommunityGarageView } from './components/CommunityGarageView';
 import { TopTuners } from './components/TopTuners';
+import { SettingsModal } from './components/SettingsModal';
 
 import { CookieConsent } from './components/CookieConsent';
 import { messaging } from './lib/firebase';
@@ -94,6 +95,7 @@ function InnerAppContent() {
   }, []);
 
   const [activeView, setActiveView] = useState<View>(sharedPostId ? 'post' : 'feed');
+  const [showSettings, setShowSettings] = useState(false);
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [targetUsername, setTargetUsername] = useState<string | null>(null);
   const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);
@@ -229,12 +231,16 @@ function InnerAppContent() {
         return newHistory;
       });
     };
+    const handleOpenSettings = () => {
+      setShowSettings(true);
+    };
     window.addEventListener('navigate-profile', handleProfileNav);
     window.addEventListener('navigate-post', handlePostNav);
     window.addEventListener('navigate-chat', handleChatNav);
     window.addEventListener('navigate-inbox', handleInboxNav);
     window.addEventListener('navigate-dyno', handleDynoNav);
     window.addEventListener('navigate-back', handleNavigateBack);
+    window.addEventListener('open-settings', handleOpenSettings);
     return () => {
       window.removeEventListener('navigate-profile', handleProfileNav);
       window.removeEventListener('navigate-post', handlePostNav);
@@ -242,6 +248,7 @@ function InnerAppContent() {
       window.removeEventListener('navigate-inbox', handleInboxNav);
       window.removeEventListener('navigate-dyno', handleDynoNav);
       window.removeEventListener('navigate-back', handleNavigateBack);
+      window.removeEventListener('open-settings', handleOpenSettings);
     };
   }, [isKid]);
 
@@ -356,5 +363,10 @@ function InnerAppContent() {
     );
   }
 
-  return content;
+  return (
+    <>
+      {content}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+    </>
+  );
 }
