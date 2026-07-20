@@ -29,6 +29,17 @@ export default function App() {
   React.useEffect(() => {
     // Initialize AdMob on app startup
     admobService.initialize();
+
+    // Lock screen orientation to portrait if supported
+    try {
+      if (window.screen && window.screen.orientation && (window.screen.orientation as any).lock) {
+        (window.screen.orientation as any).lock('portrait').catch((err: any) => {
+          console.log("Orientation lock request failed:", err);
+        });
+      }
+    } catch (e) {
+      console.log("Orientation lock API not available:", e);
+    }
   }, []);
 
   React.useEffect(() => {

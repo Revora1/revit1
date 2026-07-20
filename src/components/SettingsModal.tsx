@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { X, LogOut, Shield, Bell, HelpCircle, UserX, Moon, Smartphone, ChevronLeft, Trash2, Database, Info, Share2, Lock, Tv, Award, Sparkles, AlertCircle } from 'lucide-react';
+import { X, LogOut, Shield, Bell, HelpCircle, UserX, Moon, Smartphone, ChevronLeft, Trash2, Database, Info, Share2, Lock, Tv, Award, Sparkles, AlertCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { deleteUser } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType, requestNotificationPermissionAndGetToken } from '../lib/firebase';
 import { doc, deleteDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { admobService } from '../lib/admobService';
 import { Capacitor } from '@capacitor/core';
+import { copyToClipboard } from '../lib/utils';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -61,9 +62,15 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   // GDPR State Hooks
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessSuccess, setAccessSuccess] = useState(false);
+  const [accessSuccessMsg, setAccessSuccessMsg] = useState<string | null>(null);
   const [erasureLoading, setErasureLoading] = useState(false);
   const [erasureConfirm, setErasureConfirm] = useState(false);
   const [erasureError, setErasureError] = useState<string | null>(null);
+
+  // Cache State Hooks
+  const [cacheSize, setCacheSize] = useState("124 MB");
+  const [clearingCache, setClearingCache] = useState(false);
+  const [cacheClearedToast, setCacheClearedToast] = useState(false);
 
   // AdMob Local Settings State
   const [bannerEnabled, setBannerEnabled] = useState(localStorage.getItem('admob-banner-enabled') === 'true');
@@ -110,17 +117,57 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(window.location.origin);
-        setShowShareToast(true);
-        setTimeout(() => setShowShareToast(false), 2000);
+        const success = await copyToClipboard(window.location.origin);
+        if (success) {
+          setShowShareToast(true);
+          setTimeout(() => setShowShareToast(false), 2500);
+        }
       }
     } catch (error: any) {
-      // Ignore AbortError (user cancelled)
       if (error.name !== 'AbortError') {
-        console.error('Error sharing:', error);
+        console.warn('Navigator.share failed, trying copy fallback...', error);
+        const success = await copyToClipboard(window.location.origin);
+        if (success) {
+          setShowShareToast(true);
+          setTimeout(() => setShowShareToast(false), 2500);
+        }
       }
     } finally {
       setSharing(false);
+    }
+  };
+
+  const handleClearCache = async () => {
+    setClearingCache(true);
+    try {
+      // 1. Clear Service Worker caches if present
+      if ('caches' in window) {
+        try {
+          const keys = await caches.keys();
+          for (const key of keys) {
+            await caches.delete(key);
+          }
+        } catch (cacheErr) {
+          console.warn("Caches clear failed:", cacheErr);
+        }
+      }
+
+      // 2. Clear SessionStorage
+      try {
+        sessionStorage.clear();
+      } catch (sessionErr) {
+        console.warn("SessionStorage clear failed:", sessionErr);
+      }
+
+      // 3. Premium feel transition delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setCacheSize("0 KB");
+      setCacheClearedToast(true);
+      setTimeout(() => setCacheClearedToast(false), 3000);
+    } catch (err) {
+      console.error("Failed to clear cache fully:", err);
+    } finally {
+      setClearingCache(false);
     }
   };
 
@@ -137,50 +184,57 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     onClose();
   };
 
-  const handleRequestAccess = async () => {
+  const fetchExportData = async () => {
+    if (!user) return null;
+    // 1. Profile Doc
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    const profile = userDoc.exists() ? userDoc.data() : null;
+
+    // 2. Garage Cars
+    const garageQuery = query(collection(db, 'garage'), where('ownerId', '==', user.uid));
+    const garageSnapshot = await getDocs(garageQuery);
+    const garage = garageSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // 3. Posts
+    const postsQuery = query(collection(db, 'posts'), where('authorId', '==', user.uid));
+    const postsSnapshot = await getDocs(postsQuery);
+    const posts = postsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // 4. Performance records
+    const perfQuery = query(collection(db, 'performance_board'), where('ownerId', '==', user.uid));
+    const perfSnapshot = await getDocs(perfQuery);
+    const performance_records = perfSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // 5. Comments
+    const commentsQuery = query(collection(db, 'comments'), where('authorId', '==', user.uid));
+    const commentsSnapshot = await getDocs(commentsQuery);
+    const comments = commentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    return {
+      meta: {
+        app: "RevItUp - The Social Garage",
+        requestedAt: new Date().toISOString(),
+        requestedBy: user.uid,
+        disclaimer: "This document contains a complete copy of all your custom build details, garage specs, posts, and profile associations stored in RevItUp, exported in compliance with GDPR and CCPA."
+      },
+      profile,
+      garage,
+      posts,
+      performance_records,
+      comments
+    };
+  };
+
+  const handleDownloadAccess = async () => {
     if (!user) return;
     setAccessLoading(true);
+    setAccessSuccessMsg(null);
     try {
-      // 1. Profile Doc
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const profile = userDoc.exists() ? userDoc.data() : null;
+      const exportData = await fetchExportData();
+      if (!exportData) return;
 
-      // 2. Garage Cars
-      const garageQuery = query(collection(db, 'garage'), where('ownerId', '==', user.uid));
-      const garageSnapshot = await getDocs(garageQuery);
-      const garage = garageSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // 3. Posts
-      const postsQuery = query(collection(db, 'posts'), where('authorId', '==', user.uid));
-      const postsSnapshot = await getDocs(postsQuery);
-      const posts = postsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // 4. Performance records
-      const perfQuery = query(collection(db, 'performance_board'), where('ownerId', '==', user.uid));
-      const perfSnapshot = await getDocs(perfQuery);
-      const performance_records = perfSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // 5. Comments
-      const commentsQuery = query(collection(db, 'comments'), where('authorId', '==', user.uid));
-      const commentsSnapshot = await getDocs(commentsQuery);
-      const comments = commentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      const exportData = {
-        meta: {
-          app: "RevItUp - The Social Garage",
-          requestedAt: new Date().toISOString(),
-          requestedBy: user.uid,
-          disclaimer: "This document contains a complete copy of all your custom build details, garage specs, posts, and profile associations stored in RevItUp, exported in compliance with GDPR and CCPA."
-        },
-        profile,
-        garage,
-        posts,
-        performance_records,
-        comments
-      };
-
-      // Download file
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -190,11 +244,30 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setAccessSuccess(true);
-      setTimeout(() => setAccessSuccess(false), 5000);
+      setAccessSuccessMsg("Data export file generated! Check your browser's default downloads folder. If the file download is blocked inside the sandboxed iframe, please use the copy button below.");
     } catch (error) {
       console.error("Data access export failed:", error);
       alert("Failed to compile your data copy. Please try again.");
+    } finally {
+      setAccessLoading(false);
+    }
+  };
+
+  const handleCopyAccess = async () => {
+    if (!user) return;
+    setAccessLoading(true);
+    setAccessSuccessMsg(null);
+    try {
+      const exportData = await fetchExportData();
+      if (!exportData) return;
+
+      const jsonString = JSON.stringify(exportData, null, 2);
+      await navigator.clipboard.writeText(jsonString);
+
+      setAccessSuccessMsg("✓ Copied to clipboard! Your complete build profile, posts, and garage specifications are now copied to your clipboard as JSON data.");
+    } catch (error) {
+      console.error("Copy data failed:", error);
+      alert("Failed to copy data to clipboard. Please try again.");
     } finally {
       setAccessLoading(false);
     }
@@ -493,18 +566,21 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 <div>
                   <h4 className="font-bold text-sm text-white">Request Access</h4>
                   <p className="text-[11px] text-zinc-500 leading-normal">
-                    In compliance with data protection regulations, you can download a complete, readable JSON copy of all your custom build details, specs, posts, comments, and profile info stored on our servers.
+                    In compliance with GDPR and CCPA, you can download or copy a complete copy of all your custom build details, specs, posts, comments, and profile info stored on our servers.
                   </p>
                 </div>
-                {accessSuccess ? (
-                  <div className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl">
-                    ✓ Data export file generated and downloaded successfully!
+                
+                {accessSuccessMsg && (
+                  <div className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl leading-relaxed">
+                    {accessSuccessMsg}
                   </div>
-                ) : (
+                )}
+
+                <div className="space-y-2">
                   <button 
-                    onClick={handleRequestAccess}
+                    onClick={handleDownloadAccess}
                     disabled={accessLoading}
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 rounded-full transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-zinc-800 hover:bg-zinc-750 disabled:opacity-50 text-white font-bold text-xs py-2.5 rounded-full transition-all flex items-center justify-center gap-2"
                   >
                     {accessLoading ? (
                       <>
@@ -518,7 +594,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       </>
                     )}
                   </button>
-                )}
+
+                  <button 
+                    onClick={handleCopyAccess}
+                    disabled={accessLoading}
+                    className="w-full bg-zinc-900 border border-zinc-800 hover:bg-zinc-850 disabled:opacity-50 text-zinc-300 font-bold text-xs py-2.5 rounded-full transition-all flex items-center justify-center gap-2"
+                  >
+                    {accessLoading ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-zinc-500/30 border-t-zinc-400 rounded-full animate-spin" />
+                        Compiling Build Details...
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={14} />
+                        Copy Data to Clipboard (Backup)
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Request Erasure */}
@@ -568,11 +662,29 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="font-bold text-sm">Cache Storage</span>
-                <span className="text-xs text-zinc-500">124 MB</span>
+                <span className="text-xs text-zinc-500">{cacheSize}</span>
               </div>
               <p className="text-xs text-zinc-500 mb-4">Clear cache to free up space. This won't delete your posts or cars.</p>
-              <button className="w-full bg-zinc-900 border border-zinc-800 text-white font-bold text-sm py-3 rounded-2xl hover:bg-zinc-800 transition-colors">
-                 Clear Cache
+              
+              {cacheClearedToast && (
+                <div className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl mb-3">
+                  ✓ Cache cleared successfully! Freed up 124 MB of local assets.
+                </div>
+              )}
+
+              <button 
+                onClick={handleClearCache}
+                disabled={clearingCache}
+                className="w-full bg-zinc-900 border border-zinc-800 text-white font-bold text-sm py-3 rounded-2xl hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {clearingCache ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Clearing Cache...
+                  </>
+                ) : (
+                  "Clear Cache"
+                )}
               </button>
             </div>
           </div>

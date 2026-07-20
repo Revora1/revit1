@@ -132,41 +132,45 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
   const isSelfScrolling = selfScrollingViews.includes(activeView);
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-black text-white font-sans overflow-hidden">
-      {/* Main Content */}
-      <main className={cn(
-        "flex-1 relative w-full max-w-full overflow-x-hidden",
-        isSelfScrolling 
-          ? "overflow-hidden h-full pb-0" 
-          : "overflow-y-auto pb-[calc(52px+env(safe-area-inset-bottom,0px))]"
-      )}>
-        {children}
-      </main>
+    <div className="fixed inset-0 flex justify-center bg-zinc-950 overflow-hidden">
+      <div className="w-full max-w-[480px] h-full flex flex-col bg-black text-white font-sans relative overflow-hidden border-x border-zinc-900/60 shadow-2xl">
+        {/* Main Content */}
+        <main 
+          className={cn(
+            "flex-1 relative w-full max-w-full overflow-x-hidden",
+            isSelfScrolling 
+              ? "overflow-hidden h-full pb-0" 
+              : "overflow-y-auto pb-[calc(52px+env(safe-area-inset-bottom,0px))]"
+          )}
+        >
+          {children}
+        </main>
 
-      {/* Bottom Navigation */}
-      <nav className="mobile-navbar fixed bottom-0 left-0 right-0 select-none border-t border-zinc-900/60 flex items-center justify-around bg-black/95 backdrop-blur-md z-50 px-4 sm:px-8 pl-[calc(16px+env(safe-area-inset-left,0px))] pr-[calc(16px+env(safe-area-inset-right,0px))]">
-        {navItems.map(({ id, icon: Icon, label }) => (
-          <button
-            key={id}
-            id={`nav-${id}`}
-            onClick={() => onViewChange(id)}
-            className={cn(
-              "flex flex-col items-center gap-1 transition-colors relative w-12 sm:w-16",
-              activeView === id ? "text-white" : "text-zinc-500"
-            )}
-          >
-            <div className="relative">
-              <Icon size={20} className="sm:w-6 sm:h-6" />
-              {id === 'inbox' && unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1.5 bg-white text-black text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+        {/* Bottom Navigation */}
+        <nav className="mobile-navbar absolute bottom-0 left-0 right-0 select-none border-t border-zinc-900/60 flex items-center justify-around bg-black/95 backdrop-blur-md z-50 px-4 sm:px-8 pl-[calc(16px+env(safe-area-inset-left,0px))] pr-[calc(16px+env(safe-area-inset-right,0px))]">
+          {navItems.map(({ id, icon: Icon, label }) => (
+            <button
+              key={id}
+              id={`nav-${id}`}
+              onClick={() => onViewChange(id)}
+              className={cn(
+                "flex flex-col items-center gap-1 transition-colors relative w-12 sm:w-16",
+                activeView === id ? "text-white" : "text-zinc-500"
               )}
-            </div>
-            <span className="text-[9px] sm:text-[10px] font-medium leading-none">{label}</span>
-          </button>
-        ))}
-      </nav>
+            >
+              <div className="relative">
+                <Icon size={20} className="sm:w-6 sm:h-6" />
+                {id === 'inbox' && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1.5 bg-white text-black text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[9px] sm:text-[10px] font-medium leading-none">{label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
     </div>
   );
 }

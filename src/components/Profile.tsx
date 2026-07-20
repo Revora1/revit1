@@ -14,6 +14,7 @@ import { ReportModal } from './ReportModal';
 import { Capacitor } from '@capacitor/core';
 
 import { FollowListModal } from './FollowListModal';
+import { copyToClipboard } from '../lib/utils';
 
 function UserPosts({ userId }: { userId: string }) {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -253,6 +254,8 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const pullStartY = useRef(0);
   const pullStarted = useRef(false);
 
+
+
   const refreshAllProfileData = async () => {
     if (!resolvedUserId || resolvedUserId === 'not_found') return;
     try {
@@ -337,15 +340,22 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(profileUrl);
-        setToastMessage(isOwnProfile ? "Personal profile link copied!" : "Profile link copied!");
-        setShowShareToast(true);
-        setTimeout(() => setShowShareToast(false), 2000);
+        const success = await copyToClipboard(profileUrl);
+        if (success) {
+          setToastMessage(isOwnProfile ? "Personal profile link copied!" : "Profile link copied!");
+          setShowShareToast(true);
+          setTimeout(() => setShowShareToast(false), 2500);
+        }
       }
     } catch (error: any) {
-      // Ignore AbortError (user cancelled)
       if (error.name !== 'AbortError') {
-        console.error('Error sharing:', error);
+        console.warn('Navigator.share failed inside sandbox, trying copy fallback...', error);
+        const success = await copyToClipboard(profileUrl);
+        if (success) {
+          setToastMessage(isOwnProfile ? "Personal profile link copied!" : "Profile link copied!");
+          setShowShareToast(true);
+          setTimeout(() => setShowShareToast(false), 2500);
+        }
       }
     } finally {
       setSharing(false);

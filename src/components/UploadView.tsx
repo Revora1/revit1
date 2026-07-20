@@ -91,9 +91,12 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
       });
 
       if (formData.isModUpdate && formData.carTagId) {
+        const selectedCar = cars.find(c => c.id === formData.carTagId);
+        const nextBuildNumber = (selectedCar?.buildTimeline?.length || 0) + 1;
+        
         const modEntry = {
           id: Math.random().toString(36).substring(7),
-          title: "Modification Update",
+          title: `Build #${nextBuildNumber}`,
           description: formData.caption,
           date: Date.now(),
           type: 'modification',

@@ -7,6 +7,7 @@ import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, arrayUnion, onSna
 import { useAuth } from '../context/AuthContext';
 import { CommentsSheet } from './CommentsSheet';
 import { ReportModal } from './ReportModal';
+import { copyToClipboard } from '../lib/utils';
 
 interface PostCardProps {
   post: Post;
@@ -668,20 +669,19 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
                     url: shareUrl,
                   });
                 } else {
-                  await navigator.clipboard.writeText(shareUrl);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
+                  const success = await copyToClipboard(shareUrl);
+                  if (success) {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2500);
+                  }
                 }
               } catch (err: any) {
-                console.error('Error sharing:', err);
-                // Fallback if sharing fails and it's not a user cancellation
                 if (err.name !== 'AbortError') {
-                  try {
-                    await navigator.clipboard.writeText(shareUrl);
+                  console.warn('Navigator.share failed inside sandbox, trying copy fallback...', err);
+                  const success = await copyToClipboard(shareUrl);
+                  if (success) {
                     setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  } catch (clipErr) {
-                    console.error('Clipboard failed:', clipErr);
+                    setTimeout(() => setCopied(false), 2500);
                   }
                 }
               } finally {

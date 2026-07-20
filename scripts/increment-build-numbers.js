@@ -5,6 +5,9 @@ const rootDir = process.cwd();
 
 console.log('[Auto-Increment] Starting build number incrementation...');
 
+const offset = 70; // Base offset to keep versions higher than previous
+const githubRunNumber = process.env.GITHUB_RUN_NUMBER ? parseInt(process.env.GITHUB_RUN_NUMBER, 10) : null;
+
 // Read and increment package.json version
 const packageJsonPath = path.join(rootDir, 'package.json');
 let packageVersion = '1.0.0';
@@ -12,10 +15,18 @@ try {
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   const currentVersion = packageJson.version || '1.0.0';
   const versionParts = currentVersion.split('.');
+  
   if (versionParts.length === 3) {
-    const patch = parseInt(versionParts[2], 10);
+    let patch = parseInt(versionParts[2], 10);
+    
+    if (githubRunNumber !== null) {
+      patch = offset + githubRunNumber;
+    } else if (!isNaN(patch)) {
+      patch += 1;
+    }
+    
     if (!isNaN(patch)) {
-      versionParts[2] = (patch + 1).toString();
+      versionParts[2] = patch.toString();
       packageVersion = versionParts.join('.');
     } else {
       packageVersion = currentVersion;
@@ -23,15 +34,22 @@ try {
   } else {
     packageVersion = currentVersion;
   }
+  
   packageJson.version = packageVersion;
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf8');
-  console.log(`[Auto-Increment] package.json version bumped from ${currentVersion} to ${packageVersion}`);
+  console.log(`[Auto-Increment] package.json version updated to ${packageVersion}`);
 } catch (e) {
   console.error('[Auto-Increment] Failed to read or update package.json version:', e);
 }
 
 let androidBuildNum = 1;
 let iosBuildNum = 1;
+
+// If we have a GitHub run number, use it directly for native build numbers
+if (githubRunNumber !== null) {
+  androidBuildNum = offset + githubRunNumber;
+  iosBuildNum = offset + githubRunNumber;
+}
 
 // 1. Android build.gradle
 const androidGradlePath = path.join(rootDir, 'android/app/build.gradle');
@@ -40,9 +58,11 @@ if (fs.existsSync(androidGradlePath)) {
   const match = content.match(/versionCode\s*=\s*(\d+)/);
   if (match) {
     const currentCode = parseInt(match[1], 10);
-    androidBuildNum = currentCode + 1;
+    if (githubRunNumber === null) {
+      androidBuildNum = currentCode + 1;
+    }
     content = content.replace(/versionCode\s*=\s*\d+/, `versionCode = ${androidBuildNum}`);
-    console.log(`[Auto-Increment] Android versionCode bumped from ${currentCode} to ${androidBuildNum}`);
+    console.log(`[Auto-Increment] Android versionCode updated to ${androidBuildNum}`);
   } else {
     console.warn('[Auto-Increment] Android versionCode not found in build.gradle');
   }
@@ -66,9 +86,11 @@ if (fs.existsSync(iosProjPath)) {
   if (matches) {
     const singleMatch = content.match(/CURRENT_PROJECT_VERSION\s*=\s*(\d+);/);
     const currentVersion = parseInt(singleMatch[1], 10);
-    iosBuildNum = currentVersion + 1;
+    if (githubRunNumber === null) {
+      iosBuildNum = currentVersion + 1;
+    }
     content = content.replace(/CURRENT_PROJECT_VERSION\s*=\s*\d+;/g, `CURRENT_PROJECT_VERSION = ${iosBuildNum};`);
-    console.log(`[Auto-Increment] iOS CURRENT_PROJECT_VERSION bumped from ${currentVersion} to ${iosBuildNum}`);
+    console.log(`[Auto-Increment] iOS CURRENT_PROJECT_VERSION updated to ${iosBuildNum}`);
   } else {
     console.warn('[Auto-Increment] iOS CURRENT_PROJECT_VERSION not found in project.pbxproj');
   }

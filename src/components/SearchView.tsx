@@ -2,16 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search as SearchIcon, TrendingUp, Hash, User, SlidersHorizontal, 
   Car as CarIcon, Zap, Award, ChevronRight, X, RotateCcw,
-  Sparkles, Layers, Sliders, Flame, Gauge
+  Sparkles, Layers, Sliders, Flame, Gauge, Heart, MessageSquare, Clock
 } from 'lucide-react';
 import { collection, query, where, getDocs, limit, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { UserProfile, Car, PerformanceRecord, CarStage } from '../types';
+import { UserProfile, Car, PerformanceRecord, CarStage, Post } from '../types';
 import { CarDetailsModal } from './CarDetailsModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 
-type SearchTab = 'accounts' | 'builds';
+type SearchTab = 'posts' | 'builds' | 'accounts';
 
 interface SearchFilters {
   make: string;
@@ -25,8 +25,47 @@ interface SearchFilters {
 
 export function SearchView() {
   const { blockedUserIds } = useAuth();
-  const [activeTab, setActiveTab] = useState<SearchTab>('accounts');
+  const [activeTab, setActiveTab] = useState<SearchTab>('posts');
+
+  // Recent Searches for car makes and models
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('recent-car-searches');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const saveSearch = (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    setRecentSearches(prev => {
+      const filtered = prev.filter(x => x.toLowerCase() !== trimmed.toLowerCase());
+      const updated = [trimmed, ...filtered].slice(0, 8); // Keep last 8 searches
+      localStorage.setItem('recent-car-searches', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const removeRecentSearch = (term: string) => {
+    setRecentSearches(prev => {
+      const updated = prev.filter(x => x !== term);
+      localStorage.setItem('recent-car-searches', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.removeItem('recent-car-searches');
+  };
   
+  // Posts Search State
+  const [postSearchTerm, setPostSearchTerm] = useState('');
+  const [posts, setPosts] = useState<(Post & { authorProfile?: UserProfile; car?: Car })[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+
   // Accounts Search State
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<UserProfile[]>([]);
@@ -164,6 +203,70 @@ export function SearchView() {
     };
   }, []);
 
+  // ------------------------------------------
+  // Fetch lists for all Posts and join garage cars
+  // ------------------------------------------
+  useEffect(() => {
+    let active = true;
+    const fetchPostsAndAuthors = async () => {
+      setPostsLoading(true);
+      try {
+        const [postsSnap, garageSnap] = await Promise.all([
+          getDocs(collection(db, 'posts')),
+          getDocs(collection(db, 'garage'))
+        ]);
+        if (!active) return;
+        
+        const fetchedPosts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+        // Sort by newest first
+        fetchedPosts.sort((a, b) => b.createdAt - a.createdAt);
+
+        const fetchedCars = garageSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Car));
+        const carsMap: Record<string, Car> = {};
+        fetchedCars.forEach(car => {
+          carsMap[car.id] = car;
+        });
+
+        const uniqueAuthorIds = [...new Set(fetchedPosts.map(p => p.authorId))].filter(id => !userCache.current[id]);
+        
+        if (uniqueAuthorIds.length > 0) {
+          const authorDocs = await Promise.all(
+            uniqueAuthorIds.map(id => getDoc(doc(db, 'users', id)))
+          );
+          authorDocs.forEach(snapElem => {
+            if (snapElem.exists()) {
+              userCache.current[snapElem.id] = snapElem.data() as UserProfile;
+            }
+          });
+        }
+        
+        const joined = fetchedPosts.map(post => {
+          const authorProfile = userCache.current[post.authorId];
+          const car = post.carTagId ? carsMap[post.carTagId] : undefined;
+          return {
+            ...post,
+            authorProfile,
+            car
+          };
+        });
+        
+        setPosts(joined);
+        setPostsLoading(false);
+      } catch (err) {
+        console.error("Error fetching discover posts data:", err);
+        if (active) {
+          setPostsLoading(false);
+        }
+        handleFirestoreError(err, OperationType.LIST, 'posts');
+      }
+    };
+    
+    fetchPostsAndAuthors();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const onUserClick = (uid: string) => {
     window.dispatchEvent(new CustomEvent('navigate-profile', { detail: { userId: uid } }));
   };
@@ -248,6 +351,32 @@ export function SearchView() {
     return true;
   });
 
+  // ------------------------------------------
+  // Apply filtering rules for posts client side
+  // ------------------------------------------
+  const filteredPosts = posts.filter(post => {
+    // Hide posts belonging to blocked users
+    if (blockedUserIds.includes(post.authorId)) {
+      return false;
+    }
+
+    if (postSearchTerm.trim()) {
+      const q = postSearchTerm.toLowerCase();
+      const matchCaption = post.caption?.toLowerCase().includes(q);
+      const matchAuthor = post.authorProfile?.username.toLowerCase().includes(q);
+      
+      const matchMake = post.car?.make?.toLowerCase().includes(q);
+      const matchModel = post.car?.model?.toLowerCase().includes(q);
+      const matchStage = post.car?.stage?.toLowerCase().includes(q);
+      const matchMods = post.car?.mods?.toLowerCase().includes(q);
+      const matchEngine = post.car?.engine?.toLowerCase().includes(q);
+
+      return matchCaption || matchAuthor || matchMake || matchModel || matchStage || matchMods || matchEngine;
+    }
+
+    return true;
+  });
+
   const activeFiltersCount = [
     filters.make.trim(),
     filters.model.trim(),
@@ -268,10 +397,32 @@ export function SearchView() {
         </div>
 
         {/* Segmented Tab Controls */}
-        <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-2xl max-w-xs select-none">
+        <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-2xl max-w-sm select-none w-full sm:w-auto">
+          <button
+            onClick={() => setActiveTab('posts')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+              activeTab === 'posts' 
+                ? 'bg-zinc-800 text-white shadow-lg' 
+                : 'text-zinc-500 hover:text-zinc-350'
+            }`}
+          >
+            <Sparkles size={14} />
+            Posts
+          </button>
+          <button
+            onClick={() => setActiveTab('builds')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+              activeTab === 'builds' 
+                ? 'bg-zinc-800 text-white shadow-lg' 
+                : 'text-zinc-500 hover:text-zinc-350'
+            }`}
+          >
+            <Layers size={14} />
+            Builds
+          </button>
           <button
             onClick={() => setActiveTab('accounts')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
               activeTab === 'accounts' 
                 ? 'bg-zinc-800 text-white shadow-lg' 
                 : 'text-zinc-500 hover:text-zinc-350'
@@ -280,19 +431,178 @@ export function SearchView() {
             <User size={14} />
             Users
           </button>
-          <button
-            onClick={() => setActiveTab('builds')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-              activeTab === 'builds' 
-                ? 'bg-zinc-800 text-white shadow-lg' 
-                : 'text-zinc-500 hover:text-zinc-350'
-            }`}
-          >
-            <Layers size={14} />
-            Builds & Specs
-          </button>
         </div>
       </div>
+
+      {/* ------------------------------------------ */}
+      {/* POSTS GRAPHIC SEARCH */}
+      {/* ------------------------------------------ */}
+      {activeTab === 'posts' && (
+        <div className="space-y-6">
+          <div className="relative group">
+            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-white transition-colors" size={20} />
+            <input 
+              type="text" 
+              value={postSearchTerm}
+              onChange={(e) => setPostSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  saveSearch(postSearchTerm);
+                }
+              }}
+              placeholder="Search posts, car makes, models, or build tags..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-semibold focus:border-white outline-none transition-colors"
+            />
+            {postSearchTerm && (
+              <button 
+                onClick={() => setPostSearchTerm('')} 
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {/* Recent Searches Chips */}
+          {recentSearches.length > 0 && (
+            <div className="flex flex-col gap-2 bg-zinc-950/20 p-3.5 rounded-2xl border border-zinc-900/50">
+              <div className="flex items-center justify-between text-zinc-500 text-[10px] font-black uppercase tracking-widest">
+                <span className="flex items-center gap-1">
+                  <Clock size={10} />
+                  Recent Searches
+                </span>
+                <button 
+                  onClick={clearRecentSearches}
+                  className="text-zinc-500 hover:text-rose-500 transition-colors text-[9px] font-black tracking-widest uppercase"
+                >
+                  Clear All
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {recentSearches.map((term, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 rounded-full pl-3 pr-2 py-1 transition-all"
+                  >
+                    <button
+                      onClick={() => {
+                        setPostSearchTerm(term);
+                        saveSearch(term);
+                      }}
+                      className="text-zinc-300 hover:text-white text-xs font-bold uppercase tracking-wider"
+                    >
+                      {term}
+                    </button>
+                    <button 
+                      onClick={() => removeRecentSearch(term)}
+                      className="text-zinc-600 hover:text-zinc-400 p-0.5 hover:bg-zinc-800 rounded-full transition-colors ml-1"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {postsLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              <span className="text-[9px] font-black uppercase text-zinc-600 tracking-wider">Gathering Posted Content...</span>
+            </div>
+          ) : filteredPosts.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {filteredPosts.map((post, idx) => {
+                const coverImage = post.mediaUrls?.[0] || post.mediaUrl;
+                return (
+                  <motion.div
+                    key={post.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('navigate-post', { detail: { postId: post.id } }));
+                    }}
+                    className="group bg-zinc-900 border border-zinc-800/80 rounded-2xl overflow-hidden aspect-square relative cursor-pointer hover:border-white/20 transition-all select-none flex flex-col justify-between"
+                  >
+                    {/* Media Cover background */}
+                    {coverImage ? (
+                      <>
+                        <img 
+                          src={coverImage} 
+                          alt="" 
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-black/30" />
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 bg-zinc-950 flex items-center justify-center p-4">
+                        <p className="text-[10px] font-semibold text-zinc-400 line-clamp-4 leading-normal text-center italic">
+                          "{post.caption}"
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Mod badge if update */}
+                    {post.isModUpdate && (
+                      <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-yellow-400 text-black rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shadow z-10">
+                        <Sparkles size={8} fill="black" /> Part/Mod
+                      </div>
+                    )}
+
+                    {/* Bottom overlay with User details and stats */}
+                    <div className="relative z-10 mt-auto p-2.5 w-full bg-gradient-to-t from-black/95 to-transparent flex flex-col gap-1">
+                      <p className="text-[10px] font-bold text-white line-clamp-2 leading-tight">
+                        {post.caption}
+                      </p>
+                      
+                      <div className="flex items-center justify-between mt-1">
+                        {post.authorProfile && (
+                          <div className="flex items-center gap-1 min-w-0">
+                            <div className="w-3.5 h-3.5 rounded-full overflow-hidden bg-zinc-805 flex-none">
+                              {post.authorProfile.profilePic ? (
+                                <img src={post.authorProfile.profilePic} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-[6px] font-black text-zinc-400">
+                                  {post.authorProfile.username[0]}
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[8px] font-bold text-zinc-300 truncate">
+                              @{post.authorProfile.username}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 text-zinc-400 flex-none ml-1">
+                          <div className="flex items-center gap-0.5">
+                            <Heart size={8} className="text-zinc-500 group-hover:text-rose-500 transition-colors" />
+                            <span className="text-[8px] font-mono font-medium">{post.likesCount || 0}</span>
+                          </div>
+                          <div className="flex items-center gap-0.5">
+                            <MessageSquare size={8} className="text-zinc-500" />
+                            <span className="text-[8px] font-mono font-medium">{post.commentsCount || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 bg-zinc-950/40 rounded-3xl border border-zinc-800">
+              <div className="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-750">
+                <SearchIcon size={24} strokeWidth={1} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-black italic uppercase">No posts match "{postSearchTerm}"</p>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Try typing different parts, brands, or setups</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ------------------------------------------ */}
       {/* ACCOUNTS GRAPHIC SEARCH */}
@@ -406,6 +716,11 @@ export function SearchView() {
                 type="text" 
                 value={buildSearchTerm}
                 onChange={(e) => setBuildSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    saveSearch(buildSearchTerm);
+                  }
+                }}
                 placeholder="Find parts, setups or builders..."
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-3.5 pl-11 pr-4 text-xs font-semibold focus:border-white outline-none transition-colors"
               />
@@ -436,6 +751,48 @@ export function SearchView() {
               )}
             </button>
           </div>
+
+          {/* Recent Searches Chips */}
+          {recentSearches.length > 0 && (
+            <div className="flex flex-col gap-2 bg-zinc-950/20 p-3.5 rounded-2xl border border-zinc-900/50">
+              <div className="flex items-center justify-between text-zinc-500 text-[10px] font-black uppercase tracking-widest">
+                <span className="flex items-center gap-1">
+                  <Clock size={10} />
+                  Recent Searches
+                </span>
+                <button 
+                  onClick={clearRecentSearches}
+                  className="text-zinc-500 hover:text-rose-500 transition-colors text-[9px] font-black tracking-widest uppercase"
+                >
+                  Clear All
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {recentSearches.map((term, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 rounded-full pl-3 pr-2 py-1 transition-all"
+                  >
+                    <button
+                      onClick={() => {
+                        setBuildSearchTerm(term);
+                        saveSearch(term);
+                      }}
+                      className="text-zinc-300 hover:text-white text-xs font-bold uppercase tracking-wider"
+                    >
+                      {term}
+                    </button>
+                    <button 
+                      onClick={() => removeRecentSearch(term)}
+                      className="text-zinc-600 hover:text-zinc-400 p-0.5 hover:bg-zinc-800 rounded-full transition-colors ml-1"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Advanced Filter Drawer */}
           <AnimatePresence>
@@ -471,6 +828,11 @@ export function SearchView() {
                       className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-white uppercase tracking-wide placeholder-zinc-600 focus:outline-none focus:border-white/10"
                       value={filters.make}
                       onChange={e => setFilters({...filters, make: e.target.value})}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveSearch(filters.make);
+                        }
+                      }}
                     />
                   </div>
 
@@ -483,6 +845,11 @@ export function SearchView() {
                       className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-white uppercase tracking-wide placeholder-zinc-600 focus:outline-none focus:border-white/10"
                       value={filters.model}
                       onChange={e => setFilters({...filters, model: e.target.value})}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveSearch(filters.model);
+                        }
+                      }}
                     />
                   </div>
                 </div>

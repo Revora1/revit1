@@ -6,6 +6,7 @@ import { PostCard } from './PostCard';
 import { ChevronLeft, Share2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { copyToClipboard } from '../lib/utils';
 
 export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: string, onBack: () => void, autoOpenComments?: boolean }) {
   const { blockedUserIds } = useAuth();
@@ -39,18 +40,19 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
           url: shareUrl,
         });
       } else {
-        await navigator.clipboard.writeText(shareUrl);
-        setShowShareToast(true);
-        setTimeout(() => setShowShareToast(false), 2000);
+        const success = await copyToClipboard(shareUrl);
+        if (success) {
+          setShowShareToast(true);
+          setTimeout(() => setShowShareToast(false), 2500);
+        }
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
+        console.warn('Navigator.share failed inside sandbox, trying copy fallback...', err);
+        const success = await copyToClipboard(shareUrl);
+        if (success) {
           setShowShareToast(true);
-          setTimeout(() => setShowShareToast(false), 2000);
-        } catch (clipErr) {
-          console.error('Clipboard failed:', clipErr);
+          setTimeout(() => setShowShareToast(false), 2500);
         }
       }
     }
