@@ -717,7 +717,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      className="relative min-h-full bg-black pb-20 select-none touch-pan-y"
+      className="relative min-h-full w-full max-w-full overflow-x-hidden bg-black pb-20 select-none touch-pan-y"
       style={{
         transform: `translateY(${pullOffset}px)`,
         transition: pullStarted.current ? 'none' : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)'

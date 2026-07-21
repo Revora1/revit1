@@ -259,7 +259,7 @@ export function Feed() {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         role="feed"
-        className="h-full overflow-y-scroll snap-y snap-mandatory touch-pan-y"
+        className="h-full w-full max-w-full overflow-x-hidden overflow-y-scroll snap-y snap-mandatory touch-pan-y"
         style={{ 
           transform: `translateY(${pullOffset}px)`,
           transition: pullStarted.current ? 'none' : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',

@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "today.revitup.app"
+    namespace = "com.revitup.network"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId = "today.revitup.app"
+        applicationId = "com.revitup.network"
         minSdkVersion = rootProject.ext.minSdkVersion
         targetSdkVersion = rootProject.ext.targetSdkVersion
         versionCode = 52
@@ -19,7 +19,8 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled = false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             crunchPngs = false
         }

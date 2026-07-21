@@ -1,4 +1,4 @@
-package today.revitup.app;
+package com.revitup.network;
 
 import com.getcapacitor.BridgeActivity;
 
