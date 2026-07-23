@@ -30,9 +30,7 @@ var app = (0, import_express.default)();
 var PORT = 3e3;
 app.get("/privacy-policy", (req, res) => {
   res.setHeader("Content-Type", "text/html");
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
+  res.send(`<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy - RevitUp</title>
@@ -117,8 +115,7 @@ app.get("/privacy-policy", (req, res) => {
     }
     .footer {
       text-align: center;
-      font-size: 11px;
-      color: #3f3f46;
+      font-size: 11px;      color: #3f3f46;
       margin-top: 48px;
       padding-top: 24px;
       border-top: 1px solid #18181b;
@@ -139,9 +136,9 @@ app.get("/privacy-policy", (req, res) => {
 
     <section>
       <h3>1. Authentication and Personal Information</h3>
-      <p>RevitUp uses <strong class="highlight">Google Sign-In</strong> for user registration and secure authentication.</p>
+      <p>RevitUp uses secure <strong class="highlight">Email/Password</strong> authentication for user registration and account management.</p>
       <ul>
-        <li><strong class="highlight">What is accessed:</strong> We access your public Google profile information (such as your name, email address, and profile picture) solely to create and manage your secure user account.</li>
+        <li><strong class="highlight">What is accessed:</strong> We use your provided email address solely to create, log in, and manage your secure user account.</li>
         <li><strong class="highlight">No direct collection:</strong> We do not directly collect, request, store, or sell your email address or any personal contact details for marketing or promotional purposes.</li>
       </ul>
     </section>
@@ -171,6 +168,10 @@ app.get("/privacy-policy", (req, res) => {
           <div class="card-desc">Access and download a copy of all your custom build details.</div>
         </div>
         <div class="card">
+          <div class="card-title">Request Data Deletion</div>
+          <div class="card-desc">Request to delete specific user data without deleting your entire account.</div>
+        </div>
+        <div class="card">
           <div class="card-title">Request Erasure</div>
           <div class="card-desc">Instantly and permanently delete your account, which automatically purges all your garage data, posts, and profile associations from our servers.</div>
         </div>
@@ -185,6 +186,128 @@ app.get("/privacy-policy", (req, res) => {
 
     <div class="footer">
       Last Updated: July 12, 2026
+    </div>
+  </div>
+</body>
+</html>`);
+});
+app.get("/delete-account", (req, res) => {
+  res.setHeader("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Deletion - RevitUp</title>
+  <style>
+    body {
+      background-color: #000000;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding-bottom: 80px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: -0.05em;
+      text-transform: uppercase;
+      border-bottom: 1px solid #18181b;
+      padding-bottom: 16px;
+      margin-bottom: 32px;
+    }
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-top: 32px;
+      margin-bottom: 16px;
+    }
+    p {
+      font-size: 14px;
+      color: #a1a1aa;
+      margin: 0 0 16px 0;
+    }
+    ul, ol {
+      margin: 0 0 16px 0;
+      padding-left: 20px;
+      color: #a1a1aa;
+      font-size: 14px;
+    }
+    li {
+      margin-bottom: 8px;
+    }
+    .highlight {
+      color: #ffffff;
+      font-weight: bold;
+    }
+    .steps {
+      background-color: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 24px;
+      margin-bottom: 32px;
+    }
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      color: #3f3f46;
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid #18181b;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Account Deletion Request</h1>
+    
+    <p style="font-size: 15px; color: #ffffff; line-height: 1.7;">If you no longer wish to use RevitUp, you can request to delete your account and all associated data.</p>
+
+    <div class="steps">
+      <h2>How to delete your account in the app:</h2>
+      <p>The fastest way to permanently delete your account is directly within the app.</p>
+      <ol>
+        <li>Open the <strong class="highlight">RevitUp</strong> app on your device and log in.</li>
+        <li>Go to your <strong class="highlight">Profile</strong> tab.</li>
+        <li>Tap the <strong class="highlight">Settings</strong> icon (the gear in the top right corner).</li>
+        <li>Scroll down and tap on <strong class="highlight" style="color: #ef4444;">Delete Account</strong>.</li>
+        <li>Confirm your choice when prompted.</li>
+      </ol>
+    </div>
+
+    <section>
+      <h2>Alternative: Request deletion via email</h2>
+      <p>If you have uninstalled the app or cannot log in, you can request account deletion by emailing our support team:</p>
+      <p>Please send an email to <strong class="highlight" style="color: #ffffff;">tonyang11552883@gmail.com</strong> from the email address associated with your RevitUp account with the subject line <strong class="highlight">"Account Deletion Request"</strong>.</p>
+    </section>
+
+    <section>
+      <h2>What happens to your data?</h2>
+      <p>When you delete your account (or request deletion), the following data is permanently deleted:</p>
+      <ul>
+        <li>Your personal profile information (username, display name, bio, profile picture)</li>
+        <li>Your login credentials and authentication data</li>
+        <li>All posts, photos, and media you have uploaded</li>
+        <li>Your virtual garage data and build timelines</li>
+        <li>Your comments, likes, and interactions</li>
+        <li>Your chat messages and inbox data</li>
+      </ul>
+      <p><strong class="highlight">Data Retention:</strong> Account deletion is immediate and irreversible. We do not retain any of your personal data after the deletion process is complete. You may also request deletion of specific data without deleting your entire account.</p>
+    </section>
+
+    <div class="footer">
+      App Name: RevitUp<br>
+      Developer: Tony Ang
     </div>
   </div>
 </body>

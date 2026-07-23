@@ -8,6 +8,9 @@ export function AuthView() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const { resetPassword } = useAuth();
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +76,7 @@ export function AuthView() {
               className="w-full h-14 bg-zinc-900 border border-zinc-800 text-white rounded-xl px-4 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
               required
             />
-            <button
+                        <button
               type="submit"
               disabled={isSubmitting}
               className="w-full h-14 bg-white text-black rounded-xl font-bold flex items-center justify-center gap-3 active:scale-95 transition-transform disabled:opacity-50 disabled:pointer-events-none"
@@ -94,6 +97,38 @@ export function AuthView() {
               )}
             </button>
           </motion.form>
+
+          <div className="flex flex-col items-center gap-3 pt-2">
+            <button 
+              type="button"
+              onClick={async () => {
+                if (!email) {
+                  setResetError('Please enter your email address first.');
+                  return;
+                }
+                setIsSubmitting(true);
+                setResetError(null);
+                setResetSent(false);
+                try {
+                  await resetPassword(email);
+                  setResetSent(true);
+                } catch (err: any) {
+                  setResetError(err.message || 'Failed to send reset email');
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              className="text-xs text-zinc-400 font-bold hover:text-white transition-colors"
+            >
+              FORGOT PASSWORD?
+            </button>
+            {resetSent && (
+              <p className="text-xs text-emerald-400 font-medium">Password reset email sent! Check your inbox.</p>
+            )}
+            {resetError && (
+              <p className="text-xs text-red-500 font-medium">{resetError}</p>
+            )}
+          </div>
 
           <p className="text-xs text-zinc-500 px-8 pt-4">
             By joining, you agree to our Terms and Service.

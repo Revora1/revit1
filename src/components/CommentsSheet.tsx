@@ -268,10 +268,14 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
     e.preventDefault();
     if (!user || !newComment.trim()) return;
 
-    const commentText = sanitizeInput(newComment.trim());
-    const commentId = `${Date.now()}_${user.uid}`;
-    
     try {
+      const postSnap = await getDoc(doc(db, 'posts', postId));
+      if (!postSnap.exists()) return;
+      const postAuthorId = postSnap.data().authorId;
+
+      const commentText = sanitizeInput(newComment.trim());
+      const commentId = `${Date.now()}_${user.uid}`;
+
       await setDoc(doc(db, 'comments', commentId), {
         authorId: user.uid,
         postId: postId,
@@ -280,10 +284,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
       });
       await updateDoc(doc(db, 'posts', postId), { commentsCount: increment(1) });
       
-      const postSnap = await getDoc(doc(db, 'posts', postId));
-      let postAuthorId = '';
       if (postSnap.exists()) {
-        postAuthorId = postSnap.data().authorId;
         if (postAuthorId !== user.uid) {
            const notifId = `${Date.now()}_${user.uid}_comment_${postId}`;
            await setDoc(doc(db, 'notifications', notifId), {

@@ -50,7 +50,7 @@ import { UserGuide } from './UserGuide';
 import { VERSION_INFO } from '../version';
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const { user, logout } = useAuth();
+  const { user, profile, logout, updateProfileSettings } = useAuth();
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -519,7 +519,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       case 'privacy':
         return (
           <div className="space-y-4">
-            <ToggleItem label="Private Profile" description="Only approved followers can see your builds" />
+            <ToggleItem label="Friends-Only Mode" description="Limit messages to mutual followers only" defaultChecked={!!profile?.friendsOnlyInteractions} onChange={(val) => updateProfileSettings({ friendsOnlyInteractions: val }).catch(console.error)} />
             <ToggleItem label="Hide Garage" description="Don't show your cars on your public profile" />
             <ToggleItem label="Activity Status" description="Show when you are online" defaultChecked />
             <div className="mt-6 p-4 bg-zinc-900 rounded-2xl border border-zinc-800">

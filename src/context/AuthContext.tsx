@@ -1,8 +1,8 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { isUnder16 } from '../lib/utils';
 
@@ -13,7 +13,9 @@ interface AuthContextType {
   error: string | null;
   isIOS: boolean;
   signInWithEmail: (e: string, p: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfileSettings: (settings: Partial<UserProfile>) => Promise<void>;
   blockedUserIds: string[];
   myBlockedIds: string[];
   blockUser: (blockedId: string) => Promise<void>;
@@ -151,9 +153,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               };
 
               try {
-                await setDoc(profileRef, newProfile);
+                                await setDoc(profileRef, newProfile);
                 const privateInfoRef = doc(db, 'users', user.uid, 'private', 'info');
                 await setDoc(privateInfoRef, privateInfo);
+
+                // Handle referral loop
+                try {
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const refId = urlParams.get('ref');
+                  if (refId && refId !== user.uid) {
+                    const referrerRef = doc(db, 'users', refId);
+                    const referrerSnap = await getDoc(referrerRef);
+                    if (referrerSnap.exists()) {
+                      const currentCount = referrerSnap.data().referralsCount || 0;
+                      await updateDoc(referrerRef, { referralsCount: currentCount + 1 });
+                    }
+                  }
+                } catch (refErr) {
+                  console.error('Failed to process referral:', refErr);
+                }
+
                 // Profile state will be set by the next snapshot trigger
               } catch (err: any) {
                 console.error('Failed to create user profile:', err);
@@ -221,26 +240,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         } catch (createErr: any) {
           console.error('Firebase createUserWithEmailAndPassword error:', createErr);
-          if (createErr.code === 'auth/weak-password') {
+          if (createErr.code === 'auth/weak-password' || createErr.message?.includes('weak-password')) {
             setError('The password is too weak. It must be at least 6 characters long.');
-          } else if (createErr.code === 'auth/email-already-in-use') {
-            setError('This email is already registered. Please check your password or try a different email.');
-          } else if (createErr.code === 'auth/operation-not-allowed') {
-            setError('Email/Password provider is disabled in your Firebase Console. Please enable it in Firebase Console -> Authentication -> Sign-in method.');
-          } else if (createErr.code === 'auth/invalid-email') {
+          } else if (createErr.code === 'auth/email-already-in-use' || createErr.message?.includes('email-already-in-use')) {
+            setError('Incorrect password. This email is already registered.');
+          } else if (createErr.code === 'auth/operation-not-allowed' || createErr.message?.includes('operation-not-allowed')) {
+            setError('Email/Password provider is disabled in your Firebase Console.');
+          } else if (createErr.code === 'auth/invalid-email' || createErr.message?.includes('invalid-email')) {
             setError('Please enter a valid email address.');
           } else {
             setError(createErr.message || 'Failed to create account');
           }
         }
       } else if (err.code === 'auth/operation-not-allowed') {
-        setError('Email/Password provider is disabled in your Firebase Console. Please enable it in Firebase Console -> Authentication -> Sign-in method.');
+        setError('Email/Password provider is disabled in your Firebase Console.');
       } else if (err.code === 'auth/invalid-email') {
         setError('Please enter a valid email address.');
       } else {
         console.error('Email sign in error:', err);
         setError(err.message || 'Failed to sign in with email');
       }
+    }
+  };
+
+  
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email.trim().toLowerCase());
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      if (err.code === 'auth/user-not-found') {
+        throw new Error('No account found with this email address.');
+      } else if (err.code === 'auth/invalid-email') {
+        throw new Error('Please enter a valid email address.');
+      }
+      throw new Error('Failed to send password reset email. Please try again.');
+    }
+  };
+
+  const updateProfileSettings = async (settings: Partial<UserProfile>) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, "users", user.uid), settings);
+      setProfile(prev => prev ? { ...prev, ...settings } : prev);
+    } catch (err) {
+      console.error("Failed to update settings:", err);
+      throw err;
     }
   };
 
@@ -303,7 +348,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       error, 
       isIOS, 
       signInWithEmail, 
+      resetPassword,
       logout,
+      updateProfileSettings,
       blockedUserIds,
       myBlockedIds,
       blockUser,

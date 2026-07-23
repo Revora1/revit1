@@ -23,6 +23,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="ai-studio-94b91240-6a0e-4947-9a3e-944940cdc81d.firebaseapp.com" />
+            </intent-filter>
         </activity>
 
         <provider

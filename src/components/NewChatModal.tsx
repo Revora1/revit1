@@ -74,6 +74,14 @@ export function NewChatModal({ isOpen, onClose, onChatSelected }: NewChatModalPr
 
   const handleSelectUser = async (otherUser: UserProfile) => {
     if (!user) return;
+    if (otherUser.friendsOnlyInteractions) {
+       const follow1 = await getDoc(doc(db, 'follows', `${user.uid}_${otherUser.uid}`));
+       const follow2 = await getDoc(doc(db, 'follows', `${otherUser.uid}_${user.uid}`));
+       if (!follow1.exists() || !follow2.exists()) {
+          alert('This user only allows messages from mutual followers.');
+          return;
+       }
+    }
     // Check if chat already exists
     const chatId1 = `${user.uid}_${otherUser.uid}`;
     const chatId2 = `${otherUser.uid}_${user.uid}`;

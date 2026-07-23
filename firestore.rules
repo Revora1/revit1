@@ -6,309 +6,110 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // --- Helpers ---
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isEmailVerified() {
-      return isSignedIn();
-    }
-
     function isOwner(userId) {
-      return isEmailVerified() && request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
     // --- Users ---
-    function isValidUser(data) {
-      return data.uid is string && 
-             data.uid == request.auth.uid &&
-             data.username is string && data.username.size() <= 30 &&
-             data.usernameLower is string && data.usernameLower.size() <= 30 &&
-             (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
-             (!('profilePic' in data) || (data.profilePic is string && data.profilePic.size() <= 500)) &&
-             (!('followersCount' in data) || (data.followersCount is int && data.followersCount >= 0)) &&
-             (!('followingCount' in data) || (data.followingCount is int && data.followingCount >= 0)) &&
-             (!('partnerId' in data) || (data.partnerId is string && data.partnerId.size() <= 128)) &&
-             (!('garage' in data) || (data.garage is list && data.garage.size() <= 100)) &&
-             (!('fcmTokens' in data) || (data.fcmTokens is list && data.fcmTokens.size() <= 20)) &&
-             (!('birthdate' in data) || (data.birthdate is string && data.birthdate.size() <= 20));
-    }
-
     match /users/{userId} {
-      allow get: if isSignedIn() && isValidId(userId);
-      allow list: if isSignedIn();
-      allow create: if isEmailVerified() && isValidId(userId) && userId == request.auth.uid && 
-                      isValidUser(incoming()) && incoming().keys().size() >= 3 && incoming().keys().size() <= 12;
-      allow update: if isEmailVerified() && isValidId(userId) && (
-        (isOwner(userId) && isValidUser(incoming()) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['username', 'usernameLower', 'bio', 'profilePic', 'garage', 'followersCount', 'followingCount', 'partnerId', 'fcmTokens', 'birthdate'])) ||
-        (!isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['followersCount']))
-      );
-
-      // PII Protection: Private subcollection for sensitive data
-      match /private/info {
-        allow get: if isOwner(userId);
-        allow create, update: if isOwner(userId) && 
-                                incoming().email is string && incoming().email.size() <= 100 &&
-                                incoming().keys().size() == 1;
-        allow delete: if false;
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
+      allow update: if isSignedIn()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount'])
+                    && request.resource.data.referralsCount == (resource.data.get('referralsCount', 0) + 1);
+      match /private/{docId} {
+        allow read, write: if isOwner(userId);
       }
     }
 
     // --- Posts ---
-    function isPostValid(data) {
-      return data.authorId is string &&
-             (
-               !('mediaUrls' in data) || 
-               (data.mediaUrls is list && data.mediaUrls.size() >= 0 && data.mediaUrls.size() <= 10)
-             ) &&
-             (
-               !('mediaUrl' in data) || 
-               (data.mediaUrl is string && data.mediaUrl.size() <= 500)
-             ) &&
-             (
-               !('mediaType' in data) || 
-               (data.mediaType is string && data.mediaType in ['image', 'video'])
-             ) &&
-             (
-               !('caption' in data) || 
-               (data.caption is string && data.caption.size() <= 1000)
-             ) &&
-             (
-               !('carTagId' in data) || 
-               (data.carTagId is string && data.carTagId.size() <= 128)
-             ) &&
-             (
-               !('likesCount' in data) || 
-               (data.likesCount is int && data.likesCount >= 0)
-             ) &&
-             (
-               !('commentsCount' in data) || 
-               (data.commentsCount is int && data.commentsCount >= 0)
-             ) &&
-             (
-               !('viewCount' in data) || 
-               (data.viewCount is int && data.viewCount >= 0)
-             ) &&
-             (
-               !('views' in data) || 
-               (data.views is list && data.views.size() <= 10000)
-             ) &&
-             (
-               !('sharesCount' in data) || 
-               (data.sharesCount is int && data.sharesCount >= 0)
-             ) &&
-             (
-               !('loopsCount' in data) || 
-               (data.loopsCount is int && data.loopsCount >= 0)
-             ) &&
-             (
-               !('isDuo' in data) || 
-               data.isDuo is bool
-             ) &&
-             (
-               !('isModUpdate' in data) || 
-               data.isModUpdate is bool
-             ) &&
-             (
-               !('songId' in data) || 
-               (data.songId is string && data.songId.size() <= 1500)
-             ) &&
-             (
-               !('createdAt' in data) || 
-               data.createdAt is int
-             );
-    }
-
     match /posts/{postId} {
-      allow get: if isSignedIn() && isValidId(postId);
-      allow list: if isSignedIn(); // Public posts are readable
-      allow create: if isEmailVerified() && isValidId(postId) && isPostValid(incoming()) && 
-                      incoming().authorId == request.auth.uid &&
-                      incoming().keys().size() >= 6 && incoming().keys().size() <= 16;
-      allow update: if isValidId(postId) && isPostValid(incoming()) && (
-        // Author update
-        (isEmailVerified() && resource.data.authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'carTagId', 'isDuo', 'songId'])) ||
-        // Engagement update (likes/comments/views count)
-        (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'viewCount', 'views', 'sharesCount', 'loopsCount']))
-      );
-      allow delete: if isEmailVerified() && isValidId(postId) && resource.data.authorId == request.auth.uid;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
 
     // --- Garage ---
-    function isValidCar(data) {
-      return data.ownerId == request.auth.uid &&
-             data.make is string && data.make.size() <= 50 &&
-             data.model is string && data.model.size() <= 50 &&
-             data.year is int && data.year >= 1886 && data.year <= 2100 &&
-             (!('engine' in data) || (data.engine is string && data.engine.size() <= 100)) &&
-             (!('mods' in data) || (data.mods is string && data.mods.size() <= 2000)) &&
-             (!('stage' in data) || (data.stage is string && data.stage.size() <= 20)) &&
-             (!('coverImage' in data) || (data.coverImage is string && data.coverImage.size() <= 500));
-    }
-
     match /garage/{carId} {
-      allow get: if isSignedIn() && isValidId(carId);
-      allow list: if isSignedIn(); 
-      allow create: if isEmailVerified() && isValidId(carId) && isValidCar(incoming()) && 
-                      incoming().keys().size() >= 5 && incoming().keys().size() <= 12;
-      allow update: if isEmailVerified() && isValidId(carId) && resource.data.ownerId == request.auth.uid && 
-                      isValidCar(incoming()) &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['make', 'model', 'year', 'engine', 'mods', 'stage', 'coverImage', 'buildTimeline']);
-      allow delete: if isEmailVerified() && isValidId(carId) && resource.data.ownerId == request.auth.uid;
-    }
-
-    // --- Performance Board ---
-    function isValidPerformanceRecord(data) {
-      return data.ownerId == request.auth.uid &&
-             data.carId is string && isValidId(data.carId) &&
-             data.proofUrl is string && data.proofUrl.size() <= 1000 &&
-             (!('horsepower' in data) || (data.horsepower is int || data.horsepower is float)) &&
-             (!('torque' in data) || (data.torque is int || data.torque is float)) &&
-             (!('quarterMileTime' in data) || (data.quarterMileTime is int || data.quarterMileTime is float)) &&
-             data.createdAt is int;
-    }
-
-    match /performance_board/{recordId} {
-      allow get: if isSignedIn() && isValidId(recordId);
-      allow list: if isSignedIn();
-      allow create: if isEmailVerified() && isValidId(recordId) && isValidPerformanceRecord(incoming()) &&
-                      exists(/databases/$(database)/documents/garage/$(incoming().carId)) &&
-                      incoming().keys().size() >= 5 && incoming().keys().size() <= 10;
-      allow update: if false; 
-      allow delete: if isEmailVerified() && isValidId(recordId) && resource.data.ownerId == request.auth.uid;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
     // --- Likes ---
     match /likes/{likeId} {
-      allow get: if isSignedIn() && isValidId(likeId);
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid; // Only list own likes or query by userId
-      allow create: if isEmailVerified() && isValidId(likeId) && incoming().userId == request.auth.uid &&
-                      exists(/databases/$(database)/documents/posts/$(incoming().postId));
-      allow delete: if isEmailVerified() && isValidId(likeId) && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // --- Comments ---
+    match /comments/{commentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
 
     // --- Follows ---
     match /follows/{followId} {
-      allow get: if isSignedIn() && isValidId(followId);
-      allow list: if isSignedIn();
-      allow create: if isEmailVerified() && isValidId(followId) && incoming().followerId == request.auth.uid &&
-                      exists(/databases/$(database)/documents/users/$(incoming().followingId));
-      allow delete: if isEmailVerified() && isValidId(followId) && resource.data.followerId == request.auth.uid;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
-    
-    // --- Comments ---
-    match /comments/{commentId} {
-      allow get: if isSignedIn() && isValidId(commentId);
-      allow list: if isSignedIn();
-      allow create: if isEmailVerified() && isValidId(commentId) && incoming().authorId == request.auth.uid &&
-                      exists(/databases/$(database)/documents/posts/$(incoming().postId));
-      allow update, delete: if isEmailVerified() && isValidId(commentId) && resource.data.authorId == request.auth.uid;
+
+    // --- Blocks ---
+    match /blocks/{blockId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.blockerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+    }
+
+    // --- Reports ---
+    match /reports/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
+    }
+
+    // --- Notifications ---
+    match /notifications/{notifId} {
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn();
+    }
+
+    // --- Chats & Messages ---
+    match /chats/{chatId} {
+      allow read, write: if isSignedIn();
+    }
+    match /messages/{msgId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // --- Stories ---
+    match /stories/{storyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    // --- Performance Board ---
+    match /performance_board/{perfId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
     // --- Helpful Votes ---
     match /helpful_votes/{voteId} {
       allow read: if isSignedIn();
-      allow create: if isEmailVerified() && isValidId(voteId) && incoming().voterId == request.auth.uid &&
-                      exists(/databases/$(database)/documents/comments/$(incoming().commentId)) &&
-                      incoming().commentAuthorId is string;
-      allow delete: if isEmailVerified() && isValidId(voteId) && resource.data.voterId == request.auth.uid;
-    }
-
-    // --- Stories ---
-    match /stories/{storyId} {
-      allow get: if isSignedIn() && isValidId(storyId);
-      allow list: if isSignedIn();
-      allow create: if isEmailVerified() && isValidId(storyId) && incoming().authorId == request.auth.uid;
-      allow delete: if isEmailVerified() && isValidId(storyId) && resource.data.authorId == request.auth.uid;
-    }
-
-    // --- Notifications ---
-    match /notifications/{notificationId} {
-      allow get: if isEmailVerified() && isValidId(notificationId) && resource.data.userId == request.auth.uid;
-      allow list: if isEmailVerified() && resource.data.userId == request.auth.uid;
-      allow create: if isEmailVerified() && isValidId(notificationId) && incoming().actorId == request.auth.uid;
-      allow update: if isEmailVerified() && isValidId(notificationId) && resource.data.userId == request.auth.uid && 
-                      incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-      allow delete: if isEmailVerified() && isValidId(notificationId) && resource.data.userId == request.auth.uid;
-    }
-
-    // --- Chats ---
-    function isValidChat(data) {
-      return data.participantIds is list &&
-             data.participantIds.size() == 2 &&
-             request.auth.uid in data.participantIds &&
-             data.createdAt != null &&
-             data.lastMessageAt != null &&
-             data.lastMessage is string && data.lastMessage.size() <= 1000 &&
-             data.lastSenderId is string;
-    }
-
-    match /chats/{chatId} {
-      allow get: if isEmailVerified() && isValidId(chatId) && (resource == null || request.auth.uid in resource.data.participantIds);
-      allow list: if isEmailVerified() && request.auth.uid in resource.data.participantIds;
-      allow create: if isEmailVerified() && isValidId(chatId) && isValidChat(incoming());
-      allow update: if isEmailVerified() && isValidId(chatId) &&
-                      request.auth.uid in resource.data.participantIds && 
-                      incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'participantIds']);
-      allow delete: if isEmailVerified() && isValidId(chatId) && request.auth.uid in resource.data.participantIds;
-    }
-
-    // --- Messages ---
-    match /messages/{messageId} {
-      allow get: if isEmailVerified() && isValidId(messageId) && 
-                   request.auth.uid in get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.participantIds;
-      allow list: if isEmailVerified() && request.auth.uid in get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.participantIds;
-      allow create: if isEmailVerified() && isValidId(messageId) && 
-                      incoming().senderId == request.auth.uid && 
-                      request.auth.uid in get(/databases/$(database)/documents/chats/$(incoming().chatId)).data.participantIds &&
-                      incoming().createdAt is int &&
-                      incoming().text is string && incoming().text.size() <= 2000;
-      allow delete: if isEmailVerified() && isValidId(messageId) && 
-                      (resource.data.senderId == request.auth.uid || 
-                       request.auth.uid in get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.participantIds);
-    }
-
-    // --- Blocks ---
-    function isValidBlock(data) {
-      return data.blockerId == request.auth.uid &&
-             data.blockedId is string && isValidId(data.blockedId) &&
-             data.createdAt is int;
-    }
-
-    match /blocks/{blockId} {
-      allow read: if isEmailVerified() && (resource.data.blockerId == request.auth.uid || resource.data.blockedId == request.auth.uid);
-      allow create: if isEmailVerified() && isValidId(blockId) && isValidBlock(incoming());
-      allow delete: if isEmailVerified() && isValidId(blockId) && resource.data.blockerId == request.auth.uid;
-    }
-
-    // --- Reports ---
-    function isValidReport(data) {
-      return data.reporterId == request.auth.uid &&
-             data.targetId is string && isValidId(data.targetId) &&
-             data.targetType is string && (data.targetType == 'post' || data.targetType == 'comment' || data.targetType == 'user' || data.targetType == 'message' || data.targetType == 'story') &&
-             data.reason is string && data.reason.size() <= 100 &&
-             (!('details' in data) || (data.details is string && data.details.size() <= 1000)) &&
-             data.createdAt is int;
-    }
-
-    match /reports/{reportId} {
-      allow create: if isEmailVerified() && isValidId(reportId) && isValidReport(incoming());
-      allow read: if isEmailVerified() && resource.data.reporterId == request.auth.uid;
+      allow write: if isSignedIn();
     }
   }
 }
-

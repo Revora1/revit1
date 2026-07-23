@@ -327,11 +327,13 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     if (sharing || !targetProfile) return;
     setSharing(true);
 
-    const profileUrl = `${window.location.origin}?u=${targetProfile.username}`;
+    const profileUrl = isOwnProfile ?
+      `${window.location.origin}?u=${targetProfile.username}&ref=${currentUser?.uid}` :
+      `${window.location.origin}?u=${targetProfile.username}`;
     const shareData = {
       title: `RevItUp - @${targetProfile.username}`,
       text: isOwnProfile 
-        ? `Check out my garage and build specs on RevItUp!` 
+        ? `Check out my garage and build specs on RevItUp! Join me using my referral link.` 
         : `Check out @${targetProfile.username}'s garage and build specs on RevItUp!`,
       url: profileUrl
     };
@@ -524,7 +526,9 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const pointsFromPosts = repData.postsCount * 10; // 10 points per post shared
   const pointsFromAdMob = (targetProfile as any)?.reputationBonus || 0;
 
-  const totalPoints = pointsFromCars + pointsFromLogs + pointsFromComments + pointsFromVotes + pointsFromPosts + pointsFromAdMob;
+  const pointsFromReferrals = ((targetProfile as any)?.referralsCount || 0) * 50; // 50 points per referral
+
+  const totalPoints = pointsFromCars + pointsFromLogs + pointsFromComments + pointsFromVotes + pointsFromPosts + pointsFromAdMob + pointsFromReferrals;
 
   useEffect(() => {
     if (isOwnProfile || !effectiveUserId || !currentUser) return;
@@ -588,7 +592,18 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
 
   const handleMessageClick = async () => {
     if (!currentUser || !targetProfile || !effectiveUserId) return;
-    
+    if (targetProfile.friendsOnlyInteractions && (!isFollowing || !isFollower)) {
+      setToastMessage("This user only allows messages from mutual followers.");
+      setShowShareToast(true);
+      setTimeout(() => setShowShareToast(false), 3000);
+      return;
+    }
+    if (currentProfile?.friendsOnlyInteractions && (!isFollowing || !isFollower)) {
+      setToastMessage("You have restricted your interactions to mutual followers.");
+      setShowShareToast(true);
+      setTimeout(() => setShowShareToast(false), 3000);
+      return;
+    }
     try {
       // Find or create chat with deterministic ID
       const chatId1 = `${currentUser.uid}_${effectiveUserId}`;
@@ -892,19 +907,34 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
                 <h2 className="text-2xl font-bold tracking-tight">{targetProfile.username}</h2>
                 <p className="text-sm text-zinc-500 max-w-[250px] mx-auto">{targetProfile.bio || "RevItUp enthusiast"}</p>
               </div>
+              <div className="flex items-center justify-center gap-2">
+                {/* Dynamic Reputation Badge */}
+                <button
+                  onClick={() => setShowRepDetails(true)}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 cursor-pointer select-none bg-zinc-950/60 leading-none ${
+                    getCurrentTier(totalPoints).badgeColor
+                  }`}
+                >
+                  <Award size={11} className="text-yellow-400 fill-yellow-400 animate-pulse" />
+                  <span>{getCurrentTier(totalPoints).name}</span>
+                  <span className="opacity-30">|</span>
+                  <span className="text-white font-black tracking-normal">{totalPoints} REP</span>
+                </button>
 
-              {/* Dynamic Reputation Badge */}
-              <button
-                onClick={() => setShowRepDetails(true)}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 cursor-pointer select-none bg-zinc-950/60 leading-none ${
-                  getCurrentTier(totalPoints).badgeColor
-                }`}
-              >
-                <Award size={11} className="text-yellow-400 fill-yellow-400 animate-pulse" />
-                <span>{getCurrentTier(totalPoints).name}</span>
-                <span className="opacity-30">|</span>
-                <span className="text-white font-black tracking-normal">{totalPoints} REP</span>
-              </button>
+                {((targetProfile as any)?.referralsCount || 0) >= 10 && (
+                  <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-emerald-500/50 text-[9px] font-black uppercase tracking-widest select-none bg-emerald-950/60 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
+                    <Sparkles size={11} className="text-emerald-400 fill-emerald-400" />
+                    <span>MVP INVITER</span>
+                  </div>
+                )}
+
+                {(targetProfile.username === 'tony' || targetProfile.username === 'tony1') && (
+                  <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-rose-500/50 text-[9px] font-black uppercase tracking-widest select-none bg-rose-950/60 text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.2)]">
+                    <Award size={11} className="text-rose-400 fill-rose-400" />
+                    <span>CREATOR</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Action Button Area (EDIT PROFILE or FOLLOW & MESSAGE) - Rendered ABOVE stats */}
@@ -1247,6 +1277,15 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
                         <div className="text-[9px] text-zinc-500 font-bold uppercase">{repData.helpfulVotesCount} upvotes received</div>
                       </div>
                       <div className="font-extrabold pr-1 text-emerald-400">+{pointsFromVotes}</div>
+                    </div>
+
+                    {/* Referrals */}
+                    <div className="flex justify-between items-center p-3 bg-zinc-900/20 border border-zinc-900/60 rounded-xl">
+                      <div>
+                        <div className="font-black uppercase tracking-wider text-[10px]">Friends Referred</div>
+                        <div className="text-[9px] text-zinc-500 font-bold uppercase">{(targetProfile as any)?.referralsCount || 0} friends joined</div>
+                      </div>
+                      <div className="font-extrabold pr-1 text-emerald-400">+{pointsFromReferrals}</div>
                     </div>
                   </div>
                 </div>
