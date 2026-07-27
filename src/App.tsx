@@ -19,12 +19,14 @@ import { messaging } from './lib/firebase';
 import { onMessage } from 'firebase/messaging';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { UserGuide } from './components/UserGuide';
+import { SupportView } from './components/SupportView';
 import { admobService } from './lib/admobService';
 import { AdMobOverlays } from './components/AdMobOverlays';
 
 export default function App() {
   const [isPrivacyRoute, setIsPrivacyRoute] = useState(false);
   const [isGuideRoute, setIsGuideRoute] = useState(false);
+  const [isSupportRoute, setIsSupportRoute] = useState(false);
 
   React.useEffect(() => {
     // Initialize AdMob on app startup
@@ -49,6 +51,8 @@ export default function App() {
         setIsPrivacyRoute(true);
       } else if (path === '/guide' || path === '/how-to-use' || path === '/help') {
         setIsGuideRoute(true);
+      } else if (path === '/support') {
+        setIsSupportRoute(true);
       }
     } catch (e) {
       console.error("Failed to parse pathname:", e);
@@ -69,6 +73,16 @@ export default function App() {
     return (
       <div className="h-screen w-full overflow-y-auto bg-black text-white">
         <UserGuide onBack={() => {
+          window.location.href = '/';
+        }} />
+      </div>
+    );
+  }
+
+  if (isSupportRoute) {
+    return (
+      <div className="h-screen w-full overflow-y-auto bg-black text-white">
+        <SupportView onBack={() => {
           window.location.href = '/';
         }} />
       </div>
