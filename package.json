@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@capacitor/core": "^8.4.1",
+    "@capacitor/push-notifications": "^8.1.2",
     "@capgo/capacitor-app-tracking-transparency": "^8.1.14",
     "@google/genai": "1.29.0",
     "@vis.gl/react-google-maps": "^1.8.3",

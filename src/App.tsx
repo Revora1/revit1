@@ -25,6 +25,7 @@ import { AdMobOverlays } from './components/AdMobOverlays';
 import { AppTrackingTransparency } from '@capgo/capacitor-app-tracking-transparency';
 import { Capacitor } from '@capacitor/core';
 import { ATTPrompt } from './components/ATTPrompt';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 export default function App() {
   const [isPrivacyRoute, setIsPrivacyRoute] = useState(false);
@@ -121,6 +122,48 @@ export default function App() {
 function InnerAppContent() {
   const { user, profile, loading, error, logout } = useAuth();
   
+  React.useEffect(() => {
+    if (user && Capacitor.getPlatform() !== 'web') {
+      const registerPush = async () => {
+        try {
+          let permStatus = await PushNotifications.checkPermissions();
+          
+          if (permStatus.receive === 'prompt') {
+            permStatus = await PushNotifications.requestPermissions();
+          }
+          
+          if (permStatus.receive === 'granted') {
+            await PushNotifications.register();
+          }
+        } catch (e) {
+          console.error("Push registration failed", e);
+        }
+      };
+      
+      registerPush();
+
+      PushNotifications.addListener('registration', (token) => {
+        console.log('Push registration success, token: ' + token.value);
+      });
+
+      PushNotifications.addListener('registrationError', (error) => {
+        console.log('Error on registration: ' + JSON.stringify(error));
+      });
+
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log('Push received: ' + JSON.stringify(notification));
+      });
+
+      PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+        console.log('Push action performed: ' + JSON.stringify(notification));
+      });
+      
+      return () => {
+        PushNotifications.removeAllListeners();
+      };
+    }
+  }, [user]);
+
   const isKid = React.useMemo(() => {
     if (!profile?.birthdate) return false;
     const dob = new Date(profile.birthdate);

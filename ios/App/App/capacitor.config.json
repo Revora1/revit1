@@ -10,5 +10,8 @@
 			"initializeOnTesting": true
 		}
 	},
-	"packageClassList": []
+	"packageClassList": [
+		"PushNotificationsPlugin",
+		"AppTrackingTransparencyPlugin"
+	]
 }

@@ -1,1 +1,10 @@
-[]
+[
+	{
+		"pkg": "@capacitor/push-notifications",
+		"classpath": "com.capacitorjs.plugins.pushnotifications.PushNotificationsPlugin"
+	},
+	{
+		"pkg": "@capgo/capacitor-app-tracking-transparency",
+		"classpath": "ee.forgr.capacitor.apptrackingtransparency.AppTrackingTransparencyPlugin"
+	}
+]

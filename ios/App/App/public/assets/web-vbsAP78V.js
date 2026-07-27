@@ -1,0 +1,1 @@
+import{W as r}from"./index-DC0Sm_FX.js";import"./vendor-B96lK7o2.js";import"./firebase-vendor-3N5tqURS.js";class a extends r{async getStatus(){return{status:"authorized"}}async requestPermission(){return{status:"authorized"}}async getPluginVersion(){return{version:"web"}}}export{a as AppTrackingTransparencyWeb};
