@@ -24,11 +24,13 @@ import { admobService } from './lib/admobService';
 import { AdMobOverlays } from './components/AdMobOverlays';
 import { AppTrackingTransparency } from '@capgo/capacitor-app-tracking-transparency';
 import { Capacitor } from '@capacitor/core';
+import { ATTPrompt } from './components/ATTPrompt';
 
 export default function App() {
   const [isPrivacyRoute, setIsPrivacyRoute] = useState(false);
   const [isGuideRoute, setIsGuideRoute] = useState(false);
   const [isSupportRoute, setIsSupportRoute] = useState(false);
+  const [showATTPrompt, setShowATTPrompt] = useState(false);
 
   React.useEffect(() => {
     // Request ATT if on iOS
@@ -37,7 +39,7 @@ export default function App() {
         try {
           const status = await AppTrackingTransparency.getStatus();
           if (status.status === 'notDetermined') {
-            await AppTrackingTransparency.requestPermission();
+            setShowATTPrompt(true);
           }
         } catch (e) {
           console.log("Failed to request ATT permission:", e);
@@ -111,6 +113,7 @@ export default function App() {
       <InnerAppContent />
       <CookieConsent />
       <AdMobOverlays />
+      {showATTPrompt && <ATTPrompt onComplete={() => setShowATTPrompt(false)} />}
     </AuthProvider>
   );
 }
