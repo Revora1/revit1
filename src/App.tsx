@@ -22,6 +22,8 @@ import { UserGuide } from './components/UserGuide';
 import { SupportView } from './components/SupportView';
 import { admobService } from './lib/admobService';
 import { AdMobOverlays } from './components/AdMobOverlays';
+import { AppTrackingTransparency } from '@capgo/capacitor-app-tracking-transparency';
+import { Capacitor } from '@capacitor/core';
 
 export default function App() {
   const [isPrivacyRoute, setIsPrivacyRoute] = useState(false);
@@ -29,6 +31,21 @@ export default function App() {
   const [isSupportRoute, setIsSupportRoute] = useState(false);
 
   React.useEffect(() => {
+    // Request ATT if on iOS
+    const requestATT = async () => {
+      if (Capacitor.getPlatform() === 'ios') {
+        try {
+          const status = await AppTrackingTransparency.getStatus();
+          if (status.status === 'notDetermined') {
+            await AppTrackingTransparency.requestPermission();
+          }
+        } catch (e) {
+          console.log("Failed to request ATT permission:", e);
+        }
+      }
+    };
+    requestATT();
+
     // Initialize AdMob on app startup
     admobService.initialize();
 
