@@ -4,7 +4,6 @@ import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEma
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
-import { isUnder16 } from '../lib/utils';
 
 interface AuthContextType {
   user: User | null;
@@ -95,14 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
               } catch (privateErr) {
                 console.warn("Failed to fetch private email profile info:", privateErr);
-              }
-
-              if (data.birthdate && isUnder16(data.birthdate)) {
-                await signOut(auth);
-                setError('You must be 16 or older to use this app.');
-                setProfile(null);
-                setLoading(false);
-                return;
               }
 
               if (data.username && !data.usernameLower) {

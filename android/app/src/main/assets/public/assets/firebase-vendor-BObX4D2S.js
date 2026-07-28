@@ -1,4 +1,19 @@
-const Vf=()=>{};var Tc={};/**
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */const Vf=()=>{};var Tc={};/**
  * @license
  * Copyright 2017 Google LLC
  *
@@ -3760,4 +3775,4 @@ Content-Type: `+d.contentType+`\r
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */function rA(n=dl()){return vw().then(e=>{if(!e)throw we.create("unsupported-browser")},e=>{throw we.create("indexed-db-unsupported")}),An(J(n),"messaging").getImmediate()}async function sA(n,e){return n=J(n),Xd(n,e)}function iA(n,e){return n=J(n),Rw(n,e)}Aw();export{Fw as A,tA as B,Zw as C,eA as D,Uw as E,Yw as F,zw as G,Xw as H,Vw as I,iA as J,Mw as a,Sw as b,vw as c,rA as d,Dw as e,sA as f,nA as g,kE as h,nm as i,xw as j,Jw as k,Hw as l,Gw as m,Lw as n,kw as o,Kw as p,Bw as q,Qw as r,Nw as s,bw as t,Ww as u,Cw as v,qw as w,Pw as x,jw as y,$w as z};
+ */function rA(n=dl()){return vw().then(e=>{if(!e)throw we.create("unsupported-browser")},e=>{throw we.create("indexed-db-unsupported")}),An(J(n),"messaging").getImmediate()}async function sA(n,e){return n=J(n),Xd(n,e)}function iA(n,e){return n=J(n),Rw(n,e)}Aw();export{Fw as A,tA as B,Zw as C,eA as D,Uw as E,Yw as F,zw as G,Xw as H,Vw as I,iA as J,Mw as a,Sw as b,vw as c,rA as d,Dw as e,sA as f,nA as g,kE as h,nm as i,xw as j,Jw as k,Hw as l,Lw as m,Kw as n,kw as o,Qw as p,Bw as q,Nw as r,Gw as s,bw as t,Ww as u,Cw as v,qw as w,Pw as x,jw as y,$w as z};

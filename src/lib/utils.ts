@@ -39,15 +39,6 @@ export function isValidUsername(username: string): boolean {
   return usernameRegex.test(username);
 }
 
-
-export function isUnder16(birthdate?: string): boolean {
-  if (!birthdate) return false;
-  const dob = new Date(birthdate);
-  const ageDifMs = Date.now() - dob.getTime();
-  const ageDate = new Date(ageDifMs);
-  return Math.abs(ageDate.getUTCFullYear() - 1970) < 16;
-}
-
 /**
  * Robust copy-to-clipboard function engineered to work inside sandboxed iframes and various mobile browsers.
  */

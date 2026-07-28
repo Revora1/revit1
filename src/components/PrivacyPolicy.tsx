@@ -71,16 +71,33 @@ export function PrivacyPolicy({ onBack, hideHeader = false }: PrivacyPolicyProps
 
         <section className="space-y-4">
           <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">
-            3. Ad Consent and Tracking
+            3. Data Sharing and Third-Party Advertising
           </h3>
           <p className="text-sm text-zinc-400 leading-relaxed">
-            If you provide explicit consent in the app settings, we may use Google Ad Manager or analytics providers to display relevant automotive content and measure performance. You can revoke this consent at any time through the in-app Settings menu.
+            RevitUp uses third-party advertising networks (specifically Google AdMob) to support the app. We share certain information, such as device identifiers and usage data, with these third-party advertising partners to provide personalized advertisements.
           </p>
         </section>
 
         <section className="space-y-4">
           <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">
-            4. Your Rights (GDPR / CCPA)
+            4. Tracking and Cookies
+          </h3>
+          <ul className="space-y-2 list-disc pl-5 text-sm text-zinc-400 leading-relaxed">
+            <li>
+              <span className="text-white font-semibold">Third-Party Data Linking:</span> Data collected by the app (e.g., device identifiers, usage data) <span className="font-bold underline text-white">is</span> linked with third-party data by our advertising partners for marketing and advertising purposes.
+            </li>
+            <li>
+              <span className="text-white font-semibold">Web Content and Cookies:</span> When you access the app, cookies, device identifiers, and similar technologies <span className="font-bold underline text-white">are</span> collected and used for tracking purposes by our advertising services to serve relevant ads and analyze traffic.
+            </li>
+            <li>
+              <span className="text-white font-semibold">Ad Consent &amp; Control:</span> You have control over personalized advertising. On iOS, AdMob uses your device advertising identifier only if you explicitly grant permission via the App Tracking Transparency (ATT) prompt. If you decline, tracking is limited and you will receive non-personalized ads.
+            </li>
+          </ul>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">
+            5. Your Rights (GDPR / CCPA)
           </h3>
           <p className="text-sm text-zinc-400 leading-relaxed">
             You have full ownership of your data. At any time within the app&apos;s Settings menu, you can:
@@ -103,7 +120,7 @@ export function PrivacyPolicy({ onBack, hideHeader = false }: PrivacyPolicyProps
 
         <section className="space-y-4">
           <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">
-            5. Contact Us
+            6. Contact Us
           </h3>
           <p className="text-sm text-zinc-400 leading-relaxed">
             If you have any questions or concerns regarding your privacy, please contact the developer at:

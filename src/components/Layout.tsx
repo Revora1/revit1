@@ -17,13 +17,6 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
   const { user, profile } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const initialLoadRef = useRef(true);
-  const isKid = React.useMemo(() => {
-    if (!profile?.birthdate) return false;
-    const dob = new Date(profile.birthdate);
-    const ageDifMs = Date.now() - dob.getTime();
-    const ageDate = new Date(ageDifMs);
-    return Math.abs(ageDate.getUTCFullYear() - 1970) < 16;
-  }, [profile?.birthdate]);
 
   useEffect(() => {
     if (!user) return;
@@ -121,7 +114,7 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
   }, [user]);
 
   const navItems = [
-    ...(isKid ? [] : [{ id: 'feed', icon: Home, label: 'Home' } as const]),
+    { id: 'feed', icon: Home, label: 'Home' } as const,
     { id: 'search', icon: Search, label: 'Search' } as const,
     { id: 'upload', icon: PlusSquare, label: 'Post' } as const,
     { id: 'inbox', icon: Inbox, label: 'Activities' } as const,

@@ -60,7 +60,7 @@ export function CookieConsent() {
             <div className="flex-1">
               <h3 className="text-lg font-black italic tracking-tight text-white uppercase">Privacy First</h3>
               <p className="text-xs text-zinc-400 font-medium leading-relaxed">
-                We use cookies to improve your garage experience and show you relevant build parts. By clicking "Accept", you agree to our storage of cookies.
+                We use cookies and share data with third-party advertising partners (like Google AdMob) to analyze app usage and deliver personalized advertisements. By clicking "Accept", you consent to this tracking and data sharing.
               </p>
             </div>
           </div>
