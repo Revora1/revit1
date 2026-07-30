@@ -7,6 +7,7 @@ import { X, Camera, Heart, User, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
 import { sanitizeInput, isValidUsername } from '../lib/utils';
+import { processImageFile } from '../lib/imageUtils';
 
 interface EditProfileModalProps {
   onClose: () => void;
@@ -84,15 +85,18 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(profile?.profilePic || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setImageFile(file);
+      setLoading(true);
+      const processedFile = await processImageFile(file);
+      setLoading(false);
+      setImageFile(processedFile);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
     }
   };
 
@@ -184,7 +188,7 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
                 </div>
              </div>
              <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Change Avatar</p>
-             <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+             <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/jpeg, image/png, image/webp, image/gif" className="hidden" />
           </div>
 
           <div className="space-y-4">

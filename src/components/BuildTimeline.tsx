@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { processImageFile } from '../lib/imageUtils';
 
 interface BuildTimelineProps {
   car: Car;
@@ -94,11 +95,14 @@ export function BuildTimeline({ car, isOwner }: BuildTimelineProps) {
   const totalInvestment = totalPartsCost + totalLaborCost;
   const modEntriesCount = timeline.filter(item => item.type === 'modification').length;
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      setLoading(true);
+      const processedFile = await processImageFile(file);
+      setLoading(false);
+      setSelectedFile(processedFile);
+      setPreviewUrl(URL.createObjectURL(processedFile));
     }
   };
 
@@ -250,7 +254,7 @@ export function BuildTimeline({ car, isOwner }: BuildTimelineProps) {
                 type="file" 
                 className="hidden" 
                 ref={fileInputRef} 
-                accept="image/*"
+                accept="image/jpeg, image/png, image/webp, image/gif"
                 onChange={handleFileSelect}
               />
 

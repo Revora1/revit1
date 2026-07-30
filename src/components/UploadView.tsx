@@ -8,6 +8,7 @@ import { Car, MediaType } from '../types';
 import { Film, Upload, CheckCircle2, ChevronRight, Video, X, Image as ImageIcon, Camera, Plus, Heart, Music } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { MusicSelector, SongInfo } from './MusicSelector';
+import { processImageFile } from '../lib/imageUtils';
 
 export function UploadView({ onComplete }: { onComplete: () => void }) {
   const { user, profile } = useAuth();
@@ -39,19 +40,23 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
     fetchCars();
   }, [user]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, replace = false) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, replace = false) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length > 0) {
       setMediaType('image');
+      
+      // Process HEIC images
+      const processedFiles = await Promise.all(selectedFiles.map(f => processImageFile(f)));
+
       if (replace) {
-        const limitedFiles = selectedFiles.slice(0, 10);
+        const limitedFiles = processedFiles.slice(0, 10);
         setFiles(limitedFiles);
         const urls = limitedFiles.map(file => URL.createObjectURL(file));
         setPreviews(urls);
       } else {
-        const totalFiles = [...files, ...selectedFiles].slice(0, 10);
+        const totalFiles = [...files, ...processedFiles].slice(0, 10);
         setFiles(totalFiles);
-        const urls = selectedFiles.map(file => URL.createObjectURL(file));
+        const urls = processedFiles.map(file => URL.createObjectURL(file));
         setPreviews(prev => [...prev, ...urls]);
       }
     }
@@ -189,7 +194,7 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
             type="file" 
             ref={fileInputRef} 
             onChange={(e) => handleFileChange(e, isReplacing)} 
-            accept="image/*" 
+            accept="image/jpeg, image/png, image/webp, image/gif" 
             multiple
             className="hidden" 
           />

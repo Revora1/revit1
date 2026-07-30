@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Apple } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Capacitor } from '@capacitor/core';
 
 export function AuthView() {
   const { signInWithEmail, error } = useAuth();
@@ -11,6 +12,8 @@ export function AuthView() {
   const [resetSent, setResetSent] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const { resetPassword } = useAuth();
+
+  const isWeb = Capacitor.getPlatform() === 'web';
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,6 +136,23 @@ export function AuthView() {
           <p className="text-xs text-zinc-500 px-8 pt-4">
             By joining, you agree to our Terms and Service.
           </p>
+
+          {isWeb && (
+            <div className="pt-6">
+              <a 
+                href="https://apps.apple.com/gb/app/revitup/id6791627706" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-white px-5 py-3 rounded-2xl transition-all active:scale-95"
+              >
+                <Apple size={24} />
+                <div className="text-left flex flex-col">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold leading-none mb-0.5">Download on the</span>
+                  <span className="text-sm font-black tracking-tight leading-none">App Store</span>
+                </div>
+              </a>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

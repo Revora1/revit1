@@ -1,115 +1,84 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     function isSignedIn() {
       return request.auth != null;
     }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // --- Users ---
+    
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId);
-      allow update: if isSignedIn()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount'])
-                    && request.resource.data.referralsCount == (resource.data.get('referralsCount', 0) + 1);
-      match /private/{docId} {
-        allow read, write: if isOwner(userId);
-      }
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- Posts ---
     match /posts/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'views'])
+      );
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
 
-    // --- Garage ---
     match /garage/{carId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+      );
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    // --- Likes ---
-    match /likes/{likeId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    // --- Comments ---
     match /comments/{commentId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
 
-    // --- Follows ---
-    match /follows/{followId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
-    }
-
-    // --- Blocks ---
-    match /blocks/{blockId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.blockerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.blockerId == request.auth.uid;
-    }
-
-    // --- Reports ---
-    match /reports/{reportId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
-    }
-
-    // --- Notifications ---
-    match /notifications/{notifId} {
-      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn();
-    }
-
-    // --- Chats & Messages ---
-    match /chats/{chatId} {
-      allow read, write: if isSignedIn();
-    }
-    match /messages/{msgId} {
-      allow read, write: if isSignedIn();
-    }
-
-    // --- Stories ---
     match /stories/{storyId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
 
-    // --- Performance Board ---
-    match /performance_board/{perfId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    match /dyno/{recordId} {
+      allow read, write: if isSignedIn();
     }
 
-    // --- Helpful Votes ---
+    match /performance_board/{recordId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /chats/{chatId} {
+      allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+    }
+
+    match /messages/{messageId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if false; // Admin only
+    }
+
+    match /blocks/{blockId} {
+      allow read, write: if isSignedIn();
+    }
+    match /likes/{likeId} {
+      allow read, write: if isSignedIn();
+    }
+    match /follows/{followId} {
+      allow read, write: if isSignedIn();
+    }
+    match /notifications/{notificationId} {
+      allow read, write: if isSignedIn();
+    }
     match /helpful_votes/{voteId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
   }
 }

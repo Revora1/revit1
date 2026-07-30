@@ -28,7 +28,7 @@ isSupported().then((supported) => {
 export { messaging };
 
 // VAPID Key used to authenticate FCM requests from the web app
-export const VAPID_KEY = "BDHj7_M9_XzF_8t2I8YIqI-FmO9fIuQ_jW_9W6fH-mO8D7K_859D3K897D_D83KDS_JD93KD8_KD73KDSK_JDH";
+export const VAPID_KEY = "BBbUuJCmSXqn5W9Asg9PrSE_FstFFc8Cmp3EjoVybRwKjyP3q1bKYmaEU9MsxCkw56OKJJWk0A3HlrfYZhosM_o";
 
 export async function requestNotificationPermissionAndGetToken(userId: string): Promise<string | null> {
   try {

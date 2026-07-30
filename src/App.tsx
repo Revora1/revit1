@@ -25,12 +25,16 @@ import { AppTrackingTransparency } from '@capgo/capacitor-app-tracking-transpare
 import { Capacitor } from '@capacitor/core';
 import { ATTPrompt } from './components/ATTPrompt';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { Apple, X } from 'lucide-react';
 
 export default function App() {
   const [isPrivacyRoute, setIsPrivacyRoute] = useState(false);
   const [isGuideRoute, setIsGuideRoute] = useState(false);
   const [isSupportRoute, setIsSupportRoute] = useState(false);
   const [showATTPrompt, setShowATTPrompt] = useState(false);
+  const [showAppBanner, setShowAppBanner] = useState(true);
+
+  const isWeb = Capacitor.getPlatform() === 'web';
 
   React.useEffect(() => {
     // Request ATT if on iOS
@@ -110,7 +114,37 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <InnerAppContent />
+      <div className="flex flex-col h-screen w-full overflow-hidden">
+        {isWeb && showAppBanner && (
+          <div className="bg-zinc-900 border-b border-zinc-800 z-[200] p-3 flex items-center justify-between shadow-xl flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="bg-black p-2 rounded-xl">
+                 <Apple size={20} className="text-white" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold leading-none mb-0.5">RevitUp for iOS</span>
+                <span className="text-sm font-black text-white tracking-tight leading-none">Get the Mobile App</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <a 
+                href="https://apps.apple.com/gb/app/revitup/id6791627706" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-white text-black px-4 py-1.5 rounded-full text-xs font-bold active:scale-95 transition-transform"
+              >
+                GET
+              </a>
+              <button onClick={() => setShowAppBanner(false)} className="text-zinc-500 p-1 hover:text-white transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="flex-1 overflow-hidden relative">
+          <InnerAppContent />
+        </div>
+      </div>
       <CookieConsent />
       <AdMobOverlays />
       {showATTPrompt && <ATTPrompt onComplete={() => setShowATTPrompt(false)} />}

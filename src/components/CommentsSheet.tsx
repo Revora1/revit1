@@ -355,7 +355,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
             onTouchStart={onClose}
             onPointerDown={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}
-            className="absolute inset-0 bg-black/60 z-40 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[100] backdrop-blur-sm"
           />
           <motion.div
             initial={{ y: '100%' }}
@@ -375,7 +375,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
             onTouchEnd={handleTouchEnd}
             onPointerDown={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}
-            className="absolute inset-x-0 bottom-0 top-[30%] bg-zinc-900 rounded-t-3xl z-50 flex flex-col"
+            className="fixed inset-x-0 bottom-[calc(52px+env(safe-area-inset-bottom,0px))] top-[30%] bg-zinc-900 rounded-t-3xl z-[100] flex flex-col"
           >
             {/* Grab/Drag Handle Bar */}
             <div className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none">

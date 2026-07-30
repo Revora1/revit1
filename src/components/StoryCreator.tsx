@@ -7,6 +7,7 @@ import { X, Upload, Activity, Camera, Plus, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MusicSelector, SongInfo } from './MusicSelector';
 import { MediaType } from '../types';
+import { processImageFile } from '../lib/imageUtils';
 
 export function StoryCreator({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -17,10 +18,14 @@ export function StoryCreator({ onClose }: { onClose: () => void }) {
   const [selectedSong, setSelectedSong] = useState<SongInfo | null>(null);
   const [showMusicSelector, setShowMusicSelector] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length > 0) {
-      const newItems = selectedFiles.map(file => ({
+      setLoading(true);
+      const processedFiles = await Promise.all(selectedFiles.map(f => processImageFile(f)));
+      setLoading(false);
+
+      const newItems = processedFiles.map(file => ({
         file,
         type: 'image' as MediaType,
         preview: URL.createObjectURL(file)
@@ -184,7 +189,7 @@ export function StoryCreator({ onClose }: { onClose: () => void }) {
              type="file" 
              ref={fileInputRef} 
              onChange={handleFileChange} 
-             accept="image/*" 
+             accept="image/jpeg, image/png, image/webp, image/gif" 
              multiple
              className="hidden" 
            />

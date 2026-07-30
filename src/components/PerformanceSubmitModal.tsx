@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Car, PerformanceRecord } from '../types';
 import { X, Camera, Gauge, Zap, Timer } from 'lucide-react';
 import { motion } from 'motion/react';
+import { processImageFile } from '../lib/imageUtils';
 
 interface PerformanceSubmitModalProps {
   car: Car;
@@ -27,15 +28,18 @@ export function PerformanceSubmitModal({ car, userName, onClose }: PerformanceSu
     category: 'horsepower' as 'horsepower' | 'torque' | 'quarter_mile'
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setProofFile(file);
+      setLoading(true);
+      const processedFile = await processImageFile(file);
+      setLoading(false);
+      setProofFile(processedFile);
       const reader = new FileReader();
       reader.onloadend = () => {
         setProofPreview(reader.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
     }
   };
 
@@ -127,7 +131,7 @@ export function PerformanceSubmitModal({ car, userName, onClose }: PerformanceSu
               type="file" 
               ref={fileInputRef} 
               onChange={handleFileChange} 
-              accept="image/*" 
+              accept="image/jpeg, image/png, image/webp, image/gif" 
               className="hidden" 
               required
             />

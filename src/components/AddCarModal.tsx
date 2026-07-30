@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { CarStage } from '../types';
 import { X, Camera, Upload } from 'lucide-react';
 import { motion } from 'motion/react';
+import { processImageFile } from '../lib/imageUtils';
 
 interface AddCarModalProps {
   onClose: () => void;
@@ -35,15 +36,18 @@ export function AddCarModal({ onClose }: AddCarModalProps) {
     stage: 'Stock' as CarStage,
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setImageFile(file);
+      setLoading(true);
+      const processedFile = await processImageFile(file);
+      setLoading(false);
+      setImageFile(processedFile);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
     }
   };
 
@@ -124,7 +128,7 @@ export function AddCarModal({ onClose }: AddCarModalProps) {
               type="file" 
               ref={fileInputRef} 
               onChange={handleImageChange} 
-              accept="image/*" 
+              accept="image/jpeg, image/png, image/webp, image/gif" 
               className="hidden" 
             />
           </div>
