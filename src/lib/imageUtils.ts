@@ -1,6 +1,9 @@
 import heic2any from 'heic2any';
+import imageCompression from 'browser-image-compression';
 
 export async function processImageFile(file: File): Promise<File> {
+  let fileToProcess = file;
+
   const isHeic = 
     file.type === 'image/heic' || 
     file.type === 'image/heif' || 
@@ -17,13 +20,23 @@ export async function processImageFile(file: File): Promise<File> {
       
       const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
       const newName = file.name.replace(/\.heic|\.heif/i, '.jpg');
-      return new File([blob], newName, { type: 'image/jpeg' });
+      fileToProcess = new File([blob], newName, { type: 'image/jpeg' });
     } catch (error) {
       console.error('HEIC conversion failed:', error);
-      // Fallback to original file if conversion fails
-      return file;
     }
   }
   
-  return file;
+  // Compress the image
+  try {
+    const options = {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+    };
+    const compressedBlob = await imageCompression(fileToProcess, options);
+    return new File([compressedBlob], fileToProcess.name, { type: compressedBlob.type || 'image/jpeg' });
+  } catch (error) {
+    console.error('Image compression failed:', error);
+    return fileToProcess;
+  }
 }
