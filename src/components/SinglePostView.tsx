@@ -6,7 +6,8 @@ import { PostCard } from './PostCard';
 import { ChevronLeft, Share2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { copyToClipboard } from '../lib/utils';
+import { Capacitor } from '@capacitor/core';
+import { copyToClipboard, getBaseUrl, shareContent } from '../lib/utils';
 
 export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: string, onBack: () => void, autoOpenComments?: boolean }) {
   const { blockedUserIds } = useAuth();
@@ -32,29 +33,15 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
 
   const handleSharePost = async () => {
     if (!post) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?p=${post.id}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: 'RevItUp Post',
-          url: shareUrl,
-        });
-      } else {
-        const success = await copyToClipboard(shareUrl);
-        if (success) {
-          setShowShareToast(true);
-          setTimeout(() => setShowShareToast(false), 2500);
-        }
-      }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.warn('Navigator.share failed inside sandbox, trying copy fallback...', err);
-        const success = await copyToClipboard(shareUrl);
-        if (success) {
-          setShowShareToast(true);
-          setTimeout(() => setShowShareToast(false), 2500);
-        }
-      }
+    const shareUrl = `${getBaseUrl()}${window.location.pathname}?p=${post.id}`;
+    const success = await shareContent({
+      title: 'RevItUp Post',
+      text: '',
+      url: shareUrl,
+    });
+    if (success && !Capacitor.isNativePlatform() && !navigator.share) {
+      setShowShareToast(true);
+      setTimeout(() => setShowShareToast(false), 2500);
     }
   };
 

@@ -7,7 +7,8 @@ import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, arrayUnion, onSna
 import { useAuth } from '../context/AuthContext';
 import { CommentsSheet } from './CommentsSheet';
 import { ReportModal } from './ReportModal';
-import { copyToClipboard } from '../lib/utils';
+import { Capacitor } from '@capacitor/core';
+import { copyToClipboard, getBaseUrl, shareContent } from '../lib/utils';
 
 interface PostCardProps {
   post: Post;
@@ -422,7 +423,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
     };
 
     fetchData();
-  }, [post.id, post.authorId, post.carTagId, user]);
+  }, [post.id, post.authorId, post.carTagId, user?.uid]);
 
   const handleLike = async () => {
     if (!user || isLiking) return;
@@ -656,33 +657,23 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
             onClick={async () => {
               if (isSharing) return;
               setIsSharing(true);
-              const shareUrl = `${window.location.origin}${window.location.pathname}?p=${post.id}`;
+              const shareUrl = `${getBaseUrl()}${window.location.pathname}?p=${post.id}`;
               try {
                 // Increment share count
                 if (user) {
                   const postRef = doc(db, 'posts', post.id);
                   updateDoc(postRef, { sharesCount: increment(1) }).catch(e => console.error(e));
                 }
-                if (navigator.share) {
-                  await navigator.share({
-                    title: 'RevItUp Post',
-                    url: shareUrl,
-                  });
-                } else {
-                  const success = await copyToClipboard(shareUrl);
-                  if (success) {
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2500);
-                  }
-                }
-              } catch (err: any) {
-                if (err.name !== 'AbortError') {
-                  console.warn('Navigator.share failed inside sandbox, trying copy fallback...', err);
-                  const success = await copyToClipboard(shareUrl);
-                  if (success) {
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2500);
-                  }
+
+                const success = await shareContent({
+                  title: 'RevItUp Post',
+                  text: '',
+                  url: shareUrl,
+                });
+                
+                if (success && !Capacitor.isNativePlatform() && !navigator.share) {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2500);
                 }
               } finally {
                 setIsSharing(false);

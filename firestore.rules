@@ -8,7 +8,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount'])
+      );
+    }
+    
+    match /users/{userId}/private/{docId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /posts/{postId} {
@@ -16,7 +23,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.authorId == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'views'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likesCount', 'views', 'viewCount', 'sharesCount', 'loopsCount', 'commentsCount'])
       );
       allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
@@ -26,7 +33,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.ownerId == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likesCount'])
       );
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }

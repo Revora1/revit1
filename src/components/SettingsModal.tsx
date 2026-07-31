@@ -7,7 +7,7 @@ import { auth, db, handleFirestoreError, OperationType, requestNotificationPermi
 import { doc, deleteDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { admobService } from '../lib/admobService';
 import { Capacitor } from '@capacitor/core';
-import { copyToClipboard } from '../lib/utils';
+import { copyToClipboard, getBaseUrl, shareContent } from '../lib/utils';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -110,27 +110,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     const shareData = {
       title: 'RevitUp',
       text: 'Join me on RevitUp - The Social Garage for Car Enthusiasts!',
-      url: window.location.origin
+      url: getBaseUrl()
     };
 
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        const success = await copyToClipboard(window.location.origin);
-        if (success) {
-          setShowShareToast(true);
-          setTimeout(() => setShowShareToast(false), 2500);
-        }
-      }
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.warn('Navigator.share failed, trying copy fallback...', error);
-        const success = await copyToClipboard(window.location.origin);
-        if (success) {
-          setShowShareToast(true);
-          setTimeout(() => setShowShareToast(false), 2500);
-        }
+      const success = await shareContent(shareData);
+      if (success && !Capacitor.isNativePlatform() && !navigator.share) {
+        setShowShareToast(true);
+        setTimeout(() => setShowShareToast(false), 2500);
       }
     } finally {
       setSharing(false);

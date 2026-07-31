@@ -14,7 +14,7 @@ import { ReportModal } from './ReportModal';
 import { Capacitor } from '@capacitor/core';
 
 import { FollowListModal } from './FollowListModal';
-import { copyToClipboard } from '../lib/utils';
+import { copyToClipboard, getBaseUrl, shareContent } from '../lib/utils';
 
 function UserPosts({ userId }: { userId: string }) {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -328,8 +328,8 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     setSharing(true);
 
     const profileUrl = isOwnProfile ?
-      `${window.location.origin}?u=${targetProfile.username}&ref=${currentUser?.uid}` :
-      `${window.location.origin}?u=${targetProfile.username}`;
+      `${getBaseUrl()}?u=${targetProfile.username}&ref=${currentUser?.uid}` :
+      `${getBaseUrl()}?u=${targetProfile.username}`;
     const shareData = {
       title: `RevItUp - @${targetProfile.username}`,
       text: isOwnProfile 
@@ -339,25 +339,14 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     };
 
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        const success = await copyToClipboard(profileUrl);
-        if (success) {
-          setToastMessage(isOwnProfile ? "Personal profile link copied!" : "Profile link copied!");
-          setShowShareToast(true);
-          setTimeout(() => setShowShareToast(false), 2500);
-        }
-      }
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.warn('Navigator.share failed inside sandbox, trying copy fallback...', error);
-        const success = await copyToClipboard(profileUrl);
-        if (success) {
-          setToastMessage(isOwnProfile ? "Personal profile link copied!" : "Profile link copied!");
-          setShowShareToast(true);
-          setTimeout(() => setShowShareToast(false), 2500);
-        }
+      const success = await shareContent(shareData);
+      // We don't always know if the native share API was used or copy fallback, 
+      // but showing a toast is fine if it succeeded (or we just rely on OS UI).
+      // Let's only show toast if we think it fell back to clipboard or user needs feedback.
+      if (success && !Capacitor.isNativePlatform() && !navigator.share) {
+        setToastMessage(isOwnProfile ? "Personal profile link copied!" : "Profile link copied!");
+        setShowShareToast(true);
+        setTimeout(() => setShowShareToast(false), 2500);
       }
     } finally {
       setSharing(false);

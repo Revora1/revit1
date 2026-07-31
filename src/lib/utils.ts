@@ -1,5 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -37,6 +39,14 @@ export function isValidUsername(username: string): boolean {
   if (!username || username.length < 3 || username.length > 25) return false;
   const usernameRegex = /^[a-zA-Z0-9_\-]+$/;
   return usernameRegex.test(username);
+}
+
+export function getBaseUrl(): string {
+  // Use the actual domain if running in Capacitor (native app)
+  if (window.location.origin.includes('capacitor://') || window.location.origin.includes('localhost')) {
+    return 'https://revitup.today'; // Using .app domain as default native share link
+  }
+  return window.location.origin;
 }
 
 /**
@@ -95,5 +105,31 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   }
 
   return false;
+}
+
+export async function shareContent(shareData: { title: string; text: string; url: string }): Promise<boolean> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      await Share.share({
+        title: shareData.title,
+        text: shareData.text,
+        url: shareData.url,
+        dialogTitle: 'Share',
+      });
+      return true;
+    } else if (navigator.share) {
+      await navigator.share(shareData);
+      return true;
+    }
+  } catch (error: any) {
+    if (error.name !== 'AbortError') {
+      console.warn('Share failed, trying copy fallback...', error);
+    } else {
+      return false; // User cancelled
+    }
+  }
+  
+  // Fallback to clipboard
+  return await copyToClipboard(shareData.url);
 }
 

@@ -12,6 +12,7 @@
 	},
 	"packageClassList": [
 		"PushNotificationsPlugin",
+		"SharePlugin",
 		"AppTrackingTransparencyPlugin"
 	]
 }

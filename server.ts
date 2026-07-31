@@ -296,6 +296,48 @@ app.get('/delete-account', (req, res) => {
 </html>`);
 });
 
+app.get('/child-safety-standards', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Child Safety Standards - RevitUp</title>
+  <style>
+    body { background-color: #000000; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 24px; line-height: 1.6; }
+    .container { max-width: 600px; margin: 0 auto; padding-bottom: 80px; }
+    h1 { font-size: 28px; font-weight: 900; font-style: italic; letter-spacing: -0.05em; text-transform: uppercase; border-bottom: 1px solid #18181b; padding-bottom: 16px; margin-bottom: 32px; }
+    h2 { font-size: 18px; font-weight: 700; margin-top: 32px; margin-bottom: 16px; }
+    p { font-size: 14px; color: #a1a1aa; margin: 0 0 16px 0; }
+    ul, ol { margin: 0 0 16px 0; padding-left: 20px; color: #a1a1aa; font-size: 14px; }
+    li { margin-bottom: 8px; }
+    .highlight { color: #ffffff; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Child Safety Standards</h1>
+    <p>At RevitUp, we have a zero-tolerance policy for child sexual abuse material (CSAM) and any form of child sexual abuse and exploitation (CSAE).</p>
+    <section>
+      <h2>Reporting and Prevention</h2>
+      <p>Users can report any concerning content directly through the app. We actively monitor and take immediate action against any accounts violating these standards.</p>
+      <ul>
+        <li>Immediate removal of any CSAM or CSAE content.</li>
+        <li>Permanent ban of users involved in such activities.</li>
+        <li>Reporting to the National Center for Missing & Exploited Children (NCMEC) and relevant law enforcement authorities globally.</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Contact Us</h2>
+      <p>If you have questions or concerns regarding our child safety practices, contact our designated point of contact at:</p>
+      <p class="highlight" style="font-size: 16px; color: #ffffff;">tonyang1155@hotmail.co.uk</p>
+    </section>
+  </div>
+</body>
+</html>`);
+});
+
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
