@@ -1,43 +1,8 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, Settings, Activity, Trash2, Edit2, Wrench } from 'lucide-react';
-import { Car } from '../types';
-import { deleteDoc, doc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { BuildTimeline } from './BuildTimeline';
-import { PerformanceSubmitModal } from './PerformanceSubmitModal';
-import { useAuth } from '../context/AuthContext';
-import { Trophy } from 'lucide-react';
-
-interface CarDetailsModalProps {
-  car: Car;
-  isOwner: boolean;
-  onClose: () => void;
-}
-
-export function CarDetailsModal({ car, isOwner, onClose }: CarDetailsModalProps) {
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [showPerformanceModal, setShowPerformanceModal] = useState(false);
-  const { user, profile } = useAuth();
-
-  // Handle body scroll lock
-  React.useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
-
-  const handleDelete = async () => {
-    try {
-      await deleteDoc(doc(db, 'garage', car.id));
-      onClose();
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `garage/${car.id}`);
-    }
-  };
-
-  return (
+const fs = require('fs');
+let code = fs.readFileSync('src/components/CarDetailsModal.tsx', 'utf8');
+const startIdx = code.indexOf('return (\n    <AnimatePresence>');
+const beforeReturn = code.substring(0, startIdx);
+const newReturn = `return (
     <AnimatePresence>
       <motion.div
         initial={{ y: '100%' }}
@@ -50,7 +15,7 @@ export function CarDetailsModal({ car, isOwner, onClose }: CarDetailsModalProps)
           {/* Header Image */}
           <div className="relative h-64 sm:h-80 shrink-0 bg-zinc-800">
             {car.coverImage ? (
-              <img src={car.coverImage} className="w-full h-full object-cover" alt={`${car.year} ${car.make} ${car.model}`} />
+              <img src={car.coverImage} className="w-full h-full object-cover" alt={\`\${car.year} \${car.make} \${car.model}\`} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-zinc-700">
                 <Settings size={64} strokeWidth={1} />
@@ -59,10 +24,10 @@ export function CarDetailsModal({ car, isOwner, onClose }: CarDetailsModalProps)
             
             <button
               onClick={onClose}
-              className="absolute left-4 bg-black/40 hover:bg-black/60 p-2 rounded-full backdrop-blur-md transition-colors z-10 text-white"
+              className="absolute right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full backdrop-blur-md transition-colors z-10 text-white"
               style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              <X size={20} />
             </button>
             <div className="absolute bottom-4 left-4 inline-flex items-center gap-1.5 px-4 py-1.5 bg-white text-black text-xs font-black italic rounded-full shadow-lg z-10">
               {car.stage?.toUpperCase() || 'STOCK'}
@@ -172,3 +137,5 @@ export function CarDetailsModal({ car, isOwner, onClose }: CarDetailsModalProps)
     </AnimatePresence>
   );
 }
+`;
+fs.writeFileSync('src/components/CarDetailsModal.tsx', beforeReturn + newReturn);

@@ -127,9 +127,18 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
 
   return (
     <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] pl-[calc(1.5rem+env(safe-area-inset-left,0px))] pr-[calc(1.5rem+env(safe-area-inset-right,0px))] pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] h-full flex flex-col space-y-8 bg-black overflow-y-auto max-w-full overflow-x-hidden">
-      <div>
-        <h1 className="text-3xl font-black italic tracking-tighter">SHARE BUILD</h1>
-        <p className="text-zinc-500 text-sm font-medium">Show the world what's under the hood.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-black italic tracking-tighter text-white">SHARE BUILD</h1>
+          <p className="text-zinc-500 text-sm font-medium">Show the world what's under the hood.</p>
+        </div>
+        <button 
+          type="button" 
+          onClick={onComplete} 
+          className="p-2 -mr-2 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white rounded-full transition-colors active:scale-95 shadow-lg"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 flex-1 flex flex-col">

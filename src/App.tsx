@@ -309,7 +309,7 @@ function InnerAppContent() {
         { ...stateRef.current }
       ]);
       setTargetChatInfo({ chatId, otherUser, ts: Date.now() });
-      setInboxTargetTab('messages');
+      console.log("NAVIGATE CHAT FIRED!"); setInboxTargetTab('messages');
       setActiveView('inbox');
     };
     const handleInboxNav = (e?: any) => {
@@ -413,10 +413,9 @@ function InnerAppContent() {
     }
 
     setActiveView(view);
-    if (view !== 'profile') {
-      setTargetUserId(null);
-      setTargetUsername(null);
-    }
+    setTargetUserId(null);
+    setTargetUsername(null);
+
     if (view !== 'post') {
       setTargetPostId(null);
       setAutoOpenComments(false);
@@ -470,12 +469,13 @@ function InnerAppContent() {
         {activeView === 'garage' && <CommunityGarageView />}
         {activeView === 'tuners' && <TopTuners />}
         {activeView === 'upload' && <UploadView onComplete={() => setActiveView('feed')} />}
-        {activeView === 'inbox' && <InboxView initialTab={inboxTargetTab || undefined} initialChat={targetChatInfo || undefined} />}
+        {activeView === 'inbox' && <InboxView initialTab={inboxTargetTab || undefined} initialChat={targetChatInfo || undefined} canGoBack={navigationHistory.length > 0} />}
         {activeView === 'profile' && (
           <Profile 
             userId={targetUserId || undefined} 
             username={targetUsername || undefined} 
             initialTab={initialProfileTab} 
+            canGoBack={navigationHistory.length > 0}
           />
         )}
         {activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}

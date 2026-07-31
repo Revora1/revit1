@@ -230,9 +230,10 @@ interface ProfileProps {
   userId?: string;
   username?: string;
   initialTab?: 'garage' | 'posts' | 'duo';
+  canGoBack?: boolean;
 }
 
-export function Profile({ userId: propUserId, username: propUsername, initialTab = 'garage' }: ProfileProps) {
+export function Profile({ userId: propUserId, username: propUsername, initialTab = 'garage', canGoBack }: ProfileProps) {
   const { 
     user: currentUser, 
     profile: currentProfile, 
@@ -754,7 +755,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
       <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-10 font-sans">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-             {!isOwnProfile && (
+             {(canGoBack || propUserId || propUsername) && (
                 <button 
                   onClick={() => window.dispatchEvent(new CustomEvent('navigate-back'))} 
                   className="p-1 -ml-1 text-zinc-400 hover:text-white"

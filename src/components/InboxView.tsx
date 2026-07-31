@@ -8,10 +8,12 @@ import { DynoBoard } from './DynoBoard';
 
 export function InboxView({ 
   initialTab, 
-  initialChat 
+  initialChat,
+  canGoBack
 }: { 
   initialTab?: 'notifications' | 'messages' | 'garage' | 'leaderboards' | 'leaderboards-dyno', 
-  initialChat?: { chatId: string, otherUser: any, ts?: number } 
+  initialChat?: { chatId: string, otherUser: any, ts?: number },
+  canGoBack?: boolean
 }) {
   const { profile } = useAuth();
 
@@ -41,6 +43,17 @@ export function InboxView({
     <div className="flex flex-col h-full bg-black text-white">
       {/* Header with Tabs */}
       <div className="p-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] border-b border-zinc-900 bg-zinc-950/50 backdrop-blur sticky top-0 z-30">
+        {canGoBack && (
+          <div className="flex items-center gap-2 mb-3 px-1">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('navigate-back'))}
+              className="p-1 -ml-1 text-zinc-400 hover:text-white"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Back</span>
+          </div>
+        )}
         <div className="flex justify-around bg-zinc-900 p-1 rounded-xl gap-1">
           <button
             onClick={() => setActiveTab('notifications')}
