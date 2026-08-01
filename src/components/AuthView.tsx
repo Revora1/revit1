@@ -1,26 +1,31 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ChevronRight, Apple } from 'lucide-react';
-import { motion } from 'motion/react';
+import { ChevronRight, Apple, UserPlus, LogIn } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
 
 export function AuthView() {
-  const { signInWithEmail, error } = useAuth();
+  const { signInWithEmail, signUpWithEmail, error } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
   const { resetPassword } = useAuth();
 
   const isWeb = Capacitor.getPlatform() === 'web';
 
-  const handleEmailSignIn = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (email && password) {
       setIsSubmitting(true);
       try {
-        await signInWithEmail(email, password);
+        if (isSignUp) {
+          await signUpWithEmail(email, password);
+        } else {
+          await signInWithEmail(email, password);
+        }
       } catch (err) {
         console.error("Authentication submission failed:", err);
       } finally {
@@ -58,7 +63,7 @@ export function AuthView() {
           <motion.form 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            onSubmit={handleEmailSignIn} 
+            onSubmit={handleAuth} 
             className="space-y-3 animate-fade-in"
           >
             <input
@@ -79,10 +84,10 @@ export function AuthView() {
               className="w-full h-14 bg-zinc-900 border border-zinc-800 text-white rounded-xl px-4 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
               required
             />
-                        <button
+            <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-14 bg-white text-black rounded-xl font-bold flex items-center justify-center gap-3 active:scale-95 transition-transform disabled:opacity-50 disabled:pointer-events-none"
+              className="w-full h-14 bg-white text-black rounded-xl font-bold flex items-center justify-center gap-3 active:scale-95 transition-transform disabled:opacity-50 disabled:pointer-events-none mt-2"
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
@@ -90,18 +95,34 @@ export function AuthView() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  AUTHENTICATING...
+                  {isSignUp ? 'CREATING ACCOUNT...' : 'AUTHENTICATING...'}
                 </span>
               ) : (
                 <>
-                  SIGN IN
-                  <ChevronRight size={20} />
+                  {isSignUp ? 'CREATE ACCOUNT' : 'SIGN IN'}
+                  {isSignUp ? <UserPlus size={20} /> : <ChevronRight size={20} />}
                 </>
               )}
             </button>
           </motion.form>
 
-          <div className="flex flex-col items-center gap-3 pt-2">
+          <div className="flex flex-col items-center gap-4 pt-4 border-t border-zinc-800">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm font-bold text-white hover:text-zinc-300 transition-colors flex items-center gap-2"
+            >
+              {isSignUp ? (
+                <>
+                  <LogIn size={16} /> ALREADY HAVE AN ACCOUNT? SIGN IN
+                </>
+              ) : (
+                <>
+                  <UserPlus size={16} /> NEED AN ACCOUNT? SIGN UP
+                </>
+              )}
+            </button>
+            
             <button 
               type="button"
               onClick={async () => {
@@ -126,10 +147,10 @@ export function AuthView() {
               FORGOT PASSWORD?
             </button>
             {resetSent && (
-              <p className="text-xs text-emerald-400 font-medium">Password reset email sent! Check your inbox.</p>
+              <p className="text-xs text-emerald-400 font-medium text-center">Password reset email sent! Check your inbox.</p>
             )}
             {resetError && (
-              <p className="text-xs text-red-500 font-medium">{resetError}</p>
+              <p className="text-xs text-red-500 font-medium text-center">{resetError}</p>
             )}
           </div>
 

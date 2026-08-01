@@ -12,6 +12,7 @@ interface AuthContextType {
   error: string | null;
   isIOS: boolean;
   signInWithEmail: (e: string, p: string) => Promise<void>;
+  signUpWithEmail: (e: string, p: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfileSettings: (settings: Partial<UserProfile>) => Promise<void>;
@@ -224,32 +225,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signInWithEmailAndPassword(auth, sanitizedEmail, p);
     } catch (err: any) {
       console.log('Firebase signInWithEmailAndPassword error code:', err.code, err);
-      // 'auth/user-not-found' or 'auth/invalid-credential' means they might need a new account
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
-        try {
-          await createUserWithEmailAndPassword(auth, sanitizedEmail, p);
-          return;
-        } catch (createErr: any) {
-          console.error('Firebase createUserWithEmailAndPassword error:', createErr);
-          if (createErr.code === 'auth/weak-password' || createErr.message?.includes('weak-password')) {
-            setError('The password is too weak. It must be at least 6 characters long.');
-          } else if (createErr.code === 'auth/email-already-in-use' || createErr.message?.includes('email-already-in-use')) {
-            setError('Incorrect password. This email is already registered.');
-          } else if (createErr.code === 'auth/operation-not-allowed' || createErr.message?.includes('operation-not-allowed')) {
-            setError('Email/Password provider is disabled in your Firebase Console.');
-          } else if (createErr.code === 'auth/invalid-email' || createErr.message?.includes('invalid-email')) {
-            setError('Please enter a valid email address.');
-          } else {
-            setError(createErr.message || 'Failed to create account');
-          }
-        }
+      if (err.code === 'auth/invalid-credential') {
+        setError('Invalid email or password.');
+      } else if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email.');
       } else if (err.code === 'auth/operation-not-allowed') {
         setError('Email/Password provider is disabled in your Firebase Console.');
       } else if (err.code === 'auth/invalid-email') {
         setError('Please enter a valid email address.');
       } else {
-        console.error('Email sign in error:', err);
         setError(err.message || 'Failed to sign in with email');
+      }
+    }
+  };
+
+  const signUpWithEmail = async (e: string, p: string) => {
+    setError(null);
+    const sanitizedEmail = e.trim().toLowerCase();
+    try {
+      await createUserWithEmailAndPassword(auth, sanitizedEmail, p);
+    } catch (createErr: any) {
+      console.error('Firebase createUserWithEmailAndPassword error:', createErr);
+      if (createErr.code === 'auth/weak-password' || createErr.message?.includes('weak-password')) {
+        setError('The password is too weak. It must be at least 6 characters long.');
+      } else if (createErr.code === 'auth/email-already-in-use' || createErr.message?.includes('email-already-in-use')) {
+        setError('This email is already registered.');
+      } else if (createErr.code === 'auth/operation-not-allowed' || createErr.message?.includes('operation-not-allowed')) {
+        setError('Email/Password provider is disabled in your Firebase Console.');
+      } else if (createErr.code === 'auth/invalid-email' || createErr.message?.includes('invalid-email')) {
+        setError('Please enter a valid email address.');
+      } else {
+        setError(createErr.message || 'Failed to create account');
       }
     }
   };
@@ -339,6 +345,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       error, 
       isIOS, 
       signInWithEmail, 
+      signUpWithEmail,
       resetPassword,
       logout,
       updateProfileSettings,

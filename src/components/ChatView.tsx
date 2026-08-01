@@ -107,9 +107,9 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="absolute inset-0 z-50 bg-black flex flex-col"
+      className="fixed inset-0 z-[100] bg-black flex flex-col"
     >
-      <div className="flex-none flex items-center gap-4 p-4 border-b border-zinc-900 bg-black z-40 w-full pt-12 shadow-md">
+      <div className="flex-none flex items-center gap-4 p-4 border-b border-zinc-900 bg-black z-40 w-full pt-[calc(env(safe-area-inset-top,0px)+1rem)] shadow-md">
         <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-full transition-colors active:scale-95">
           <ChevronLeft size={24} />
         </button>
@@ -191,7 +191,7 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-zinc-950/80 backdrop-blur border-t border-zinc-900 pb-10">
+      <div className="p-4 bg-zinc-950/80 backdrop-blur border-t border-zinc-900 pb-[calc(1rem+env(safe-area-inset-bottom,16px))]">
         <form onSubmit={handleSend} className="flex items-center gap-2">
           <input
             type="text"
