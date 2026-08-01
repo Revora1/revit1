@@ -970,11 +970,11 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
 
             <div className="flex items-center gap-12 text-center pb-4 w-full justify-center">
               <button onClick={() => setFollowModalConfig({ type: 'followers', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
-                <p className="text-lg font-black">{targetProfile.followersCount}</p>
+                <p className="text-lg font-black">{Math.max(0, targetProfile.followersCount || 0)}</p>
                 <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Followers</p>
               </button>
               <button onClick={() => setFollowModalConfig({ type: 'following', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
-                <p className="text-lg font-black">{targetProfile.followingCount}</p>
+                <p className="text-lg font-black">{Math.max(0, targetProfile.followingCount || 0)}</p>
                 <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Following</p>
               </button>
               <div className="space-y-0.5">
