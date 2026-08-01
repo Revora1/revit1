@@ -487,6 +487,7 @@ function InnerAppContent() {
     <>
       {content}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      <div id="modal-root" className="absolute inset-0 pointer-events-none z-[100] [&>*]:pointer-events-auto" />
     </>
   );
 }

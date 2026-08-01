@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, Send, Search, Trash2 } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot, getDoc, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -101,7 +102,15 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
     }
   };
 
-  return (
+  const [modalRoot, setModalRoot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setModalRoot(document.getElementById('modal-root'));
+  }, []);
+
+  if (!modalRoot) return null;
+
+  return createPortal(
     <motion.div
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
@@ -209,6 +218,7 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
           </button>
         </form>
       </div>
-    </motion.div>
+    </motion.div>,
+    modalRoot
   );
 }

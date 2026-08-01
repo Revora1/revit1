@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, X, User } from 'lucide-react';
 import { collection, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -119,7 +120,15 @@ export function NewChatModal({ isOpen, onClose, onChatSelected }: NewChatModalPr
     }
   };
 
-  return (
+  const [modalRoot, setModalRoot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setModalRoot(document.getElementById('modal-root'));
+  }, []);
+
+  if (!modalRoot) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -184,6 +193,7 @@ export function NewChatModal({ isOpen, onClose, onChatSelected }: NewChatModalPr
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    modalRoot
   );
 }

@@ -10,7 +10,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn() && (
         request.auth.uid == userId ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount', 'followersCount'])
       );
     }
     
