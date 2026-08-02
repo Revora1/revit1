@@ -396,8 +396,19 @@ export function SearchView() {
           <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase mt-1">Search the global community build registry</p>
         </div>
 
-        {/* Segmented Tab Controls */}
-        <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-2xl max-w-sm select-none w-full sm:w-auto">
+
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => (window as any).openGroupsView?.()}
+            className="bg-white text-black px-4 py-2 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-zinc-200 transition-colors whitespace-nowrap shadow-lg"
+          >
+            <User size={16} /> Car Clubs
+          </button>
+        </div>
+      </div>
+      
+      {/* Segmented Tab Controls */}
+      <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-2xl max-w-sm select-none w-full mt-4">
           <button
             onClick={() => setActiveTab('posts')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
@@ -432,8 +443,6 @@ export function SearchView() {
             Users
           </button>
         </div>
-      </div>
-
       {/* ------------------------------------------ */}
       {/* POSTS GRAPHIC SEARCH */}
       {/* ------------------------------------------ */}

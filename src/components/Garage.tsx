@@ -265,7 +265,7 @@ export function Garage({ userId, isOwner, onAddCar }: GarageProps) {
             </div>
           )}
           
-          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+          <ResponsiveContainer width="100%" height={96} minWidth={1} minHeight={1}>
             <AreaChart 
               data={displayData} 
               margin={{ top: 10, right: 10, left: -25, bottom: -10 }}

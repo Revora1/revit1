@@ -286,6 +286,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
       
       if (postSnap.exists()) {
         if (postAuthorId !== user.uid) {
+
            const notifId = `${Date.now()}_${user.uid}_comment_${postId}`;
            await setDoc(doc(db, 'notifications', notifId), {
              userId: postAuthorId,
@@ -295,6 +296,27 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
              read: false,
              createdAt: Date.now()
            });
+           
+           try {
+             const targetUserSnap = await getDoc(doc(db, 'users', postAuthorId));
+             if (targetUserSnap.exists()) {
+               const token = (targetUserSnap.data() as any).fcmToken;
+               if (token) {
+                 await fetch('/api/send-push', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({
+                     token,
+                     title: 'New Comment',
+                     body: `${user.displayName || user.email?.split('@')[0] || 'Someone'} commented on your post.`
+                   })
+                 });
+               }
+             }
+           } catch (pushErr) {
+             console.error("Failed to send push:", pushErr);
+           }
+
         }
       }
 
@@ -310,6 +332,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
               const targetUserId = usnap.docs[0].id;
               // Don't notify yourself, and don't double notify if you are the post author (already got 'comment' notification)
               if (targetUserId !== user.uid && targetUserId !== postAuthorId) {
+
                 const tagNotifId = `${Date.now()}_${user.uid}_tag_${targetUserId}_${postId}`;
                 await setDoc(doc(db, 'notifications', tagNotifId), {
                   userId: targetUserId,
@@ -320,6 +343,27 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
                   read: false,
                   createdAt: Date.now()
                 });
+                
+                try {
+                  const targetUserSnap = await getDoc(doc(db, 'users', targetUserId));
+                  if (targetUserSnap.exists()) {
+                    const token = (targetUserSnap.data() as any).fcmToken;
+                    if (token) {
+                      await fetch('/api/send-push', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          token,
+                          title: 'You were tagged',
+                          body: `${user.displayName || user.email?.split('@')[0] || 'Someone'} tagged you in a comment.`
+                        })
+                      });
+                    }
+                  }
+                } catch (pushErr) {
+                  console.error("Failed to send push:", pushErr);
+                }
+
               }
             }
           } catch (err) {

@@ -36,6 +36,8 @@ export interface Post {
   isDuo?: boolean;
   songId?: string; // Optional track ID attached to the post
   createdAt: number;
+  groupId?: string;
+  groupStatus?: 'pending' | 'approved';
 }
 
 export type CarStage = "Stock" | "Stage 1" | "Stage 2" | "Stage 3" | "Track Ready" | "Show Car";
@@ -131,5 +133,24 @@ export interface ChatMessage {
   chatId: string;
   senderId: string;
   text: string;
+  createdAt: number;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  nameLower: string;
+  description: string;
+  adminId: string;
+  coverImage?: string;
+  memberCount: number;
+  createdAt: number;
+}
+
+export interface GroupMember {
+  id?: string;
+  groupId: string;
+  userId: string;
+  role: 'admin' | 'member';
   createdAt: number;
 }

@@ -564,6 +564,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
         await updateDoc(targetRef, { followersCount: increment(1) });
         
         // Notification
+
         const notifId = `${Date.now()}_${currentUser.uid}_follow_${effectiveUserId}`;
         await setDoc(doc(db, 'notifications', notifId), {
           userId: effectiveUserId,
@@ -572,6 +573,28 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
           read: false,
           createdAt: Date.now()
         });
+        
+        // Push notification
+        try {
+          const targetUserSnap = await getDoc(targetRef);
+          if (targetUserSnap.exists()) {
+            const token = (targetUserSnap.data() as any).fcmToken;
+            if (token) {
+              await fetch('/api/send-push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  token,
+                  title: 'New Follower',
+                  body: `${currentProfile?.username || 'Someone'} started following you.`
+                })
+              });
+            }
+          }
+        } catch (pushErr) {
+          console.error("Failed to send push:", pushErr);
+        }
+
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'follows');
@@ -918,10 +941,10 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
                   </div>
                 )}
 
-                {(targetProfile.username === 'tony' || targetProfile.username === 'tony1') && (
+                {(targetProfile.usernameLower === 'tony' || targetProfile.usernameLower === 'tony1' || (currentUser?.email === 'tonyang11552883@gmail.com' && currentUser?.uid === targetProfile.uid)) && (
                   <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-rose-500/50 text-[9px] font-black uppercase tracking-widest select-none bg-rose-950/60 text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.2)]">
                     <Award size={11} className="text-rose-400 fill-rose-400" />
-                    <span>CREATOR</span>
+                    <span>APP DEVELOPER</span>
                   </div>
                 )}
               </div>

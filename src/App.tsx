@@ -12,10 +12,13 @@ import { DynoBoard } from './components/DynoBoard';
 import { CommunityGarageView } from './components/CommunityGarageView';
 import { TopTuners } from './components/TopTuners';
 import { SettingsModal } from './components/SettingsModal';
+import { GroupsView } from './components/GroupsView';
+import { GroupDetailView } from './components/GroupDetailView';
 
 import { CookieConsent } from './components/CookieConsent';
-import { messaging } from './lib/firebase';
+import { db, messaging } from './lib/firebase';
 import { onMessage } from 'firebase/messaging';
+import { doc, updateDoc } from 'firebase/firestore';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { UserGuide } from './components/UserGuide';
 import { SupportView } from './components/SupportView';
@@ -54,17 +57,6 @@ export default function App() {
 
     // Initialize AdMob on app startup
     admobService.initialize();
-
-    // Lock screen orientation to portrait if supported
-    try {
-      if (window.screen && window.screen.orientation && (window.screen.orientation as any).lock) {
-        (window.screen.orientation as any).lock('portrait').catch((err: any) => {
-          console.log("Orientation lock request failed:", err);
-        });
-      }
-    } catch (e) {
-      console.log("Orientation lock API not available:", e);
-    }
   }, []);
 
   React.useEffect(() => {
@@ -175,8 +167,15 @@ function InnerAppContent() {
       
       registerPush();
 
-      PushNotifications.addListener('registration', (token) => {
+      PushNotifications.addListener('registration', async (token) => {
         console.log('Push registration success, token: ' + token.value);
+        if (user) {
+          try {
+            await updateDoc(doc(db, 'users', user.uid), { fcmToken: token.value });
+          } catch (e) {
+            console.error("Error saving FCM token:", e);
+          }
+        }
       });
 
       PushNotifications.addListener('registrationError', (error) => {
@@ -224,6 +223,7 @@ function InnerAppContent() {
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [targetUsername, setTargetUsername] = useState<string | null>(sharedUsername);
   const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);
+  const [targetGroupId, setTargetGroupId] = useState<string | null>(null);
   const [autoOpenComments, setAutoOpenComments] = useState(false);
   const [targetChatInfo, setTargetChatInfo] = useState<{ chatId: string, otherUser: any, ts: number } | null>(null);
   const [initialProfileTab, setInitialProfileTab] = useState<'garage' | 'posts' | 'duo'>('garage');
@@ -256,7 +256,16 @@ function InnerAppContent() {
       initialProfileTab,
       inboxTargetTab
     };
-  }, [activeView, targetUserId, targetUsername, targetPostId, initialProfileTab, inboxTargetTab]);
+  }, [activeView, targetUserId, targetUsername, targetPostId, targetGroupId, initialProfileTab, inboxTargetTab]);
+
+  
+  React.useEffect(() => {
+    (window as any).openGroupsView = () => setActiveView('groups');
+    (window as any).openGroupDetail = (groupId: string) => {
+      setTargetGroupId(groupId);
+      setActiveView('group_detail');
+    };
+  }, []);
 
   const prevViewRef = React.useRef<View>('feed');
   React.useEffect(() => {
@@ -479,6 +488,9 @@ function InnerAppContent() {
           />
         )}
         {activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}
+        {activeView === 'groups' && <GroupsView onBack={() => setActiveView('search')} onSelectGroup={(groupId) => { setTargetGroupId(groupId); setActiveView('group_detail'); }} />}
+        {activeView === 'group_detail' && targetGroupId && <GroupDetailView groupId={targetGroupId} onBack={() => setActiveView('groups')} onNavigateProfile={(uid) => { setTargetUserId(uid); setActiveView('profile'); }} />}
+
       </Layout>
     );
   }

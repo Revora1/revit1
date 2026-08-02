@@ -43,29 +43,6 @@ export function Feed() {
         ...doc.data()
       })) as Post[];
 
-      // Calculate dynamic weight score
-      fetchedPosts = fetchedPosts.sort((a, b) => {
-        const calculateScore = (post: Post) => {
-          const likes = post.likesCount || 0;
-          const comments = post.commentsCount || 0;
-          const shares = post.sharesCount || 0;
-          const loops = post.loopsCount || 0;
-          
-          const rawScore = (likes * 1) + (comments * 5) + (shares * 10) + (loops * 15);
-          
-          const hoursSinceCreation = Math.max(0, (Date.now() - post.createdAt) / (1000 * 60 * 60));
-          const timeDecay = hoursSinceCreation * 2.5; // Standard time decay
-          
-          // Massive freshness boost for the first 24 hours to ensure new posts sit at the top initially
-          // Decays linearly from 120 points at 0 hours to 0 points at 24 hours
-          const freshnessBoost = hoursSinceCreation < 24 ? (24 - hoursSinceCreation) * 5 : 0;
-          
-          return rawScore - timeDecay + freshnessBoost;
-        };
-        
-        return calculateScore(b) - calculateScore(a);
-      });
-
       setPosts(fetchedPosts);
       setLoading(false);
     }, (error) => {

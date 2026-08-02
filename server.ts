@@ -1,3 +1,4 @@
+import http from "http";
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
@@ -8,7 +9,58 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
+
+if (!getApps().length) {
+  try {
+    initializeApp();
+  } catch (err) {
+    console.error("Firebase Admin initialization error:", err);
+  }
+}
+
+
 // REST API and Proxy routes first
+
+app.use(express.json());
+
+app.post('/api/send-push', async (req, res) => {
+  try {
+    const { token, title, body } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: "Missing token" });
+    }
+
+    const message = {
+      notification: {
+        title: title || 'New Notification',
+        body: body || 'You have a new notification.'
+      },
+      token: token,
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default'
+          }
+        }
+      }
+    };
+
+    const response = await getMessaging().send(message);
+    res.json({ success: true, response });
+  } catch (error) {
+    console.error("Error sending push notification:", error);
+    res.status(500).json({ error: "Failed to send notification" });
+  }
+});
+
 app.get('/privacy-policy', (req, res) => {
   res.setHeader('Content-Type', 'text/html');
   res.send(`<!DOCTYPE html><html lang="en"><head>
@@ -339,11 +391,13 @@ app.get('/child-safety-standards', (req, res) => {
 });
 
 async function startServer() {
+  const server = http.createServer(app);
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: { server } },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -355,7 +409,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

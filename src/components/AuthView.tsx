@@ -67,7 +67,10 @@ export function AuthView() {
             className="space-y-3 animate-fade-in"
           >
             <input
+              id="email"
+              name="email"
               type="email"
+              autoComplete="email"
               placeholder="Email Address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -76,7 +79,10 @@ export function AuthView() {
               required
             />
             <input
+              id="password"
+              name="password"
               type="password"
+              autoComplete={isSignUp ? "new-password" : "current-password"}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

@@ -48,6 +48,7 @@ function ToggleItem({ label, description, defaultChecked = false, onChange }: To
 import { PrivacyPolicy } from './PrivacyPolicy';
 import { UserGuide } from './UserGuide';
 import { VERSION_INFO } from '../version';
+import { AdminPanel } from './AdminPanel';
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const { user, profile, logout, updateProfileSettings } = useAuth();
@@ -360,6 +361,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   const settingsItems = [
+    ...(user?.email === 'tonyang11552883@gmail.com' ? [{ id: 'admin', icon: Shield, label: 'Admin Panel', description: 'Manage reports and users' }] : []),
     { id: 'notifications', icon: Bell, label: 'Notifications', description: 'Manage push alerts' },
     { id: 'privacy', icon: Shield, label: 'Privacy', description: 'Who can see your garage' },
     { id: 'appearance', icon: Moon, label: 'Appearance', description: 'Dark mode, themes' },
@@ -372,6 +374,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   const renderSubViewContent = () => {
     switch (activeSubView) {
+      case 'admin':
+        return <AdminPanel onClose={() => setActiveSubView(null)} />;
       case 'notifications':
         const isNative = Capacitor.isNativePlatform();
         const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(window.navigator.userAgent);

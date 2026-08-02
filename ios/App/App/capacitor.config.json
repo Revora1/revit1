@@ -12,6 +12,7 @@
 	},
 	"packageClassList": [
 		"PushNotificationsPlugin",
+		"ScreenOrientationPlugin",
 		"SharePlugin",
 		"AppTrackingTransparencyPlugin"
 	]

@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Home, Search, PlusSquare, Inbox, User, Trophy, Car as CarIcon } from 'lucide-react';
+import { Home, Search, PlusSquare, Inbox, User, Trophy, Car as CarIcon, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
-export type View = 'feed' | 'search' | 'upload' | 'inbox' | 'profile' | 'post' | 'dyno' | 'garage' | 'tuners';
+export type View = 'feed' | 'search' | 'upload' | 'inbox' | 'profile' | 'post' | 'dyno' | 'garage' | 'tuners' | 'groups' | 'group_detail';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -121,7 +121,7 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
     { id: 'profile', icon: User, label: 'Profile' } as const,
   ];
 
-  const selfScrollingViews: View[] = ['feed', 'upload', 'inbox'];
+  const selfScrollingViews: View[] = ['feed', 'upload', 'inbox', 'groups', 'group_detail'];
   const isSelfScrolling = selfScrollingViews.includes(activeView);
 
   return (

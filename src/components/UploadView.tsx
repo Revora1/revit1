@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { MusicSelector, SongInfo } from './MusicSelector';
 import { processImageFile } from '../lib/imageUtils';
 
-export function UploadView({ onComplete }: { onComplete: () => void }) {
+export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () => void, onClose?: () => void, groupId?: string }) {
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [cars, setCars] = useState<Car[]>([]);
@@ -84,7 +84,7 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
 
       const mediaUrls = await Promise.all(uploadPromises);
 
-      const postDoc = await addDoc(collection(db, 'posts'), {
+      const postData: any = {
         ...formData,
         mediaUrls,
         mediaType: 'image',
@@ -93,7 +93,14 @@ export function UploadView({ onComplete }: { onComplete: () => void }) {
         commentsCount: 0,
         songId: selectedSong ? JSON.stringify(selectedSong) : '',
         createdAt: Date.now()
-      });
+      };
+      
+      if (groupId) {
+        postData.groupId = groupId;
+        postData.groupStatus = 'pending';
+      }
+      
+      const postDoc = await addDoc(collection(db, 'posts'), postData);
 
       if (formData.isModUpdate && formData.carTagId) {
         const selectedCar = cars.find(c => c.id === formData.carTagId);

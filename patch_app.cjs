@@ -1,53 +1,53 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/App.tsx', 'utf-8');
+let code = fs.readFileSync('src/App.tsx', 'utf8');
 
-const importStr = "import { ATTPrompt } from './components/ATTPrompt';\nimport { PushNotifications } from '@capacitor/push-notifications';";
-code = code.replace("import { ATTPrompt } from './components/ATTPrompt';", importStr);
+// Add imports
+code = code.replace(
+  "import { SettingsModal } from './components/SettingsModal';",
+  "import { SettingsModal } from './components/SettingsModal';\nimport { GroupsView } from './components/GroupsView';\nimport { GroupDetailView } from './components/GroupDetailView';"
+);
 
-const hookStr = `  React.useEffect(() => {
-    if (user && Capacitor.getPlatform() !== 'web') {
-      const registerPush = async () => {
-        try {
-          let permStatus = await PushNotifications.checkPermissions();
-          
-          if (permStatus.receive === 'prompt') {
-            permStatus = await PushNotifications.requestPermissions();
-          }
-          
-          if (permStatus.receive === 'granted') {
-            await PushNotifications.register();
-          }
-        } catch (e) {
-          console.error("Push registration failed", e);
-        }
-      };
-      
-      registerPush();
+// Add targetGroupId state
+code = code.replace(
+  "const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);",
+  "const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);\n  const [targetGroupId, setTargetGroupId] = useState<string | null>(null);"
+);
 
-      PushNotifications.addListener('registration', (token) => {
-        console.log('Push registration success, token: ' + token.value);
-      });
+// Add to state tracking
+code = code.replace(
+  "targetPostId,",
+  "targetPostId,\n    targetGroupId,"
+);
+code = code.replace(
+  "targetPostId,",
+  "targetPostId,\n      targetGroupId,"
+);
+code = code.replace(
+  "targetPostId, initialProfileTab",
+  "targetPostId, targetGroupId, initialProfileTab"
+);
 
-      PushNotifications.addListener('registrationError', (error) => {
-        console.log('Error on registration: ' + JSON.stringify(error));
-      });
+// Add window overrides for navigation (so anywhere can jump to groups)
+const navHack = `
+  React.useEffect(() => {
+    (window as any).openGroupsView = () => setActiveView('groups');
+    (window as any).openGroupDetail = (groupId: string) => {
+      setTargetGroupId(groupId);
+      setActiveView('group_detail');
+    };
+  }, []);
+`;
+code = code.replace("const prevViewRef = React.useRef<View>('feed');", navHack + "\n  const prevViewRef = React.useRef<View>('feed');");
 
-      PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('Push received: ' + JSON.stringify(notification));
-      });
+// Add views
+const newViews = `
+        {activeView === 'groups' && <GroupsView onBack={() => setActiveView('search')} onSelectGroup={(groupId) => { setTargetGroupId(groupId); setActiveView('group_detail'); }} />}
+        {activeView === 'group_detail' && targetGroupId && <GroupDetailView groupId={targetGroupId} onBack={() => setActiveView('groups')} onNavigateProfile={(uid) => { setTargetUserId(uid); setActiveView('profile'); }} />}
+`;
 
-      PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-        console.log('Push action performed: ' + JSON.stringify(notification));
-      });
-      
-      return () => {
-        PushNotifications.removeAllListeners();
-      };
-    }
-  }, [user]);
-
-  const isKid = React.useMemo(() => {`;
-code = code.replace("  const isKid = React.useMemo(() => {", hookStr);
+code = code.replace(
+  "{activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}",
+  "{activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}" + newViews
+);
 
 fs.writeFileSync('src/App.tsx', code);
-console.log("Patched App.tsx successfully");

@@ -100,6 +100,7 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
         await updateDoc(targetRef, { followersCount: increment(1) });
         
         // Push notification
+
         const notifId = `${Date.now()}_${currentUser.uid}_follow_${profile.uid}`;
         await setDoc(doc(db, 'notifications', notifId), {
           userId: profile.uid,
@@ -108,6 +109,28 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
           read: false,
           createdAt: Date.now()
         });
+        
+        // Push notification
+        try {
+          const targetUserSnap = await getDoc(targetRef);
+          if (targetUserSnap.exists()) {
+            const token = (targetUserSnap.data() as any).fcmToken;
+            if (token) {
+              await fetch('/api/send-push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  token,
+                  title: 'New Follower',
+                  body: `${currentUser.displayName || currentUser.email?.split('@')[0] || 'Someone'} started following you.`
+                })
+              });
+            }
+          }
+        } catch (pushErr) {
+          console.error("Failed to send push:", pushErr);
+        }
+
       }
     } catch (error) {
       console.error("Error in follow action:", error);
@@ -455,6 +478,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         });
         await updateDoc(postRef, { likesCount: increment(1) });
         if (post.authorId !== user.uid) {
+
           const notifId = `${Date.now()}_${user.uid}_like_${post.id}`;
           await setDoc(doc(db, 'notifications', notifId), {
             userId: post.authorId,
@@ -464,6 +488,28 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
             read: false,
             createdAt: Date.now()
           });
+          
+          // Push notification
+          try {
+            const targetUserSnap = await getDoc(doc(db, 'users', post.authorId));
+            if (targetUserSnap.exists()) {
+              const token = (targetUserSnap.data() as any).fcmToken;
+              if (token) {
+                await fetch('/api/send-push', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    token,
+                    title: 'New Like',
+                    body: `${user.displayName || user.email?.split('@')[0] || 'Someone'} liked your post.`
+                  })
+                });
+              }
+            }
+          } catch (pushErr) {
+            console.error("Failed to send push:", pushErr);
+          }
+
         }
       }
     } catch (error) {
@@ -501,6 +547,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         await updateDoc(currentUserRef, { followingCount: increment(1) });
         await updateDoc(authorRef, { followersCount: increment(1) });
         setIsFollowing(true);
+
         const notifId = `${Date.now()}_${user.uid}_follow_${post.authorId}`;
         await setDoc(doc(db, 'notifications', notifId), {
           userId: post.authorId,
@@ -509,6 +556,28 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           read: false,
           createdAt: Date.now()
         });
+        
+        // Push notification
+        try {
+          const targetUserSnap = await getDoc(doc(db, 'users', post.authorId));
+          if (targetUserSnap.exists()) {
+            const token = (targetUserSnap.data() as any).fcmToken;
+            if (token) {
+              await fetch('/api/send-push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  token,
+                  title: 'New Follower',
+                  body: `${user.displayName || user.email?.split('@')[0] || 'Someone'} started following you.`
+                })
+              });
+            }
+          }
+        } catch (pushErr) {
+          console.error("Failed to send push:", pushErr);
+        }
+
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `follows/${followId}`);
