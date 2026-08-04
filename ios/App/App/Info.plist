@@ -8,8 +8,6 @@
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
         <string>RevitUp</string>
-	<key>CFBundleIconName</key>
-	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -24,41 +22,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>REVERSED_CLIENT_ID</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.848807710523-vtr5k1obqsf2fplqpqc50atk7t19pnh6</string>
-			</array>
-		
-
-</dict>
-
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>today.revitup.app</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>today.revitup.app</string>
-			</array>
-		
-
-</dict>
-
-	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -80,19 +47,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-2103649447635694~9578246735</string>
-
-
-	<key>NSCameraUsageDescription</key>
-	<string>RevitUp needs camera access so you can take photos of your cars and share them with the community.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>RevitUp needs access to your photo library to let you upload photos and videos of your vehicles.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>RevitUp needs access to save photos to your library.</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>RevitUp uses this to deliver personalized ads and content to improve your experience.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>RevitUp needs microphone access to record audio when you capture videos of your cars.</string>
 </dict>
 </plist>
