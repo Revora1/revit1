@@ -2,12 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CAPACITOR_DEBUG</key>
+	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>RevitUp</string>
+	<string>RevitUp</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>
@@ -35,10 +35,7 @@
 			<array>
 				<string>com.googleusercontent.apps.848807710523-vtr5k1obqsf2fplqpqc50atk7t19pnh6</string>
 			</array>
-		
-
-</dict>
-
+		</dict>
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
@@ -48,10 +45,7 @@
 			<array>
 				<string>today.revitup.app</string>
 			</array>
-		
-
-</dict>
-
+		</dict>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
@@ -82,8 +76,6 @@
 	<true/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-2103649447635694~9578246735</string>
-
-
 	<key>NSCameraUsageDescription</key>
 	<string>RevitUp needs camera access so you can take photos of your cars and share them with the community.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
