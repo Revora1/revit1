@@ -9,18 +9,37 @@ import { StoryCreator } from './StoryCreator';
 import { AdSlot } from './AdSlot';
 import { ADSENSE_CLIENT_ID } from '../constants';
 import { trackOutboundClick } from '../lib/analytics';
-import { MessageSquare, RefreshCw, Star, ExternalLink, ShieldAlert, Sparkles, Check } from 'lucide-react';
+import { MessageSquare, RefreshCw, Star, ExternalLink, ShieldAlert, Sparkles, Check, Gift, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { admobService } from '../lib/admobService';
+import { GiveawaysModal } from './GiveawaysModal';
 
 export function Feed() {
-  const { blockedUserIds } = useAuth();
+  const { blockedUserIds, user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedStoryUserId, setSelectedStoryUserId] = useState<string | null>(null);
+  const [showGiveawaysModal, setShowGiveawaysModal] = useState(false);
+  const [isDevOpen, setIsDevOpen] = useState(false);
+
+  useEffect(() => {
+    const handleStatus = (e: any) => {
+      setIsDevOpen(!!e.detail?.isOpen);
+    };
+    window.addEventListener('dev-switcher-status', handleStatus as EventListener);
+    // Ask for current status if already mounted
+    window.dispatchEvent(new CustomEvent('toggle-dev-switcher', { detail: 'query-status' }));
+    return () => {
+      window.removeEventListener('dev-switcher-status', handleStatus as EventListener);
+    };
+  }, []);
+
+  const handleToggleDev = () => {
+    window.dispatchEvent(new CustomEvent('toggle-dev-switcher'));
+  };
 
   // Pull to refresh states
   const [refreshKey, setRefreshKey] = useState(0);
@@ -218,7 +237,30 @@ export function Feed() {
 
       <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none pt-[env(safe-area-inset-top)] px-4">
         <div className="flex items-center justify-between pointer-events-auto mb-2 py-2">
-           <h1 className="text-2xl font-black italic tracking-tighter text-white">REVITUP</h1>
+           <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-black italic tracking-tighter text-white">REVITUP</h1>
+              <button 
+                onClick={() => setShowGiveawaysModal(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 rounded-full text-[9px] font-black uppercase tracking-widest text-amber-400 active:scale-95 transition-all shadow-[0_0_15px_rgba(245,158,11,0.15)] animate-pulse"
+              >
+                <Gift size={11} className="text-amber-400" />
+                <span>Giveaways</span>
+              </button>
+
+              {/* Dev Control Toggle Switch for Tony */}
+              {user?.email?.toLowerCase() === 'tonyang11552883@gmail.com' && (
+                <button
+                  onClick={handleToggleDev}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-950/80 hover:bg-zinc-900 border border-zinc-800/80 rounded-full text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_10px_rgba(0,0,0,0.5)] active:scale-95"
+                >
+                  <Terminal size={10} className={isDevOpen ? "text-emerald-400" : "text-zinc-500"} />
+                  <span className="text-zinc-300">Dev</span>
+                  <div className={`w-6 h-3.5 rounded-full p-0.5 transition-colors duration-200 flex items-center ${isDevOpen ? "bg-emerald-500" : "bg-zinc-700"}`}>
+                    <div className={`w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${isDevOpen ? "translate-x-2.5" : "translate-x-0"}`} />
+                  </div>
+                </button>
+              )}
+           </div>
            <button 
              onClick={() => window.dispatchEvent(new CustomEvent('navigate-inbox'))}
              className="p-2 bg-zinc-900/50 backdrop-blur-md rounded-full text-white border border-white/10 active:scale-95 transition-transform"
@@ -312,6 +354,12 @@ export function Feed() {
           onClose={() => setSelectedStoryUserId(null)} 
         />
       )}
+
+      <AnimatePresence>
+        {showGiveawaysModal && (
+          <GiveawaysModal onClose={() => setShowGiveawaysModal(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -317,6 +317,9 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const [partnerProfile, setPartnerProfile] = useState<UserProfile | null>(null);
   const [followModalConfig, setFollowModalConfig] = useState<{ type: 'followers' | 'following', isOpen: boolean }>({ type: 'followers', isOpen: false });
 
+  const [realFollowersCount, setRealFollowersCount] = useState<number | null>(null);
+  const [realFollowingCount, setRealFollowingCount] = useState<number | null>(null);
+
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollower, setIsFollower] = useState(false);
   const [checkingFollow, setCheckingFollow] = useState(false);
@@ -541,6 +544,39 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     };
   }, [effectiveUserId, isOwnProfile, currentUser]);
 
+  useEffect(() => {
+    if (!effectiveUserId || effectiveUserId === 'not_found' || !targetProfile) return;
+
+    const qFollowers = query(collection(db, 'follows'), where('followingId', '==', effectiveUserId));
+    const unsubFollowers = onSnapshot(qFollowers, (snap) => {
+      setRealFollowersCount(snap.size);
+      
+      if (targetProfile.followersCount !== snap.size) {
+        updateDoc(doc(db, 'users', effectiveUserId), { followersCount: snap.size })
+          .catch(e => console.error("Error auto-syncing followersCount:", e));
+      }
+    }, (error) => {
+      console.error("Error listening to live followers count:", error);
+    });
+
+    const qFollowing = query(collection(db, 'follows'), where('followerId', '==', effectiveUserId));
+    const unsubFollowing = onSnapshot(qFollowing, (snap) => {
+      setRealFollowingCount(snap.size);
+
+      if (targetProfile.followingCount !== snap.size) {
+        updateDoc(doc(db, 'users', effectiveUserId), { followingCount: snap.size })
+          .catch(e => console.error("Error auto-syncing followingCount:", e));
+      }
+    }, (error) => {
+      console.error("Error listening to live following count:", error);
+    });
+
+    return () => {
+      unsubFollowers();
+      unsubFollowing();
+    };
+  }, [effectiveUserId, targetProfile?.followersCount, targetProfile?.followingCount]);
+
   const handleFollowClick = async () => {
     if (!currentUser || !effectiveUserId || checkingFollow) return;
     setCheckingFollow(true);
@@ -738,6 +774,9 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   );
 
   if (!targetProfile) return null;
+
+  const displayFollowersCount = realFollowersCount !== null ? realFollowersCount : (targetProfile.followersCount || 0);
+  const displayFollowingCount = realFollowingCount !== null ? realFollowingCount : (targetProfile.followingCount || 0);
 
   return (
     <div 
@@ -993,11 +1032,11 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
 
             <div className="flex items-center gap-12 text-center pb-4 w-full justify-center">
               <button onClick={() => setFollowModalConfig({ type: 'followers', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
-                <p className="text-lg font-black">{Math.max(0, targetProfile.followersCount || 0)}</p>
+                <p className="text-lg font-black">{Math.max(0, displayFollowersCount)}</p>
                 <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Followers</p>
               </button>
               <button onClick={() => setFollowModalConfig({ type: 'following', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
-                <p className="text-lg font-black">{Math.max(0, targetProfile.followingCount || 0)}</p>
+                <p className="text-lg font-black">{Math.max(0, displayFollowingCount)}</p>
                 <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Following</p>
               </button>
               <div className="space-y-0.5">

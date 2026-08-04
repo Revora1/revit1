@@ -14,6 +14,7 @@ import { TopTuners } from './components/TopTuners';
 import { SettingsModal } from './components/SettingsModal';
 import { GroupsView } from './components/GroupsView';
 import { GroupDetailView } from './components/GroupDetailView';
+import { DeveloperSwitcher } from './components/DeveloperSwitcher';
 
 import { CookieConsent } from './components/CookieConsent';
 import { db, messaging } from './lib/firebase';
@@ -365,6 +366,11 @@ function InnerAppContent() {
     const handleOpenSettings = () => {
       setShowSettings(true);
     };
+    const handleNavigateView = (e: any) => {
+      if (e.detail?.view) {
+        handleViewChange(e.detail.view);
+      }
+    };
     window.addEventListener('navigate-profile', handleProfileNav);
     window.addEventListener('navigate-post', handlePostNav);
     window.addEventListener('navigate-chat', handleChatNav);
@@ -372,6 +378,7 @@ function InnerAppContent() {
     window.addEventListener('navigate-dyno', handleDynoNav);
     window.addEventListener('navigate-back', handleNavigateBack);
     window.addEventListener('open-settings', handleOpenSettings);
+    window.addEventListener('navigate-view', handleNavigateView);
     return () => {
       window.removeEventListener('navigate-profile', handleProfileNav);
       window.removeEventListener('navigate-post', handlePostNav);
@@ -380,6 +387,7 @@ function InnerAppContent() {
       window.removeEventListener('navigate-dyno', handleDynoNav);
       window.removeEventListener('navigate-back', handleNavigateBack);
       window.removeEventListener('open-settings', handleOpenSettings);
+      window.removeEventListener('navigate-view', handleNavigateView);
     };
   }, []);
 
@@ -499,6 +507,7 @@ function InnerAppContent() {
     <>
       {content}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      <DeveloperSwitcher />
       <div id="modal-root" className="absolute inset-0 pointer-events-none z-[100] [&>*]:pointer-events-auto" />
     </>
   );

@@ -8,28 +8,11 @@ export default defineConfig({
   ],
   server: {
     host: '0.0.0.0',
-    port: 3000
+    port: 3000,
+    hmr: false
   },
   build: {
     outDir: 'dist',
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('firebase')) {
-              return 'firebase-vendor';
-            }
-            if (
-              id.includes('react') ||
-              id.includes('motion') ||
-              id.includes('lucide')
-            ) {
-              return 'vendor';
-            }
-          }
-        }
-      }
-    },
     chunkSizeWarningLimit: 3000,
   }
 })
