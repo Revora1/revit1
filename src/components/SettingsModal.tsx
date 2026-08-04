@@ -51,7 +51,7 @@ import { VERSION_INFO } from '../version';
 import { AdminPanel } from './AdminPanel';
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const { user, profile, logout, updateProfileSettings, isAdmin } = useAuth();
+  const { user, profile, logout, updateProfileSettings } = useAuth();
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -361,7 +361,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   const settingsItems = [
-    ...(isAdmin ? [{ id: 'admin', icon: Shield, label: 'Admin Panel', description: 'Manage reports and users' }] : []),
+    ...(user?.email === 'tonyang11552883@gmail.com' ? [{ id: 'admin', icon: Shield, label: 'Admin Panel', description: 'Manage reports and users' }] : []),
     { id: 'notifications', icon: Bell, label: 'Notifications', description: 'Manage push alerts' },
     { id: 'privacy', icon: Shield, label: 'Privacy', description: 'Who can see your garage' },
     { id: 'appearance', icon: Moon, label: 'Appearance', description: 'Dark mode, themes' },

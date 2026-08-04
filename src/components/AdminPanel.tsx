@@ -6,19 +6,19 @@ import { Shield, Trash2, X, AlertTriangle, Users } from 'lucide-react';
 import { UserProfile } from '../types';
 
 export function AdminPanel({ onClose }: { onClose: () => void }) {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const [reports, setReports] = useState<any[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'reports' | 'users'>('reports');
 
   useEffect(() => {
-    if (isAdmin) {
+    if (user?.email === 'tonyang11552883@gmail.com') {
       fetchData();
     } else {
       onClose(); // unauthorized
     }
-  }, [isAdmin, activeTab]);
+  }, [user, activeTab]);
 
   const fetchData = async () => {
     setLoading(true);

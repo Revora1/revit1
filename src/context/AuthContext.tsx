@@ -21,11 +21,6 @@ interface AuthContextType {
   blockUser: (blockedId: string) => Promise<void>;
   unblockUser: (blockedId: string) => Promise<void>;
   reportContent: (targetId: string, targetType: 'post' | 'comment' | 'user' | 'message' | 'story', reason: string, details?: string) => Promise<void>;
-  isAdmin: boolean;
-  currentRole: 'admin' | 'user' | 'new_user';
-  setCurrentRole: (role: 'admin' | 'user' | 'new_user') => void;
-  simulatedUserCount: number;
-  setSimulatedUserCount: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,101 +33,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isIOS, setIsIOS] = useState(false);
   const [myBlockedIds, setMyBlockedIds] = useState<string[]>([]);
   const [blockedByIds, setBlockedByIds] = useState<string[]>([]);
-  
-  // Developer Mode States
-  const [currentRole, setCurrentRole] = useState<'admin' | 'user' | 'new_user'>(() => {
-    return (localStorage.getItem('dev_role') as 'admin' | 'user' | 'new_user') || 'admin';
-  });
-  const [simulatedUserCount, setSimulatedUserCount] = useState<number>(() => {
-    const saved = localStorage.getItem('dev_simulated_users');
-    return saved ? parseInt(saved, 10) : 4850;
-  });
-
-   useEffect(() => {
-    localStorage.setItem('dev_role', currentRole);
-  }, [currentRole]);
-
-  useEffect(() => {
-    localStorage.setItem('dev_simulated_users', simulatedUserCount.toString());
-  }, [simulatedUserCount]);
-
-  // IsAdmin check - dynamic based on active role toggle
-  const isAdmin = (user?.email?.toLowerCase() === 'tonyang11552883@gmail.com') && currentRole === 'admin';
-
-  // Real-time synchronization of simulatedUserCount with Firestore metadata/stats document
-  useEffect(() => {
-    if (!user) return;
-    const statsRef = doc(db, 'metadata', 'stats');
-    const unsub = onSnapshot(statsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const val = snapshot.data().totalRegisteredUsers;
-        if (typeof val === 'number') {
-          setSimulatedUserCount(val);
-        }
-      } else {
-        // If it doesn't exist yet and user is admin, seed it
-        if (isAdmin) {
-          setDoc(statsRef, { totalRegisteredUsers: simulatedUserCount }).catch(console.error);
-        }
-      }
-    }, (err) => {
-      console.warn("Global stats read error (using local simulated count fallback):", err);
-    });
-    return unsub;
-  }, [user, isAdmin]);
-
-  useEffect(() => {
-    if (isAdmin && user) {
-      const statsRef = doc(db, 'metadata', 'stats');
-      setDoc(statsRef, { totalRegisteredUsers: simulatedUserCount }, { merge: true })
-        .catch(err => console.warn("Failed syncing admin user count change:", err));
-    }
-  }, [simulatedUserCount, isAdmin, user]);
-
-  // Compute active profile with simulated data if impersonating
-  const activeProfile = React.useMemo(() => {
-    if (!profile) return null;
-    if (currentRole === 'user') {
-      return {
-        ...profile,
-        username: 'race_enthusiast',
-        displayName: 'John Enthusiast',
-        bio: '🚗 Trackday builder | Living life at 9,000 RPM. Currently simulating a regular user feed.',
-        followersCount: 1420,
-        followingCount: 382,
-        garage: ['m3_build', '911_gt3'],
-        referralsCount: 12,
-      };
-    }
-    if (currentRole === 'new_user') {
-      return {
-        ...profile,
-        username: 'new_driver',
-        displayName: 'Fresh Member',
-        bio: 'Just joined RevitUp! Ready to build and share my garage.',
-        followersCount: 0,
-        followingCount: 0,
-        garage: [],
-        referralsCount: 0,
-      };
-    }
-    return profile;
-  }, [profile, currentRole]);
 
   const blockedUserIds = Array.from(new Set([...myBlockedIds, ...blockedByIds]));
 
   useEffect(() => {
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
-
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const ref = urlParams.get('ref');
-      if (ref) {
-        sessionStorage.setItem('revit_referrer', ref);
-      }
-    } catch (e) {
-      console.warn("Failed to check referral query parameter:", e);
-    }
 
     // Safety timeout to ensure loading spinner does not get stuck forever (e.g. 10 seconds)
     const safetyTimeout = setTimeout(() => {
@@ -261,37 +166,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Handle referral loop
                 try {
                   const urlParams = new URLSearchParams(window.location.search);
-                  let refId = urlParams.get('ref') || sessionStorage.getItem('revit_referrer');
+                  const refId = urlParams.get('ref');
                   if (refId && refId !== user.uid) {
                     const referrerRef = doc(db, 'users', refId);
                     const referrerSnap = await getDoc(referrerRef);
                     if (referrerSnap.exists()) {
                       const currentCount = referrerSnap.data().referralsCount || 0;
-                      const newCount = currentCount + 1;
-                      await updateDoc(referrerRef, { referralsCount: newCount });
-
-                      // Increment referralBonusCount in referrer's active milestone tickets
-                      try {
-                        const giveawaysSnap = await getDocs(collection(db, 'giveaways'));
-                        const milestoneIds = new Set(['m1', 'm2', 'm3']);
-                        giveawaysSnap.forEach(gDoc => {
-                          milestoneIds.add(gDoc.id);
-                        });
-
-                        for (const mId of milestoneIds) {
-                          const ticketRef = doc(db, 'giveaways', mId, 'tickets', refId);
-                          const ticketSnap = await getDoc(ticketRef);
-                          if (ticketSnap.exists()) {
-                            const ticketData = ticketSnap.data();
-                            const currentBonus = ticketData.referralBonusCount || 0;
-                            await updateDoc(ticketRef, {
-                              referralBonusCount: currentBonus + 1
-                            });
-                          }
-                        }
-                      } catch (ticketErr) {
-                        console.error('Failed to update referrer tickets:', ticketErr);
-                      }
+                      await updateDoc(referrerRef, { referralsCount: currentCount + 1 });
                     }
                   }
                 } catch (refErr) {
@@ -473,7 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{ 
       user, 
-      profile: activeProfile, 
+      profile, 
       loading, 
       error, 
       isIOS, 
@@ -486,12 +367,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       myBlockedIds,
       blockUser,
       unblockUser,
-      reportContent,
-      isAdmin,
-      currentRole,
-      setCurrentRole,
-      simulatedUserCount,
-      setSimulatedUserCount
+      reportContent
     }}>
       {children}
     </AuthContext.Provider>

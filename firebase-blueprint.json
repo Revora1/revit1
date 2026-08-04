@@ -206,36 +206,6 @@
         "createdAt": { "type": "integer" }
       },
       "required": ["reporterId", "targetId", "targetType", "reason", "createdAt"]
-    },
-    "Giveaway": {
-      "title": "Giveaway",
-      "description": "Milestone sweepstake or giveaway item",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "target": { "type": "integer" },
-        "reward": { "type": "string" },
-        "description": { "type": "string" },
-        "type": { "type": "string" },
-        "color": { "type": "string" },
-        "imageUrls": { "type": "array", "items": { "type": "string" } },
-        "specs": { "type": "object" },
-        "createdAt": { "type": "integer" }
-      },
-      "required": ["id", "target", "reward", "type"]
-    },
-    "GiveawayEntry": {
-      "title": "GiveawayEntry",
-      "description": "User participation inside a milestone giveaway",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "userId": { "type": "string" },
-        "giveawayId": { "type": "string" },
-        "joinedAt": { "type": "integer" },
-        "username": { "type": "string" }
-      },
-      "required": ["id", "userId", "giveawayId", "joinedAt", "username"]
     }
   },
   "firestore": {
@@ -298,14 +268,6 @@
     "/reports/{reportId}": {
       "schema": "Report",
       "description": "Content or user reports"
-    },
-    "/giveaways/{giveawayId}": {
-      "schema": "Giveaway",
-      "description": "Milestone sweepstakes and prizes configuration"
-    },
-    "/giveaway_entries/{entryId}": {
-      "schema": "GiveawayEntry",
-      "description": "Participation entries for users in the giveaways"
     }
   }
 }

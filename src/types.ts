@@ -13,7 +13,6 @@ export interface UserProfile {
   reputationBonus?: number;
   friendsOnlyInteractions?: boolean;
   referralsCount?: number; // Reputation points rewarded via AdMob
-  isVerified?: boolean;
 }
 
 export type MediaType = 'image';

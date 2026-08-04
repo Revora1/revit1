@@ -115,27 +115,5 @@ service cloud.firestore {
     match /helpful_votes/{voteId} {
       allow read, write: if isSignedIn();
     }
-
-    match /metadata/{documentId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    match /giveaways/{giveawayId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-      
-      match /tickets/{userId} {
-        allow read: if isSignedIn();
-        allow create, update: if isSignedIn() && request.auth.uid == userId;
-        allow delete: if isAdmin();
-      }
-    }
-
-    match /giveaway_entries/{entryId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-    }
   }
 }
