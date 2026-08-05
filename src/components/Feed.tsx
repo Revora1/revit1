@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Post } from '../types';
 import { PostCard } from './PostCard';
@@ -31,26 +31,51 @@ export function Feed() {
 
   useEffect(() => {
     setLoading(true);
+    
+    const pinnedQuery = query(
+      collection(db, 'posts'),
+      where('isPinned', '==', true)
+    );
+    
     const q = query(
       collection(db, 'posts'),
       orderBy('createdAt', 'desc'),
       limit(50)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let fetchedPosts = snapshot.docs.map(doc => ({
+    let pinnedPosts: Post[] = [];
+    let recentPosts: Post[] = [];
+
+    const mergePosts = () => {
+      const recentWithoutPinned = recentPosts.filter(rp => !pinnedPosts.some(pp => pp.id === rp.id));
+      const sortedPinned = [...pinnedPosts].sort((a, b) => b.createdAt - a.createdAt);
+      setPosts([...sortedPinned, ...recentWithoutPinned]);
+      setLoading(false);
+    };
+
+    const unsubPinned = onSnapshot(pinnedQuery, (snapshot) => {
+      pinnedPosts = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Post[];
+      mergePosts();
+    });
 
-      setPosts(fetchedPosts);
-      setLoading(false);
+    const unsubRecent = onSnapshot(q, (snapshot) => {
+      recentPosts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Post[];
+      mergePosts();
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'posts');
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubPinned();
+      unsubRecent();
+    };
   }, [refreshKey]);
 
   const handleScroll = () => {

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Post, UserProfile, Car } from '../types';
-import { Heart, MessageCircle, Share2, User, Check, Trash2, Plus, X, Eye, Clock, Users, Music, Play, MoreVertical, Flag, UserX } from 'lucide-react';
+import { Heart, MessageCircle, Share2, User, Check, Trash2, Plus, X, Eye, Clock, Users, Music, Play, MoreVertical, Flag, UserX, Pin, PinOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
@@ -349,6 +349,17 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
       await deleteDoc(doc(db, 'posts', post.id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `posts/${post.id}`);
+    }
+  };
+
+  const handlePin = async () => {
+    if (user?.email?.toLowerCase() !== 'tonyang11552883@gmail.com') return;
+    try {
+      await updateDoc(doc(db, 'posts', post.id), {
+        isPinned: !post.isPinned
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `posts/${post.id}`);
     }
   };
 
@@ -770,6 +781,15 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           </button>
         )}
 
+        {user?.email?.toLowerCase() === 'tonyang11552883@gmail.com' && (
+          <button 
+            onClick={handlePin}
+            className={`w-10 h-10 backdrop-blur-md rounded-full flex items-center justify-center active:scale-95 transition-all group-hover:bg-amber-500/20 text-white shadow-lg flex-shrink-0 ${post.isPinned ? 'bg-amber-600' : 'bg-black/25 text-amber-500 border border-white/10'}`}
+          >
+            {post.isPinned ? <PinOff size={20} className="text-white" /> : <Pin size={20} />}
+          </button>
+        )}
+
         {user && user.uid !== post.authorId && (
           <div className="relative flex-shrink-0">
             <button 
@@ -862,6 +882,12 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
            </button>
            {taggedCar && (
              <span className="px-2 py-0.5 bg-zinc-800 rounded text-[10px] font-bold tracking-tight text-white">#{taggedCar.make} {taggedCar.model}</span>
+           )}
+           {post.isPinned && (
+             <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1 bg-amber-500/10 backdrop-blur-sm px-2 py-0.5 rounded-full border border-amber-500/30 tracking-tight uppercase">
+               <Pin size={10} fill="currentColor" />
+               Pinned
+             </span>
            )}
            <span className="text-[11px] font-medium text-zinc-400 flex items-center gap-1 bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/5">
              <Clock size={10} className="text-zinc-500 animate-pulse" />

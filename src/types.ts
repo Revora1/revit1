@@ -38,6 +38,7 @@ export interface Post {
   createdAt: number;
   groupId?: string;
   groupStatus?: 'pending' | 'approved';
+  isPinned?: boolean;
 }
 
 export type CarStage = "Stock" | "Stage 1" | "Stage 2" | "Stage 3" | "Track Ready" | "Show Car";
