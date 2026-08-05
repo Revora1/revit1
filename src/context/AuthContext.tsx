@@ -71,12 +71,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && !user.emailVerified) {
-        await signOut(auth);
-        setUser(null);
-        cleanupSubscribers();
-        setProfile(null);
-        setLoading(false);
-        return;
+        const creationTime = user.metadata.creationTime ? new Date(user.metadata.creationTime).getTime() : 0;
+        const enforceVerificationAfter = new Date('2026-08-05T17:00:00Z').getTime();
+        
+        if (creationTime > enforceVerificationAfter) {
+          await signOut(auth);
+          setUser(null);
+          cleanupSubscribers();
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
       }
 
       setUser(user);
@@ -233,9 +238,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, p);
       if (userCredential.user && !userCredential.user.emailVerified) {
-        try { await sendEmailVerification(userCredential.user); } catch (e) {}
-        await signOut(auth);
-        setError('Please verify your email address before signing in. A new verification email has been sent.');
+        const creationTime = userCredential.user.metadata.creationTime ? new Date(userCredential.user.metadata.creationTime).getTime() : 0;
+        const enforceVerificationAfter = new Date('2026-08-05T17:00:00Z').getTime();
+        
+        if (creationTime > enforceVerificationAfter) {
+          try { await sendEmailVerification(userCredential.user); } catch (e) {}
+          await signOut(auth);
+          setError('Please verify your email address before signing in. A new verification email has been sent.');
+          return;
+        }
       }
     } catch (err: any) {
       console.log('Firebase signInWithEmailAndPassword error code:', err.code, err);
