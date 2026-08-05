@@ -13,7 +13,7 @@ interface GroupsViewProps {
   onSelectGroup: (groupId: string) => void;
 }
 
-export const GroupsView = ({ onBack, onSelectGroup }: GroupsViewProps) => {
+export function GroupsView({ onBack, onSelectGroup }: GroupsViewProps) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'my_groups' | 'discover'>('discover');
   
@@ -71,9 +71,11 @@ export const GroupsView = ({ onBack, onSelectGroup }: GroupsViewProps) => {
     try {
       let coverImage = '';
       if (groupImageFile) {
+        
         const storageRef = ref(storage, `groups/${user.uid}_${Date.now()}`);
         const snapshot = await uploadBytes(storageRef, groupImageFile);
         const url = await getDownloadURL(snapshot.ref);
+  
         if (url) coverImage = url;
       }
       

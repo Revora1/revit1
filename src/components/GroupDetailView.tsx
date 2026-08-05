@@ -196,14 +196,6 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
           </button>
           <h1 className="text-xl font-black italic tracking-tighter line-clamp-1">{group.name}</h1>
         </div>
-        {user && isAdmin && (
-          <button 
-            onClick={() => setShowConfirmDelete(true)}
-            className="p-2 -mr-2 text-zinc-400 hover:text-red-500 transition-colors"
-          >
-            <Trash2 size={20} />
-          </button>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -234,6 +226,31 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
               >
                 {isMember ? 'Joined' : 'Join'}
               </button>
+            )}
+            {user && isAdmin && (
+              showConfirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDeleteGroup}
+                    className="px-4 py-1.5 rounded-full text-sm font-bold bg-red-600 text-white active:scale-95 transition-transform"
+                  >
+                    Confirm Delete
+                  </button>
+                  <button
+                    onClick={() => setShowConfirmDelete(false)}
+                    className="px-4 py-1.5 rounded-full text-sm font-bold bg-zinc-800 text-white active:scale-95 transition-transform"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowConfirmDelete(true)}
+                  className="px-4 py-1.5 rounded-full text-sm font-bold bg-red-500/20 text-red-500 border border-red-500/30 hover:bg-red-500/30 active:scale-95 transition-transform flex items-center gap-1"
+                >
+                  <Trash2 size={14} /> Delete Club
+                </button>
+              )
             )}
           </div>
         </div>
@@ -388,42 +405,6 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
           />
         </div>
       )}
-
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {showConfirmDelete && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.95 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full"
-            >
-              <h3 className="text-xl font-bold text-white mb-2">Delete Club?</h3>
-              <p className="text-zinc-400 mb-6 text-sm leading-relaxed">Are you sure you want to delete <span className="text-white font-semibold">{group.name}</span>? This action cannot be undone.</p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowConfirmDelete(false)}
-                  className="flex-1 px-4 py-3 rounded-xl font-bold bg-zinc-800 hover:bg-zinc-700 text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteGroup}
-                  className="flex-1 px-4 py-3 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

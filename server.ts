@@ -1,4 +1,3 @@
-import http from "http";
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
@@ -7,7 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -391,13 +390,11 @@ app.get('/child-safety-standards', (req, res) => {
 });
 
 async function startServer() {
-  const server = http.createServer(app);
-
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: { server } },
+      server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -409,7 +406,7 @@ async function startServer() {
     });
   }
 
-  server.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

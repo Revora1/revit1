@@ -28,6 +28,7 @@ import { AppTrackingTransparency } from '@capgo/capacitor-app-tracking-transpare
 import { Capacitor } from '@capacitor/core';
 import { ATTPrompt } from './components/ATTPrompt';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Apple, X } from 'lucide-react';
 
 export default function App() {
@@ -57,6 +58,20 @@ export default function App() {
 
     // Initialize AdMob on app startup
     admobService.initialize();
+
+    // Lock screen orientation to portrait if supported
+    const lockOrientation = async () => {
+      try {
+        if (Capacitor.isNativePlatform()) {
+          await ScreenOrientation.lock({ orientation: 'portrait' });
+        } else if (window.screen && window.screen.orientation && (window.screen.orientation as any).lock) {
+          await (window.screen.orientation as any).lock('portrait');
+        }
+      } catch (e) {
+        // Silent catch: fails in AI Studio iframe sandbox, but works on native
+      }
+    };
+    lockOrientation();
   }, []);
 
   React.useEffect(() => {

@@ -97,17 +97,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 console.warn("Failed to fetch private email profile info:", privateErr);
               }
 
-              // Auto-migrate user tonyang11552883 to 'tony'
-              if (
-                (user.email?.toLowerCase() === 'tonyang11552883@gmail.com' || data.email?.toLowerCase() === 'tonyang11552883@gmail.com') &&
-                data.username === 'tonyang11552883'
-              ) {
-                data.username = 'tony';
-                data.usernameLower = 'tony';
-                const { email, ...publicProfile } = data;
-                await setDoc(profileRef, publicProfile, { merge: true });
-              }
-
               if (data.username && !data.usernameLower) {
                 const updatedProfile = { ...data, usernameLower: data.username.toLowerCase() };
                 const { email, ...publicProfile } = updatedProfile;
@@ -119,9 +108,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else {
               // Logic for new user profile creation
               let baseUsername = user.email?.split('@')[0] || 'User';
-              if (user.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
-                baseUsername = 'tony';
-              }
               let newUsername = baseUsername;
               let isUnique = false;
               let counter = 1;
