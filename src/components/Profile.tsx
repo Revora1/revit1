@@ -320,9 +320,13 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollower, setIsFollower] = useState(false);
   const [checkingFollow, setCheckingFollow] = useState(false);
+  const [dynamicFollowersCount, setDynamicFollowersCount] = useState<number | null>(null);
+  const [dynamicFollowingCount, setDynamicFollowingCount] = useState<number | null>(null);
   const [showShareToast, setShowShareToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("Link Copied to Clipboard");
   const [sharing, setSharing] = useState(false);
+
+
 
   const handleShareApp = async () => {
     if (sharing || !targetProfile) return;
@@ -391,6 +395,39 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   const effectiveUserId = resolvedUserId;
 
   const isOwner = isOwnProfile && currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com';
+  useEffect(() => {
+    if (!effectiveUserId || effectiveUserId === 'not_found') return;
+    const fetchCounts = async () => {
+        try {
+           const followersQ = query(collection(db, 'follows'), where('followingId', '==', effectiveUserId));
+           const followingQ = query(collection(db, 'follows'), where('followerId', '==', effectiveUserId));
+           const [followersSnap, followingSnap] = await Promise.all([
+               getCountFromServer(followersQ),
+               getCountFromServer(followingQ)
+           ]);
+           
+           const actualFollowers = followersSnap.data().count;
+           const actualFollowing = followingSnap.data().count;
+           
+           setDynamicFollowersCount(actualFollowers);
+           setDynamicFollowingCount(actualFollowing);
+           
+           // Self heal the counts in DB if needed (only if own profile to avoid spam)
+           if (isOwnProfile && currentUser) {
+             const myRef = doc(db, 'users', currentUser.uid);
+             if (currentProfile?.followersCount !== actualFollowers || currentProfile?.followingCount !== actualFollowing) {
+               await updateDoc(myRef, {
+                 followersCount: actualFollowers,
+                 followingCount: actualFollowing
+               });
+             }
+           }
+        } catch (e) {
+           console.error("Error fetching dynamic counts", e);
+        }
+    };
+    fetchCounts();
+  }, [effectiveUserId, isFollowing, isFollower, isOwnProfile, currentProfile?.followersCount, currentProfile?.followingCount, currentUser]);
   const [ownerStats, setOwnerStats] = useState<{ usersCount: number; carsCount: number; postsCount: number } | null>(null);
 
   useEffect(() => {
@@ -993,11 +1030,11 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
 
             <div className="flex items-center gap-12 text-center pb-4 w-full justify-center">
               <button onClick={() => setFollowModalConfig({ type: 'followers', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
-                <p className="text-lg font-black">{Math.max(0, targetProfile.followersCount || 0)}</p>
+                <p className="text-lg font-black">{dynamicFollowersCount !== null ? dynamicFollowersCount : Math.max(0, targetProfile.followersCount || 0)}</p>
                 <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Followers</p>
               </button>
               <button onClick={() => setFollowModalConfig({ type: 'following', isOpen: true })} className="space-y-0.5 active:scale-95 transition-transform">
-                <p className="text-lg font-black">{Math.max(0, targetProfile.followingCount || 0)}</p>
+                <p className="text-lg font-black">{dynamicFollowingCount !== null ? dynamicFollowingCount : Math.max(0, targetProfile.followingCount || 0)}</p>
                 <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Following</p>
               </button>
               <div className="space-y-0.5">

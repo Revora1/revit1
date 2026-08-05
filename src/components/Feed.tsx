@@ -9,7 +9,7 @@ import { StoryCreator } from './StoryCreator';
 import { AdSlot } from './AdSlot';
 import { ADSENSE_CLIENT_ID } from '../constants';
 import { trackOutboundClick } from '../lib/analytics';
-import { MessageSquare, RefreshCw, Star, ExternalLink, ShieldAlert, Sparkles, Check } from 'lucide-react';
+import { MessageSquare, RefreshCw, Star, ExternalLink, ShieldAlert, Sparkles, Check, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { admobService } from '../lib/admobService';
@@ -219,12 +219,20 @@ export function Feed() {
       <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none pt-[env(safe-area-inset-top)] px-4">
         <div className="flex items-center justify-between pointer-events-auto mb-2 py-2">
            <h1 className="text-2xl font-black italic tracking-tighter text-white">REVITUP</h1>
-           <button 
-             onClick={() => window.dispatchEvent(new CustomEvent('navigate-inbox'))}
-             className="p-2 bg-zinc-900/50 backdrop-blur-md rounded-full text-white border border-white/10 active:scale-95 transition-transform"
-           >
-             <MessageSquare size={20} />
-           </button>
+                      <div className="flex items-center gap-2">
+             <button
+               onClick={() => window.dispatchEvent(new CustomEvent('navigate-giveaway'))}
+               className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-full font-black italic uppercase text-[10px] tracking-widest flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.5)] active:scale-95 transition-transform"
+             >
+               <Gift size={12} className="text-white" /> GIVEAWAY
+             </button>
+             <button
+               onClick={() => window.dispatchEvent(new CustomEvent('navigate-inbox'))}
+               className="p-2 bg-zinc-900/50 backdrop-blur-md rounded-full text-white border border-white/10 active:scale-95 transition-transform"
+             >
+               <MessageSquare size={20} />
+             </button>
+           </div>
         </div>
         <div className="pointer-events-auto">
            <StoriesBar key={`stories_${refreshKey}`} onSelectUser={(id) => setSelectedStoryUserId(id)} />

@@ -9,9 +9,11 @@ import { SearchView } from './components/SearchView';
 import { InboxView } from './components/InboxView';
 import { SinglePostView } from './components/SinglePostView';
 import { DynoBoard } from './components/DynoBoard';
+import { GiveawaysView } from './components/GiveawaysView';
 import { CommunityGarageView } from './components/CommunityGarageView';
 import { TopTuners } from './components/TopTuners';
 import { SettingsModal } from './components/SettingsModal';
+import { AnimatePresence } from 'motion/react';
 import { GroupsView } from './components/GroupsView';
 import { GroupDetailView } from './components/GroupDetailView';
 
@@ -221,6 +223,17 @@ function InnerAppContent() {
     }
   }, []);
 
+  // Parse referral from URL query params
+  React.useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const refCode = params.get('ref') || params.get('referral');
+      if (refCode) {
+        sessionStorage.setItem('referralCode', refCode);
+      }
+    } catch (e) {}
+  }, []);
+
   // Parse shared user from URL query params
   const sharedUsername = React.useMemo(() => {
     try {
@@ -235,6 +248,7 @@ function InnerAppContent() {
     sharedPostId ? 'post' : sharedUsername ? 'profile' : 'feed'
   );
   const [showSettings, setShowSettings] = useState(false);
+  const [showGiveaways, setShowGiveaways] = useState(false);
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [targetUsername, setTargetUsername] = useState<string | null>(sharedUsername);
   const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);
@@ -345,6 +359,10 @@ function InnerAppContent() {
       setInboxTargetTab(tab);
       setActiveView('inbox');
     };
+    const handleGiveawayNav = () => {
+      setShowGiveaways(true);
+    };
+
     const handleDynoNav = () => {
       setNavigationHistory(prev => [
         ...prev,
@@ -385,6 +403,7 @@ function InnerAppContent() {
     window.addEventListener('navigate-chat', handleChatNav);
     window.addEventListener('navigate-inbox', handleInboxNav);
     window.addEventListener('navigate-dyno', handleDynoNav);
+    window.addEventListener('navigate-giveaway', handleGiveawayNav);
     window.addEventListener('navigate-back', handleNavigateBack);
     window.addEventListener('open-settings', handleOpenSettings);
     return () => {
@@ -393,6 +412,7 @@ function InnerAppContent() {
       window.removeEventListener('navigate-chat', handleChatNav);
       window.removeEventListener('navigate-inbox', handleInboxNav);
       window.removeEventListener('navigate-dyno', handleDynoNav);
+      window.removeEventListener('navigate-giveaway', handleGiveawayNav);
       window.removeEventListener('navigate-back', handleNavigateBack);
       window.removeEventListener('open-settings', handleOpenSettings);
     };
@@ -505,6 +525,7 @@ function InnerAppContent() {
         {activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}
         {activeView === 'groups' && <GroupsView onBack={() => setActiveView('search')} onSelectGroup={(groupId) => { setTargetGroupId(groupId); setActiveView('group_detail'); }} />}
         {activeView === 'group_detail' && targetGroupId && <GroupDetailView groupId={targetGroupId} onBack={() => setActiveView('groups')} onNavigateProfile={(uid) => { setTargetUserId(uid); setActiveView('profile'); }} />}
+        {activeView === 'giveaway' && <GiveawaysView onBack={() => setActiveView(prevViewRef.current || 'feed')} />}
 
       </Layout>
     );
@@ -513,6 +534,9 @@ function InnerAppContent() {
   return (
     <>
       {content}
+      <AnimatePresence>
+        {showGiveaways && <GiveawaysView onBack={() => setShowGiveaways(false)} />}
+      </AnimatePresence>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       <div id="modal-root" className="absolute inset-0 pointer-events-none z-[100] [&>*]:pointer-events-auto" />
     </>

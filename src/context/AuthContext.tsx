@@ -1,6 +1,6 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
+import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
@@ -70,6 +70,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user && !user.emailVerified) {
+        await signOut(auth);
+        setUser(null);
+        cleanupSubscribers();
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
       setUser(user);
       cleanupSubscribers();
 
@@ -222,7 +231,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     const sanitizedEmail = e.trim().toLowerCase();
     try {
-      await signInWithEmailAndPassword(auth, sanitizedEmail, p);
+      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, p);
+      if (userCredential.user && !userCredential.user.emailVerified) {
+        try { await sendEmailVerification(userCredential.user); } catch (e) {}
+        await signOut(auth);
+        setError('Please verify your email address before signing in. A new verification email has been sent.');
+      }
     } catch (err: any) {
       console.log('Firebase signInWithEmailAndPassword error code:', err.code, err);
       if (err.code === 'auth/invalid-credential') {
@@ -243,7 +257,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     const sanitizedEmail = e.trim().toLowerCase();
     try {
-      await createUserWithEmailAndPassword(auth, sanitizedEmail, p);
+      const userCredential = await createUserWithEmailAndPassword(auth, sanitizedEmail, p);
+      if (userCredential.user) {
+        try { await sendEmailVerification(userCredential.user); } catch (e) {}
+        await signOut(auth);
+        setError('Account created! Please check your email to verify your account before logging in.');
+      }
     } catch (createErr: any) {
       console.error('Firebase createUserWithEmailAndPassword error:', createErr);
       if (createErr.code === 'auth/weak-password' || createErr.message?.includes('weak-password')) {

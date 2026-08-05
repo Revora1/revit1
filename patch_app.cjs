@@ -1,53 +1,37 @@
 const fs = require('fs');
 let code = fs.readFileSync('src/App.tsx', 'utf8');
 
-// Add imports
-code = code.replace(
-  "import { SettingsModal } from './components/SettingsModal';",
-  "import { SettingsModal } from './components/SettingsModal';\nimport { GroupsView } from './components/GroupsView';\nimport { GroupDetailView } from './components/GroupDetailView';"
-);
+const targetState = `  const [targetPostId, setTargetPostId] = useState<string | null>(null);`;
+const replacementState = `  const [targetPostId, setTargetPostId] = useState<string | null>(null);
+  const [showGiveaways, setShowGiveaways] = useState(false);`;
+code = code.replace(targetState, replacementState);
 
-// Add targetGroupId state
-code = code.replace(
-  "const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);",
-  "const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);\n  const [targetGroupId, setTargetGroupId] = useState<string | null>(null);"
-);
+const targetNav = `    const handleGiveawayNav = () => {
+      setNavigationHistory(prev => [
+        ...prev,
+        { ...stateRef.current }
+      ]);
+      setActiveView('giveaway');
+    };`;
+const replacementNav = `    const handleGiveawayNav = () => {
+      setShowGiveaways(true);
+    };`;
+code = code.replace(targetNav, replacementNav);
 
-// Add to state tracking
-code = code.replace(
-  "targetPostId,",
-  "targetPostId,\n    targetGroupId,"
-);
-code = code.replace(
-  "targetPostId,",
-  "targetPostId,\n      targetGroupId,"
-);
-code = code.replace(
-  "targetPostId, initialProfileTab",
-  "targetPostId, targetGroupId, initialProfileTab"
-);
-
-// Add window overrides for navigation (so anywhere can jump to groups)
-const navHack = `
-  React.useEffect(() => {
-    (window as any).openGroupsView = () => setActiveView('groups');
-    (window as any).openGroupDetail = (groupId: string) => {
-      setTargetGroupId(groupId);
-      setActiveView('group_detail');
-    };
-  }, []);
-`;
-code = code.replace("const prevViewRef = React.useRef<View>('feed');", navHack + "\n  const prevViewRef = React.useRef<View>('feed');");
-
-// Add views
-const newViews = `
-        {activeView === 'groups' && <GroupsView onBack={() => setActiveView('search')} onSelectGroup={(groupId) => { setTargetGroupId(groupId); setActiveView('group_detail'); }} />}
-        {activeView === 'group_detail' && targetGroupId && <GroupDetailView groupId={targetGroupId} onBack={() => setActiveView('groups')} onNavigateProfile={(uid) => { setTargetUserId(uid); setActiveView('profile'); }} />}
-`;
-
-code = code.replace(
-  "{activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}",
-  "{activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}" + newViews
-);
+const targetRender = `        {activeView === 'group_detail' && activeGroupId && <GroupDetailView groupId={activeGroupId} onBack={handleBack} onPostClick={handlePostClick} />}
+        {activeView === 'giveaway' && <GiveawaysView onBack={() => setActiveView(prevViewRef.current || 'feed')} />}
+      </Layout>
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
+    </>
+  );
+}`;
+const replacementRender = `        {activeView === 'group_detail' && activeGroupId && <GroupDetailView groupId={activeGroupId} onBack={handleBack} onPostClick={handlePostClick} />}
+      </Layout>
+      {showGiveaways && <GiveawaysView onBack={() => setShowGiveaways(false)} />}
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
+    </>
+  );
+}`;
+code = code.replace(targetRender, replacementRender);
 
 fs.writeFileSync('src/App.tsx', code);

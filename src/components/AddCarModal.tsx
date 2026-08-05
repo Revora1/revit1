@@ -32,6 +32,7 @@ export function AddCarModal({ onClose }: AddCarModalProps) {
     model: '',
     year: new Date().getFullYear(),
     engine: '',
+    power: '',
     mods: '',
     stage: 'Stock' as CarStage,
   });
@@ -183,14 +184,25 @@ export function AddCarModal({ onClose }: AddCarModalProps) {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-             <label className="text-[10px] font-black text-zinc-500 tracking-widest px-1 uppercase">Engine</label>
-             <input
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:border-white outline-none transition-colors"
-                value={formData.engine}
-                onChange={e => setFormData({ ...formData, engine: e.target.value })}
-                placeholder="e.g. S55 3.0L Twin-Turbo"
-              />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+               <label className="text-[10px] font-black text-zinc-500 tracking-widest px-1 uppercase">Engine</label>
+               <input
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:border-white outline-none transition-colors"
+                  value={formData.engine}
+                  onChange={e => setFormData({ ...formData, engine: e.target.value })}
+                  placeholder="e.g. S55 3.0L"
+                />
+            </div>
+            <div className="space-y-1.5">
+               <label className="text-[10px] font-black text-zinc-500 tracking-widest px-1 uppercase">Power</label>
+               <input
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:border-white outline-none transition-colors"
+                  value={formData.power}
+                  onChange={e => setFormData({ ...formData, power: e.target.value })}
+                  placeholder="e.g. 500 HP"
+                />
+            </div>
           </div>
 
           <div className="space-y-1.5">

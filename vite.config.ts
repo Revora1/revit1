@@ -10,6 +10,9 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000
   },
+  resolve: {
+    dedupe: ['react', 'react-dom']
+  },
   build: {
     outDir: 'dist',
     chunkSizeWarningLimit: 3000,

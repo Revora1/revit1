@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
-export type View = 'feed' | 'search' | 'upload' | 'inbox' | 'profile' | 'post' | 'dyno' | 'garage' | 'tuners' | 'groups' | 'group_detail';
+export type View = 'feed' | 'search' | 'upload' | 'inbox' | 'profile' | 'post' | 'dyno' | 'garage' | 'tuners' | 'groups' | 'group_detail' | 'giveaway';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -121,7 +121,7 @@ export function Layout({ children, activeView, onViewChange }: LayoutProps) {
     { id: 'profile', icon: User, label: 'Profile' } as const,
   ];
 
-  const selfScrollingViews: View[] = ['feed', 'upload', 'inbox', 'groups', 'group_detail'];
+  const selfScrollingViews: View[] = ['feed', 'upload', 'inbox', 'groups', 'group_detail', 'giveaway'];
   const isSelfScrolling = selfScrollingViews.includes(activeView);
 
   return (

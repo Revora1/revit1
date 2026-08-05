@@ -77,6 +77,7 @@ export interface Car {
   model: string;
   year: number;
   engine: string;
+  power?: string;
   mods: string;
   stage: CarStage;
   coverImage?: string;

@@ -77,7 +77,7 @@ export function CarDetailsModal({ car, isOwner, onClose }: CarDetailsModalProps)
               </h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div className="bg-zinc-800/50 p-4 rounded-2xl border border-white/5 space-y-1">
                 <div className="flex items-center gap-2 text-zinc-400 mb-2">
                   <Activity size={16} />
@@ -85,6 +85,16 @@ export function CarDetailsModal({ car, isOwner, onClose }: CarDetailsModalProps)
                 </div>
                 <p className="font-medium">{car.engine}</p>
               </div>
+
+              {car.power && (
+                <div className="bg-zinc-800/50 p-4 rounded-2xl border border-white/5 space-y-1">
+                  <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                    <Activity size={16} />
+                    <span className="text-[10px] uppercase tracking-widest font-bold">Power</span>
+                  </div>
+                  <p className="font-medium">{car.power}</p>
+                </div>
+              )}
               
               <div className="bg-zinc-800/50 p-4 rounded-2xl border border-white/5 space-y-1">
                 <div className="flex items-center gap-2 text-zinc-400 mb-2">
