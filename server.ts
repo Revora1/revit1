@@ -24,6 +24,7 @@ if (!getApps().length) {
 
 app.use(express.json());
 
+
 app.post('/api/send-push', async (req, res) => {
   try {
     const { token, title, body } = req.body;

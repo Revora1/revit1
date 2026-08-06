@@ -82,8 +82,8 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
     if (Capacitor.isNativePlatform()) {
       try {
         await Share.share({
-          title: 'Join RevItUp Giveaway',
-          text: 'Join RevItUp and help unlock the community milestone giveaway!',
+          title: 'Join me on RevItUp',
+          text: "I'm on RevItUp! Join me and let's unlock the community milestone giveaways.",
           url: shareUrl,
           dialogTitle: 'Share with buddies',
         });
@@ -93,15 +93,16 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
     } else if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Join RevItUp Giveaway',
-          text: 'Join RevItUp and help unlock the community milestone giveaway!',
+          title: 'Join me on RevItUp',
+          text: "I'm on RevItUp! Join me and let's unlock the community milestone giveaways.",
           url: shareUrl
         });
       } catch (err) {
         // User cancelled
       }
     } else {
-      navigator.clipboard.writeText(shareUrl);
+      const shareText = `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.\n\n\${shareUrl}`;
+      navigator.clipboard.writeText(shareText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
