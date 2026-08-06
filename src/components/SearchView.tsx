@@ -42,7 +42,7 @@ export function SearchView() {
     if (!trimmed) return;
     setRecentSearches(prev => {
       const filtered = prev.filter(x => x.toLowerCase() !== trimmed.toLowerCase());
-      const updated = [trimmed, ...filtered].slice(0, 8); // Keep last 8 searches
+      const updated = [trimmed, ...filtered].slice(0, 5); // Keep last 5 searches
       localStorage.setItem('recent-car-searches', JSON.stringify(updated));
       return updated;
     });
@@ -59,6 +59,40 @@ export function SearchView() {
   const clearRecentSearches = () => {
     setRecentSearches([]);
     localStorage.removeItem('recent-car-searches');
+  };
+
+  // Recent Searches for user accounts
+  const [recentUserSearches, setRecentUserSearches] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('recent-user-searches');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const saveUserSearch = (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    setRecentUserSearches(prev => {
+      const filtered = prev.filter(x => x.toLowerCase() !== trimmed.toLowerCase());
+      const updated = [trimmed, ...filtered].slice(0, 5); // Keep last 5 user searches
+      localStorage.setItem('recent-user-searches', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const removeRecentUserSearch = (term: string) => {
+    setRecentUserSearches(prev => {
+      const updated = prev.filter(x => x !== term);
+      localStorage.setItem('recent-user-searches', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const clearRecentUserSearches = () => {
+    setRecentUserSearches([]);
+    localStorage.removeItem('recent-user-searches');
   };
   
   // Posts Search State
@@ -624,10 +658,65 @@ export function SearchView() {
               type="text" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  saveUserSearch(searchTerm);
+                }
+              }}
               placeholder="Search builders & profiles..."
               className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-semibold focus:border-white outline-none transition-colors"
             />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')} 
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
+
+          {/* Recent User Searches Chips */}
+          {recentUserSearches.length > 0 && (
+            <div className="flex flex-col gap-2 bg-zinc-950/20 p-3.5 rounded-2xl border border-zinc-900/50">
+              <div className="flex items-center justify-between text-zinc-500 text-[10px] font-black uppercase tracking-widest">
+                <span className="flex items-center gap-1">
+                  <Clock size={10} />
+                  Recent Searches
+                </span>
+                <button 
+                  onClick={clearRecentUserSearches}
+                  className="text-zinc-500 hover:text-rose-500 transition-colors text-[9px] font-black tracking-widest uppercase"
+                >
+                  Clear All
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {recentUserSearches.map((term, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 rounded-full pl-3 pr-2 py-1 transition-all"
+                  >
+                    <button
+                      onClick={() => {
+                        setSearchTerm(term);
+                        saveUserSearch(term);
+                      }}
+                      className="text-zinc-300 hover:text-white text-xs font-bold uppercase tracking-wider"
+                    >
+                      {term}
+                    </button>
+                    <button 
+                      onClick={() => removeRecentUserSearch(term)}
+                      className="text-zinc-600 hover:text-zinc-400 p-0.5 hover:bg-zinc-800 rounded-full transition-colors ml-1"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {searchTerm.trim() ? (
             <div className="space-y-4">
