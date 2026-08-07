@@ -238,7 +238,7 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Upload IPA to App Store Connect / TestFlight
-        uses: apple-actions/upload-testflight-build@v1
+        uses: apple-actions/upload-testflight-build@v5
         with:
           app-path: ${{ runner.temp }}/exported/App.ipa
           issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
