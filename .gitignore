@@ -6,3 +6,5 @@ coverage/
 *.tsbuildinfo
 .env*
 !.env.example
+android/app/google-services.json
+app/applet/android/app/google-services.json

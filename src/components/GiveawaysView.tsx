@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Share } from '@capacitor/share';
+import { getBaseUrl } from '../lib/utils';
 
 interface GiveawaysViewProps {
   onBack: () => void;
@@ -77,7 +78,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
 
   const handleShare = async () => {
     if (!user) return;
-    const shareUrl = `\${window.location.origin}/?ref=\${user.uid}`;
+    const shareUrl = `${getBaseUrl()}/?ref=${user.uid}`;
     
     if (Capacitor.isNativePlatform()) {
       try {
@@ -101,7 +102,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
         // User cancelled
       }
     } else {
-      const shareText = `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.\n\n\${shareUrl}`;
+      const shareText = `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.\n\n${shareUrl}`;
       navigator.clipboard.writeText(shareText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

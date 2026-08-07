@@ -42,9 +42,12 @@ export function isValidUsername(username: string): boolean {
 }
 
 export function getBaseUrl(): string {
-  // Use the actual domain if running in Capacitor (native app)
-  if (window.location.origin.includes('capacitor://') || window.location.origin.includes('localhost')) {
-    return 'https://revitup.today'; // Using .app domain as default native share link
+  // Use the actual domain if running in Capacitor (native app) or AI Studio preview
+  if (window.location.origin.includes('capacitor://') || 
+      window.location.origin.includes('localhost') || 
+      window.location.origin.includes('run.app') || 
+      window.location.origin.includes('webcontainer')) {
+    return 'https://revitup.today'; // Using .today domain as default native share link
   }
   return window.location.origin;
 }
