@@ -4,16 +4,15 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Trash2, X, AlertTriangle, Users, Gift, Download, ImagePlus, Save, Video } from 'lucide-react';
+import { Shield, Trash2, X, AlertTriangle, Users, Gift, Download, ImagePlus, Save } from 'lucide-react';
 import { UserProfile } from '../types';
-import { AdminVideoUpload } from './AdminVideoUpload';
 
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   const [reports, setReports] = useState<any[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'reports' | 'users' | 'giveaways' | 'videos'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'users' | 'giveaways'>('reports');
   const [giveawayTickets, setGiveawayTickets] = useState<any[]>([]);
   const [milestonesConfig, setMilestonesConfig] = useState<any[]>([
     { target: 10000, prize: '£50 Giftcard', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
@@ -206,19 +205,11 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         >
           <Gift size={16} /> Giveaways
         </button>
-        <button
-          onClick={() => setActiveTab('videos')}
-          className={`flex-none px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 ${activeTab === 'videos' ? 'border-b-2 border-red-500 text-white' : 'text-zinc-500'}`}
-        >
-          <Video size={16} /> Videos
-        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading ? (
           <p className="text-center text-zinc-500 mt-10">Loading...</p>
-        ) : activeTab === 'videos' ? (
-          <AdminVideoUpload />
         ) : activeTab === 'reports' ? (
           reports.length === 0 ? <p className="text-center text-zinc-500 mt-10">No reports found.</p> :
           reports.map(r => (

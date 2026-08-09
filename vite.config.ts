@@ -11,7 +11,7 @@ export default defineConfig({
     port: 3000
   },
   resolve: {
-    dedupe: ['react', 'react-dom', 'firebase']
+    dedupe: ['react', 'react-dom']
   },
   build: {
     outDir: 'dist',
