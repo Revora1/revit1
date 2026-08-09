@@ -119,6 +119,14 @@ service cloud.firestore {
     match /helpful_votes/{voteId} {
       allow read, write: if isSignedIn();
     }
+    match /giveaways/{giveawayId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+      match /tickets/{ticketId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
     match /battles/{battleId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();

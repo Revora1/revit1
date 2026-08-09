@@ -54,7 +54,7 @@ export function BattlesView({ hideHeader }: { hideHeader?: boolean }) {
   useEffect(() => {
     if (showSubmitModal && user && userCars.length === 0) {
       const fetchCars = async () => {
-        const q = query(collection(db, 'cars'));
+        const q = query(collection(db, 'garage'));
         const snap = await getDocs(q);
         const cars = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as Car))
@@ -160,7 +160,7 @@ export function BattlesView({ hideHeader }: { hideHeader?: boolean }) {
   };
 
   const handleCarClick = async (carId: string) => {
-    const snap = await getDoc(doc(db, 'cars', carId));
+    const snap = await getDoc(doc(db, 'garage', carId));
     if (snap.exists()) {
       setSelectedCar({ id: snap.id, ...snap.data() } as Car);
     }
@@ -345,7 +345,7 @@ export function BattlesView({ hideHeader }: { hideHeader?: boolean }) {
       {/* Submit Modal */}
       <AnimatePresence>
         {showSubmitModal && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] bg-black/80 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, y: 100 }}
               animate={{ opacity: 1, y: 0 }}

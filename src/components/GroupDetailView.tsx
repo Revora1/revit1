@@ -618,7 +618,7 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
       </div>
       
       {showUpload && (
-        <div className="fixed inset-0 z-50 bg-black">
+        <div className="fixed inset-0 z-[100] bg-black">
           <UploadView 
             onClose={() => setShowUpload(false)} 
             groupId={groupId} 

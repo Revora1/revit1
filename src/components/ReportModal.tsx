@@ -61,7 +61,7 @@ export function ReportModal({ isOpen, onClose, targetId, targetType }: ReportMod
       <div 
         onPointerDown={(e) => e.stopPropagation()}
         onPointerUp={(e) => e.stopPropagation()}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
       >
         <motion.div
           initial={{ opacity: 0 }}

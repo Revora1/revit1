@@ -44,7 +44,7 @@ export function CarDetailsModal({ car, isOwner, onClose }: CarDetailsModalProps)
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed inset-0 bg-zinc-950 z-50 flex flex-col"
+        className="fixed inset-0 bg-zinc-950 z-[100] flex flex-col"
       >
         <div className="overflow-y-auto flex-1 overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+2rem)]">
           {/* Header Image */}

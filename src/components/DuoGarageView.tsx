@@ -218,7 +218,7 @@ export function DuoGarageView({ userId1, userId2, user1, user2 }: DuoGarageViewP
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black flex flex-col"
+            className="fixed inset-0 z-[100] bg-black flex flex-col"
           >
              <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-center bg-transparent">
                <button 
