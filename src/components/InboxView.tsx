@@ -5,6 +5,7 @@ import { NotificationsView } from './NotificationsView';
 import { CommunityGarageView } from './CommunityGarageView';
 import { TopTuners } from './TopTuners';
 import { DynoBoard } from './DynoBoard';
+import { BattlesView } from './BattlesView';
 
 export function InboxView({ 
   initialTab, 
@@ -22,8 +23,8 @@ export function InboxView({
       ? 'leaderboards' 
       : (initialTab as any || (initialChat ? 'messages' : 'notifications'))
   );
-  const [leaderboardSubTab, setLeaderboardSubTab] = useState<'rep' | 'dyno'>(
-    initialTab === 'leaderboards-dyno' ? 'dyno' : 'rep'
+  const [leaderboardSubTab, setLeaderboardSubTab] = useState<'rep' | 'dyno' | 'battles'>(
+    initialTab === 'leaderboards-dyno' ? 'dyno' : 'battles'
   );
 
   useEffect(() => {
@@ -111,6 +112,16 @@ export function InboxView({
             >
               Perf. Board
             </button>
+            <button
+              onClick={() => setLeaderboardSubTab('battles')}
+              className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-widest rounded-md transition-all ${
+                leaderboardSubTab === 'battles' 
+                  ? 'bg-zinc-900 text-white border border-zinc-800/50' 
+                  : 'text-zinc-500 hover:text-zinc-400'
+              }`}
+            >
+              Battles
+            </button>
           </div>
         )}
       </div>
@@ -137,8 +148,10 @@ export function InboxView({
           <div className="h-full overflow-y-auto">
             {leaderboardSubTab === 'rep' ? (
               <TopTuners hideHeader />
-            ) : (
+            ) : leaderboardSubTab === 'dyno' ? (
               <DynoBoard hideHeader />
+            ) : (
+              <BattlesView hideHeader />
             )}
           </div>
         )}

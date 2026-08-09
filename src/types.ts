@@ -13,6 +13,7 @@ export interface UserProfile {
   reputationBonus?: number;
   friendsOnlyInteractions?: boolean;
   referralsCount?: number; // Reputation points rewarded via AdMob
+  badges?: string[]; // Array of badge identifiers (e.g. 'cotm_winner_2026_08')
 }
 
 export type MediaType = 'image' | 'video';

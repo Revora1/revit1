@@ -4,7 +4,7 @@ import { Garage } from './Garage';
 import { DuoGarageView } from './DuoGarageView';
 import { AddCarModal } from './AddCarModal';
 import { EditProfileModal } from './EditProfileModal';
-import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Award, Info, Sparkles, ThumbsUp, Lock, Unlock, Check, MoreVertical, Flag, UserX, RefreshCw, Smartphone } from 'lucide-react';
+import { Settings, LogOut, Grid, Play, MessageSquare, Heart, Layers, Share2, Award, Info, Sparkles, ThumbsUp, Lock, Unlock, Check, MoreVertical, Flag, UserX, RefreshCw, Smartphone, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Post, UserProfile, Car, Comment } from '../types';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -1037,6 +1037,12 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
                   <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-emerald-500/50 text-[9px] font-black uppercase tracking-widest select-none bg-emerald-950/60 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
                     <Sparkles size={11} className="text-emerald-400 fill-emerald-400" />
                     <span>MVP INVITER</span>
+                  </div>
+                )}
+                {targetProfile.badges?.some(b => b.startsWith('cotm_winner')) && (
+                  <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-yellow-500/50 text-[9px] font-black uppercase tracking-widest select-none bg-yellow-950/60 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.25)]">
+                    <Trophy size={11} className="text-yellow-400 fill-yellow-400" />
+                    <span>COTM WINNER</span>
                   </div>
                 )}
 

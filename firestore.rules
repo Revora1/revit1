@@ -119,5 +119,14 @@ service cloud.firestore {
     match /helpful_votes/{voteId} {
       allow read, write: if isSignedIn();
     }
+    match /battles/{battleId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+      
+      match /entries/{entryId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn();
+      }
+    }
   }
 }
