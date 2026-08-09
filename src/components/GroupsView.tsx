@@ -26,6 +26,7 @@ export function GroupsView({ onBack, onSelectGroup }: GroupsViewProps) {
   // Create Group Form
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
+  const [newGroupPrivate, setNewGroupPrivate] = useState(false);
   const [groupImageFile, setGroupImageFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -88,6 +89,9 @@ export function GroupsView({ onBack, onSelectGroup }: GroupsViewProps) {
         adminId: user.uid,
         coverImage,
         memberCount: 1,
+        isPrivate: newGroupPrivate,
+        joinRequests: [],
+        blockedUsers: [],
         createdAt: Date.now()
       });
       
@@ -101,6 +105,7 @@ export function GroupsView({ onBack, onSelectGroup }: GroupsViewProps) {
       setShowCreate(false);
       setNewGroupName('');
       setNewGroupDesc('');
+      setNewGroupPrivate(false);
       setGroupImageFile(null);
       onSelectGroup(groupId);
     } catch (e) {
@@ -243,6 +248,19 @@ export function GroupsView({ onBack, onSelectGroup }: GroupsViewProps) {
                     rows={4}
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all resize-none"
                   />
+                </div>
+                
+                <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Private Club</h3>
+                    <p className="text-xs text-zinc-500">Users must request to join.</p>
+                  </div>
+                  <button
+                    onClick={() => setNewGroupPrivate(!newGroupPrivate)}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${newGroupPrivate ? 'bg-white' : 'bg-zinc-700'}`}
+                  >
+                    <div className={`w-5 h-5 bg-black rounded-full absolute top-0.5 transition-all ${newGroupPrivate ? 'left-6' : 'left-0.5'}`} />
+                  </button>
                 </div>
               </div>
               

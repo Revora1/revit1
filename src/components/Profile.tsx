@@ -338,9 +338,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     if (sharing || !targetProfile) return;
     setSharing(true);
 
-    const profileUrl = isOwnProfile ?
-      `${getBaseUrl()}?u=${targetProfile.username}&ref=${currentUser?.uid}` :
-      `${getBaseUrl()}?u=${targetProfile.username}`;
+    const profileUrl = `${getBaseUrl()}/?ref=${targetProfile.username}`;
     const shareData = {
       title: `RevItUp - @${targetProfile.username}`,
       text: isOwnProfile 

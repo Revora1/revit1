@@ -14,7 +14,7 @@ interface GiveawaysViewProps {
 }
 
 export function GiveawaysView({ onBack }: GiveawaysViewProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [totalUsers, setTotalUsers] = useState(0);
   const [myReferrals, setMyReferrals] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -78,7 +78,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
 
   const handleShare = async () => {
     if (!user) return;
-    const shareUrl = `${getBaseUrl()}/?ref=${user.uid}`;
+    const shareUrl = `${getBaseUrl()}/?ref=${profile?.username || user.uid}`;
     
     if (Capacitor.isNativePlatform()) {
       try {
@@ -172,7 +172,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                   <div className="h-3 bg-black rounded-full overflow-hidden border border-white/10 shadow-inner">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `\${progress}%` }}
+                      animate={{ width: `${progress}%` }}
                       transition={{ duration: 1, ease: "easeOut" }}
                       className="h-full bg-gradient-to-r from-amber-600 via-amber-400 to-yellow-300 rounded-full relative"
                     >
@@ -198,7 +198,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
               return (
                 <div 
                   key={m.target} 
-                  className={`relative overflow-hidden rounded-2xl border \${
+                  className={`relative overflow-hidden rounded-2xl border ${
                     isCurrent 
                       ? 'bg-zinc-900 border-amber-500/50 shadow-[0_0_30px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/20' 
                       : isPassed 
@@ -209,7 +209,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                   <div className="p-5 relative z-10">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full \${
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
                           isCurrent ? 'bg-amber-500/20 text-amber-500' : isPassed ? 'bg-green-500/20 text-green-500' : 'bg-zinc-800 text-zinc-500'
                         }`}>
                           {isPassed ? 'Unlocked' : isCurrent ? 'Active Goal' : 'Locked'}
@@ -223,7 +223,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                           </div>
                         )}
                       </div>
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center \${
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
                           isCurrent ? 'bg-amber-500/10 text-amber-500' : isPassed ? 'bg-green-500/10 text-green-500' : 'bg-zinc-900 text-zinc-600'
                       }`}>
                         {isPassed ? <CheckCircle2 size={24} /> : <Gift size={24} />}
@@ -231,10 +231,10 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                     </div>
 
                     {(m.image || m.carMake || m.carModel) && (
-                      <div className={`mt-4 rounded-xl overflow-hidden border \${isCurrent ? 'border-amber-500/20' : 'border-zinc-800'} bg-black`}>
+                      <div className={`mt-4 rounded-xl overflow-hidden border ${isCurrent ? 'border-amber-500/20' : 'border-zinc-800'} bg-black`}>
                         {m.image && (
                           <div className="relative">
-                            <img src={m.image} alt={m.prize} className={`w-full h-40 object-cover \${isLocked ? 'grayscale opacity-50' : ''}`} />
+                            <img src={m.image} alt={m.prize} className={`w-full h-40 object-cover ${isLocked ? 'grayscale opacity-50' : ''}`} />
                             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent flex items-end p-4">
                               {/* Car Details if available over image */}
                             </div>
@@ -292,19 +292,19 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 {user?.emailVerified || user ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
-                <span className={`text-sm font-bold uppercase tracking-wide \${user?.emailVerified || user ? 'text-white' : 'text-zinc-500'}`}>Account Verified</span>
+                <span className={`text-sm font-bold uppercase tracking-wide ${user?.emailVerified || user ? 'text-white' : 'text-zinc-500'}`}>Account Verified</span>
               </div>
               <div className="flex items-center gap-3">
                 {hasCar ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
-                <span className={`text-sm font-bold uppercase tracking-wide \${hasCar ? 'text-white' : 'text-zinc-500'}`}>Add 1+ Car to Garage</span>
+                <span className={`text-sm font-bold uppercase tracking-wide ${hasCar ? 'text-white' : 'text-zinc-500'}`}>Add 1+ Car to Garage</span>
               </div>
               <div className="flex items-center gap-3">
                 {hasPost ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
-                <span className={`text-sm font-bold uppercase tracking-wide \${hasPost ? 'text-white' : 'text-zinc-500'}`}>Post a Build Update</span>
+                <span className={`text-sm font-bold uppercase tracking-wide ${hasPost ? 'text-white' : 'text-zinc-500'}`}>Post a Build Update</span>
               </div>
             </div>
             
-            <div className={`mt-4 pt-4 border-t border-zinc-800 text-center font-black italic uppercase tracking-widest \${(user?.emailVerified || user) && hasCar && hasPost ? 'text-green-500' : 'text-zinc-500'}`}>
+            <div className={`mt-4 pt-4 border-t border-zinc-800 text-center font-black italic uppercase tracking-widest ${(user?.emailVerified || user) && hasCar && hasPost ? 'text-green-500' : 'text-zinc-500'}`}>
               {(user?.emailVerified || user) && hasCar && hasPost ? 'TICKET UNLOCKED' : 'TICKET LOCKED'}
             </div>
           </div>

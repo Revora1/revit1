@@ -9,11 +9,13 @@ import { CommentsSheet } from './CommentsSheet';
 import { ReportModal } from './ReportModal';
 import { Capacitor } from '@capacitor/core';
 import { copyToClipboard, getBaseUrl, shareContent } from '../lib/utils';
+import { AdSlot } from './AdSlot';
 
 interface PostCardProps {
   post: Post;
   isActive: boolean;
   initialShowComments?: boolean;
+  isGroupAdmin?: boolean;
 }
 
 const AUTHOR_CACHE: Record<string, UserProfile> = {};
@@ -193,11 +195,20 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
   );
 };
 
-export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, initialShowComments = false }) => {
+export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, initialShowComments = false, isGroupAdmin = false }) => {
   const [liked, setLiked] = useState(false);
   const [localLikesCount, setLocalLikesCount] = useState(post.likesCount || 0);
   const [isLiking, setIsLiking] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Video and Ad State
+  const [videoMode, setVideoMode] = useState<'main' | 'pre-roll' | 'mid-roll'>(
+    post.mediaType === 'video' && post.hasPreRollAd ? 'pre-roll' : 'main'
+  );
+  const [midRollPlayed, setMidRollPlayed] = useState(false);
+  const mainVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [adCountdown, setAdCountdown] = useState(5);
 
   useEffect(() => {
     setLocalLikesCount(post.likesCount || 0);
@@ -246,6 +257,62 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
     }
   }, [isActive, postSong]);
 
+  // Video playback effect
+  useEffect(() => {
+    if (post.mediaType !== 'video') return;
+    
+    if (isActive) {
+      if (videoMode === 'main' && mainVideoRef.current) {
+        mainVideoRef.current.play().catch(e => console.log('Video autoplay prevented', e));
+      } else if (videoMode === 'pre-roll' || videoMode === 'mid-roll') {
+        if (mainVideoRef.current) mainVideoRef.current.pause();
+        setAdCountdown(5); // Reset countdown when ad starts
+      }
+    } else {
+      if (mainVideoRef.current) mainVideoRef.current.pause();
+    }
+  }, [isActive, videoMode, post.mediaType]);
+
+  // Ad Countdown effect
+  useEffect(() => {
+    if (!isActive || videoMode === 'main') return;
+    
+    const timer = setInterval(() => {
+      setAdCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isActive, videoMode]);
+
+  const handleMainVideoTimeUpdate = () => {
+    if (!mainVideoRef.current) return;
+    const progress = mainVideoRef.current.currentTime / mainVideoRef.current.duration;
+    setVideoProgress(progress);
+    
+    // Trigger mid-roll ad at 50%
+    if (post.hasMidRollAd && progress >= 0.5 && !midRollPlayed && videoMode === 'main') {
+      mainVideoRef.current.pause();
+      setVideoMode('mid-roll');
+    }
+  };
+
+  const handleSkipAd = () => {
+    if (videoMode === 'pre-roll') {
+      setVideoMode('main');
+    } else if (videoMode === 'mid-roll') {
+      setMidRollPlayed(true);
+      setVideoMode('main');
+      if (mainVideoRef.current && isActive) {
+        mainVideoRef.current.play().catch(e => console.log(e));
+      }
+    }
+  };
+
   const togglePlayMusic = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!audioRef.current) {
@@ -275,7 +342,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
   const [isFollowingLoading, setIsFollowingLoading] = useState(false);
   const [author, setAuthor] = useState<UserProfile | null>(AUTHOR_CACHE[post.authorId] || null);
   const [taggedCar, setTaggedCar] = useState<Car | null>(post.carTagId ? CAR_CACHE[post.carTagId] : null);
-  const { user, blockUser, reportContent } = useAuth();
+  const { user, profile, blockUser, reportContent } = useAuth();
   const [activeDuration, setActiveDuration] = useState(0);
 
   useEffect(() => {
@@ -646,15 +713,57 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         onScroll={handleScroll}
         className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
       >
-        {mediaList.map((url, idx) => (
-          <div key={idx} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center">
-            <img
-              src={url}
-              className="h-full w-full object-contain"
-              alt={`${post.caption} - ${idx + 1}`}
+        {post.mediaType === 'video' ? (
+          <div className="w-full h-full flex-shrink-0 snap-center relative flex items-center justify-center bg-black">
+            {/* Main Video */}
+            <video
+              ref={mainVideoRef}
+              src={mediaList[0]}
+              className={`h-full w-full object-contain ${videoMode === 'main' ? 'block' : 'hidden'}`}
+              onTimeUpdate={handleMainVideoTimeUpdate}
+              playsInline
+              loop
+              muted={false}
             />
+            {/* Ad Overlay */}
+            {(videoMode === 'pre-roll' || videoMode === 'mid-roll') && (
+              <div className="absolute inset-0 z-20 bg-black flex flex-col items-center justify-center p-4">
+                <div className="absolute top-[80px] left-4 bg-amber-500 text-black px-2 py-1 rounded text-[10px] font-black tracking-widest uppercase shadow-[0_2px_8px_rgba(245,158,11,0.5)]">
+                  Advertisement
+                </div>
+                
+                <div className="w-full max-w-sm bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-800/50 p-4 shadow-2xl relative overflow-hidden">
+                  <AdSlot />
+                  <div className="mt-4 text-center pb-2">
+                    <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">Sponsored Content</p>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-[100px] right-4">
+                  {adCountdown > 0 ? (
+                    <button disabled className="bg-black/80 backdrop-blur text-white/50 px-4 py-2 rounded-full text-xs font-bold border border-white/10">
+                      Skip in {adCountdown}s
+                    </button>
+                  ) : (
+                    <button onClick={handleSkipAd} className="bg-white text-black px-4 py-2 rounded-full text-xs font-bold shadow-xl active:scale-95 transition-transform flex items-center gap-1">
+                      Skip Ad <Play size={12} fill="currentColor" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        ))}
+        ) : (
+          mediaList.map((url, idx) => (
+            <div key={idx} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center">
+              <img
+                src={url}
+                className="h-full w-full object-contain"
+                alt={`${post.caption} - ${idx + 1}`}
+              />
+            </div>
+          ))
+        )}
       </div>
 
       {/* Carousel Numeric Indicator */}
@@ -737,7 +846,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
             onClick={async () => {
               if (isSharing) return;
               setIsSharing(true);
-              const shareUrl = `${getBaseUrl()}${window.location.pathname}?p=${post.id}`;
+              const shareUrl = `${getBaseUrl()}?p=${post.id}${profile?.username || user?.uid ? `&ref=${profile?.username || user?.uid}` : ''}`;
               try {
                 // Increment share count
                 if (user) {
@@ -765,7 +874,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           </button>
         </div>
 
-        {user?.uid === post.authorId && (
+        {(user?.uid === post.authorId || isGroupAdmin) && (
           <button 
             onClick={() => {
               if (showDeleteConfirm) {

@@ -10,7 +10,7 @@ import { Capacitor } from '@capacitor/core';
 import { copyToClipboard, getBaseUrl, shareContent } from '../lib/utils';
 
 export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: string, onBack: () => void, autoOpenComments?: boolean }) {
-  const { blockedUserIds } = useAuth();
+  const { blockedUserIds, user, profile } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [showShareToast, setShowShareToast] = useState(false);
@@ -33,7 +33,7 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
 
   const handleSharePost = async () => {
     if (!post) return;
-    const shareUrl = `${getBaseUrl()}${window.location.pathname}?p=${post.id}`;
+    const shareUrl = `${getBaseUrl()}?p=${post.id}${profile?.username || user?.uid ? `&ref=${profile?.username || user?.uid}` : ''}`;
     const success = await shareContent({
       title: 'RevItUp Post',
       text: '',

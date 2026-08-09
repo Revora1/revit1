@@ -213,45 +213,59 @@ function InnerAppContent() {
     }
   }, [user]);
 
-  // Parse shared post from URL query params
-  const sharedPostId = React.useMemo(() => {
+  // Parse URL parameters simultaneously
+  const { initialView, initialPostId, initialUsername, refCode } = React.useMemo<{
+    initialView: View;
+    initialPostId: string | null;
+    initialUsername: string | null;
+    refCode: string | null;
+  }>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      return params.get('p') || params.get('postId');
+      const p = params.get('p') || params.get('postId');
+      const ref = params.get('ref');
+      
+      let view: View = 'feed';
+      let username = null;
+
+      if (p) {
+        view = 'post';
+      } else if (ref) {
+        view = 'profile';
+        username = ref;
+      }
+
+      return {
+        initialView: view,
+        initialPostId: p,
+        initialUsername: username,
+        refCode: ref
+      };
     } catch {
-      return null;
+      return { initialView: 'feed', initialPostId: null, initialUsername: null, refCode: null };
     }
   }, []);
 
-  // Parse referral from URL query params
+  // Handle URL side-effects
   React.useEffect(() => {
     try {
-      const params = new URLSearchParams(window.location.search);
-      const refCode = params.get('ref') || params.get('referral');
       if (refCode) {
         sessionStorage.setItem('referralCode', refCode);
       }
+      
+      // Clean URL after parsing deep links
+      if (window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     } catch (e) {}
-  }, []);
+  }, [refCode]);
 
-  // Parse shared user from URL query params
-  const sharedUsername = React.useMemo(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('u') || params.get('username');
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const [activeView, setActiveView] = useState<View>(
-    sharedPostId ? 'post' : sharedUsername ? 'profile' : 'feed'
-  );
+  const [activeView, setActiveView] = useState<View>(initialView);
   const [showSettings, setShowSettings] = useState(false);
   const [showGiveaways, setShowGiveaways] = useState(false);
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
-  const [targetUsername, setTargetUsername] = useState<string | null>(sharedUsername);
-  const [targetPostId, setTargetPostId] = useState<string | null>(sharedPostId);
+  const [targetUsername, setTargetUsername] = useState<string | null>(initialUsername);
+  const [targetPostId, setTargetPostId] = useState<string | null>(initialPostId);
   const [targetGroupId, setTargetGroupId] = useState<string | null>(null);
   const [autoOpenComments, setAutoOpenComments] = useState(false);
   const [targetChatInfo, setTargetChatInfo] = useState<{ chatId: string, otherUser: any, ts: number } | null>(null);
@@ -303,20 +317,7 @@ function InnerAppContent() {
     }
   }, [activeView]);
 
-  React.useEffect(() => {
-    if (sharedPostId || sharedUsername) {
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('p');
-        url.searchParams.delete('postId');
-        url.searchParams.delete('u');
-        url.searchParams.delete('username');
-        window.history.replaceState({}, document.title, url.toString());
-      } catch (e) {
-        console.error("Failed to clean up sharing URL params:", e);
-      }
-    }
-  }, [sharedPostId, sharedUsername]);
+
 
   React.useEffect(() => {
     const handleProfileNav = (e: any) => {

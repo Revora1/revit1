@@ -28,6 +28,8 @@ export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () =
     carTagId: '',
     isModUpdate: false,
     isDuo: false,
+    hasPreRollAd: false,
+    hasMidRollAd: false
   });
 
   useEffect(() => {
@@ -43,20 +45,26 @@ export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () =
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, replace = false) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length > 0) {
-      setMediaType('image');
+      const firstFile = selectedFiles[0];
+      const isVideo = firstFile.type.startsWith('video/');
+      setMediaType(isVideo ? 'video' : 'image');
       
-      // Process HEIC images
-      const processedFiles = await Promise.all(selectedFiles.map(f => processImageFile(f)));
+      let finalFiles = selectedFiles;
+      
+      if (!isVideo) {
+        // Process HEIC images
+        finalFiles = await Promise.all(selectedFiles.map(f => processImageFile(f)));
+      }
 
       if (replace) {
-        const limitedFiles = processedFiles.slice(0, 10);
+        const limitedFiles = finalFiles.slice(0, 10);
         setFiles(limitedFiles);
         const urls = limitedFiles.map(file => URL.createObjectURL(file));
         setPreviews(urls);
       } else {
-        const totalFiles = [...files, ...processedFiles].slice(0, 10);
+        const totalFiles = [...files, ...finalFiles].slice(0, 10);
         setFiles(totalFiles);
-        const urls = processedFiles.map(file => URL.createObjectURL(file));
+        const urls = finalFiles.map(file => URL.createObjectURL(file));
         setPreviews(prev => [...prev, ...urls]);
       }
     }
@@ -87,13 +95,22 @@ export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () =
       const postData: any = {
         ...formData,
         mediaUrls,
-        mediaType: 'image',
+        mediaType: mediaType || 'image',
         authorId: user.uid,
         likesCount: 0,
         commentsCount: 0,
         songId: selectedSong ? JSON.stringify(selectedSong) : '',
         createdAt: Date.now()
       };
+      
+      // Clear ad flags if not admin or not video
+      if (user.email?.toLowerCase() !== 'tonyang11552883@gmail.com' || mediaType !== 'video') {
+        delete postData.hasPreRollAd;
+        delete postData.hasMidRollAd;
+      } else {
+        if (!postData.hasPreRollAd) delete postData.hasPreRollAd;
+        if (!postData.hasMidRollAd) delete postData.hasMidRollAd;
+      }
       
       if (groupId) {
         postData.groupId = groupId;
@@ -171,9 +188,15 @@ export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () =
              {previews.length > 0 ? (
                <div className="w-full space-y-2">
                  <div className="flex gap-2 overflow-x-auto pb-4 snap-x px-1">
-                   {previews.map((url, idx) => (
+                   {previews.map((url, idx) => {
+                      const isVideo = files[idx]?.type.startsWith('video/');
+                      return (
                       <div key={idx} className="relative aspect-[9/12] h-[400px] flex-shrink-0 snap-center rounded-2xl overflow-hidden group">
-                        <img src={url} className="w-full h-full object-cover" alt={`Preview ${idx + 1}`} />
+                        {isVideo ? (
+                          <video src={url} className="w-full h-full object-cover" muted loop autoPlay playsInline />
+                        ) : (
+                          <img src={url} className="w-full h-full object-cover" alt={`Preview ${idx + 1}`} />
+                        )}
                         <button 
                           type="button"
                           onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
@@ -185,7 +208,8 @@ export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () =
                           {idx + 1}/{previews.length}
                         </div>
                       </div>
-                   ))}
+                      );
+                   })}
                    {previews.length < 10 && (
                       <button 
                         type="button"
@@ -210,7 +234,7 @@ export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () =
             type="file" 
             ref={fileInputRef} 
             onChange={(e) => handleFileChange(e, isReplacing)} 
-            accept="image/jpeg, image/png, image/webp, image/gif" 
+            accept="image/jpeg, image/png, image/webp, image/gif, video/mp4, video/webm, video/quicktime" 
             multiple
             className="hidden" 
           />
@@ -357,6 +381,27 @@ export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () =
                    </div>
                  </button>
                </div>
+               
+               {user?.email?.toLowerCase() === 'tonyang11552883@gmail.com' && mediaType === 'video' && (
+                 <div className="pt-2 grid grid-cols-2 gap-2">
+                   <button
+                     type="button"
+                     onClick={() => setFormData({...formData, hasPreRollAd: !formData.hasPreRollAd})}
+                     className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${formData.hasPreRollAd ? 'bg-amber-500 border-amber-500 text-black' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}
+                   >
+                     <span className="text-[10px] font-black uppercase tracking-widest">Pre-roll Ad</span>
+                     <span className="text-[8px] font-bold uppercase">GAM / AdMob</span>
+                   </button>
+                   <button
+                     type="button"
+                     onClick={() => setFormData({...formData, hasMidRollAd: !formData.hasMidRollAd})}
+                     className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${formData.hasMidRollAd ? 'bg-amber-500 border-amber-500 text-black' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}
+                   >
+                     <span className="text-[10px] font-black uppercase tracking-widest">Mid-roll Ad</span>
+                     <span className="text-[8px] font-bold uppercase">GAM / AdMob</span>
+                   </button>
+                 </div>
+               )}
              </div>
            </div>
         </div>

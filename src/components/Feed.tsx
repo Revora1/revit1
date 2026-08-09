@@ -3,6 +3,7 @@ import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/f
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Post } from '../types';
 import { PostCard } from './PostCard';
+import { AdminVideoCard } from './AdminVideoCard';
 import { StoriesBar } from './StoriesBar';
 import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
@@ -17,6 +18,7 @@ import { admobService } from '../lib/admobService';
 export function Feed() {
   const { blockedUserIds } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
+  const [adminVideos, setAdminVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -72,9 +74,18 @@ export function Feed() {
       setLoading(false);
     });
 
+    const adminQuery = query(collection(db, 'admin_videos'), orderBy('createdAt', 'desc'));
+    const unsubAdmin = onSnapshot(adminQuery, (snapshot) => {
+      setAdminVideos(snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })));
+    });
+
     return () => {
       unsubPinned();
       unsubRecent();
+      unsubAdmin();
     };
   }, [refreshKey]);
 
@@ -129,8 +140,19 @@ export function Feed() {
 
   const feedItems = [];
   const filteredPosts = posts.filter(post => !blockedUserIds.includes(post.authorId));
+  
+  let adminVideoIndex = 0;
+
   filteredPosts.forEach((post, index) => {
     feedItems.push({ type: 'post', data: post, id: post.id });
+    
+    // Inject admin video every 3 posts if available
+    if ((index + 1) % 3 === 0 && adminVideos.length > 0) {
+      const adminVideo = adminVideos[adminVideoIndex % adminVideos.length];
+      feedItems.push({ type: 'admin_video', data: adminVideo, id: `admin-video-${adminVideo.id}-${index}` });
+      adminVideoIndex++;
+    }
+
     if ((index + 1) % 4 === 0) {
       feedItems.push({ type: 'ad', id: `ad-${index}` });
     }
@@ -285,6 +307,14 @@ export function Feed() {
                 key={item.id} 
                 post={item.data as Post} 
                 isActive={index === activeIndex} 
+              />
+            );
+          } else if (item.type === 'admin_video') {
+            return (
+              <AdminVideoCard
+                key={item.id}
+                video={item.data as any}
+                isActive={index === activeIndex}
               />
             );
           } else {

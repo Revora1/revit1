@@ -5,7 +5,7 @@ const rootDir = process.cwd();
 
 console.log('[Auto-Increment] Starting build number incrementation...');
 
-const offset = 70; // Base offset to keep versions higher than previous
+const offset = 200; // Base offset to keep versions higher than previous
 const githubRunNumber = process.env.GITHUB_RUN_NUMBER ? parseInt(process.env.GITHUB_RUN_NUMBER, 10) : null;
 
 // Read and increment package.json version

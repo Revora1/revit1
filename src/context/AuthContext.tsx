@@ -166,13 +166,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Handle referral loop
                 try {
                   const urlParams = new URLSearchParams(window.location.search);
-                  const refId = urlParams.get('ref');
-                  if (refId && refId !== user.uid) {
-                    const referrerRef = doc(db, 'users', refId);
-                    const referrerSnap = await getDoc(referrerRef);
-                    if (referrerSnap.exists()) {
-                      const currentCount = referrerSnap.data().referralsCount || 0;
-                      await updateDoc(referrerRef, { referralsCount: currentCount + 1 });
+                  const refUsername = urlParams.get('ref') || sessionStorage.getItem('referralCode');
+                  if (refUsername && refUsername.toLowerCase() !== newUsername.toLowerCase()) {
+                    const q = query(collection(db, 'users'), where('usernameLower', '==', refUsername.toLowerCase()));
+                    const querySnapshot = await getDocs(q);
+                    let referrerDocRef = null;
+                    
+                    if (!querySnapshot.empty) {
+                      referrerDocRef = doc(db, 'users', querySnapshot.docs[0].id);
+                    } else {
+                      // Fallback: check if it's a UID
+                      const fallbackRef = doc(db, 'users', refUsername);
+                      const fallbackSnap = await getDoc(fallbackRef);
+                      if (fallbackSnap.exists()) {
+                        referrerDocRef = fallbackRef;
+                      }
+                    }
+                    
+                    if (referrerDocRef && referrerDocRef.id !== user.uid) {
+                      const referrerSnap = await getDoc(referrerDocRef);
+                      if (referrerSnap.exists()) {
+                        const currentCount = (referrerSnap.data() as any)?.referralsCount || 0;
+                        await updateDoc(referrerDocRef, { referralsCount: currentCount + 1 });
+                      }
                     }
                   }
                 } catch (refErr) {

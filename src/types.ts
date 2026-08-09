@@ -15,7 +15,7 @@ export interface UserProfile {
   referralsCount?: number; // Reputation points rewarded via AdMob
 }
 
-export type MediaType = 'image';
+export type MediaType = 'image' | 'video';
 
 export interface Post {
   id: string;
@@ -26,6 +26,8 @@ export interface Post {
   mediaUrl?: string; // Legacy support
   mediaUrls: string[];
   mediaType: MediaType;
+  hasPreRollAd?: boolean;
+  hasMidRollAd?: boolean;
   thumbnailUrl?: string;
   likesCount: number;
   commentsCount: number;
@@ -146,6 +148,9 @@ export interface Group {
   adminId: string;
   coverImage?: string;
   memberCount: number;
+  isPrivate?: boolean;
+  joinRequests?: string[];
+  blockedUsers?: string[];
   createdAt: number;
 }
 

@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import { PrivacyPolicy } from './PrivacyPolicy';
+import { UserGuide } from './UserGuide';
+import { VERSION_INFO } from '../version';
+import { AdminPanel } from './AdminPanel';
 import { useAuth } from '../context/AuthContext';
 import { X, LogOut, Shield, Bell, HelpCircle, UserX, Moon, Smartphone, ChevronLeft, Trash2, Database, Info, Share2, Lock, Tv, Award, Sparkles, AlertCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -44,11 +48,6 @@ function ToggleItem({ label, description, defaultChecked = false, onChange }: To
     </div>
   );
 }
-
-import { PrivacyPolicy } from './PrivacyPolicy';
-import { UserGuide } from './UserGuide';
-import { VERSION_INFO } from '../version';
-import { AdminPanel } from './AdminPanel';
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const { user, profile, logout, updateProfileSettings } = useAuth();
@@ -111,7 +110,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     const shareData = {
       title: 'RevitUp',
       text: 'Join me on RevitUp - The Social Garage for Car Enthusiasts!',
-      url: getBaseUrl()
+      url: `${getBaseUrl()}/?ref=${profile?.username || user?.uid}`
     };
 
     try {

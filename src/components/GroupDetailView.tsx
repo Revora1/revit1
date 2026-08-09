@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, where, getDocs, setDoc, doc, orderBy, onSnapshot, getDoc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, setDoc, doc, orderBy, onSnapshot, getDoc, deleteDoc, updateDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Group, GroupMember, Post, UserProfile } from '../types';
 import { ArrowLeft, Users, Shield, User, Plus, MoreVertical, Trash2, Check, X, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,7 +21,7 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
   const [isAdmin, setIsAdmin] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'posts' | 'members' | 'pending'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'members' | 'pending' | 'requests' | 'blocked'>('posts');
   
   const [posts, setPosts] = useState<(Post & { authorProfile?: UserProfile })[]>([]);
   const [pendingPosts, setPendingPosts] = useState<(Post & { authorProfile?: UserProfile })[]>([]);
@@ -92,6 +92,43 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
     return () => unsub();
   }, [groupId]);
 
+  const [requestProfiles, setRequestProfiles] = useState<UserProfile[]>([]);
+  const [blockedProfiles, setBlockedProfiles] = useState<UserProfile[]>([]);
+  const hasRequested = user && group?.joinRequests?.includes(user.uid);
+  const isBlocked = user && group?.blockedUsers?.includes(user.uid);
+
+  // Load Blocked Users
+  useEffect(() => {
+    if (!group?.blockedUsers || group.blockedUsers.length === 0 || activeTab !== 'blocked') {
+      setBlockedProfiles([]);
+      return;
+    }
+    const loadBlocked = async () => {
+      const profiles = await Promise.all(group.blockedUsers!.map(async uid => {
+        const uSnap = await getDoc(doc(db, 'users', uid));
+        return uSnap.exists() ? { uid: uSnap.id, ...uSnap.data() } as UserProfile : null;
+      }));
+      setBlockedProfiles(profiles.filter(p => p !== null) as UserProfile[]);
+    };
+    loadBlocked();
+  }, [group?.blockedUsers, activeTab]);
+
+  // Load Join Requests
+  useEffect(() => {
+    if (!group?.joinRequests || group.joinRequests.length === 0 || activeTab !== 'requests') {
+      setRequestProfiles([]);
+      return;
+    }
+    const loadRequests = async () => {
+      const profiles = await Promise.all(group.joinRequests!.map(async uid => {
+        const uSnap = await getDoc(doc(db, 'users', uid));
+        return uSnap.exists() ? { uid: uSnap.id, ...uSnap.data() } as UserProfile : null;
+      }));
+      setRequestProfiles(profiles.filter(p => p !== null) as UserProfile[]);
+    };
+    loadRequests();
+  }, [group?.joinRequests, activeTab]);
+
   // Load Members
   useEffect(() => {
     if (!groupId || activeTab !== 'members') return;
@@ -113,6 +150,17 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
 
   const handleJoin = async () => {
     if (!user || !group) return;
+    if (group.isPrivate) {
+      try {
+        await updateDoc(doc(db, 'groups', groupId), {
+          joinRequests: arrayUnion(user.uid)
+        });
+      } catch (e) {
+        console.error(e);
+        handleFirestoreError(e, OperationType.UPDATE, 'groups');
+      }
+      return;
+    }
     try {
       await setDoc(doc(db, 'groupMembers', `${groupId}_${user.uid}`), {
         groupId,
@@ -124,6 +172,68 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
     } catch (e) {
       console.error(e);
       handleFirestoreError(e, OperationType.WRITE, 'groupMembers');
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!user || !group) return;
+    try {
+      await updateDoc(doc(db, 'groups', groupId), {
+        joinRequests: arrayRemove(user.uid)
+      });
+    } catch (e) {
+      console.error(e);
+      handleFirestoreError(e, OperationType.UPDATE, 'groups');
+    }
+  };
+
+  const handleAcceptRequest = async (requestUid: string) => {
+    try {
+      await setDoc(doc(db, 'groupMembers', `${groupId}_${requestUid}`), {
+        groupId,
+        userId: requestUid,
+        role: 'member',
+        createdAt: Date.now()
+      });
+      await updateDoc(doc(db, 'groups', groupId), { 
+        memberCount: increment(1),
+        joinRequests: arrayRemove(requestUid)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDenyRequest = async (requestUid: string) => {
+    try {
+      await updateDoc(doc(db, 'groups', groupId), {
+        joinRequests: arrayRemove(requestUid)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleBlockUser = async (targetUid: string) => {
+    try {
+      await updateDoc(doc(db, 'groups', groupId), {
+        blockedUsers: arrayUnion(targetUid)
+      });
+      // Try to remove them from members if they are one
+      await deleteDoc(doc(db, 'groupMembers', `${groupId}_${targetUid}`));
+      await updateDoc(doc(db, 'groups', groupId), { memberCount: increment(-1) });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUnblockUser = async (targetUid: string) => {
+    try {
+      await updateDoc(doc(db, 'groups', groupId), {
+        blockedUsers: arrayRemove(targetUid)
+      });
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -187,6 +297,17 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
 
   if (!group) return <div className="p-8 text-center text-zinc-500 bg-black h-full">Loading...</div>;
 
+  if (isBlocked) {
+    return (
+      <div className="flex flex-col h-full bg-black text-white items-center justify-center p-8">
+        <ShieldAlert size={48} className="text-red-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+        <p className="text-zinc-500 text-center mb-6">You have been blocked from this car club.</p>
+        <button onClick={onBack} className="bg-white text-black px-6 py-2 rounded-full font-bold">Go Back</button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-black text-white relative">
       <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-md border-b border-zinc-900/60 flex items-center justify-between p-4 pt-[calc(16px+env(safe-area-inset-top,0px))]">
@@ -221,10 +342,10 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
             
             {user && !isAdmin && (
               <button 
-                onClick={isMember ? handleLeave : handleJoin}
-                className={`px-4 py-1.5 rounded-full text-sm font-bold active:scale-95 transition-transform ${isMember ? 'bg-zinc-800 text-white border border-zinc-700' : 'bg-white text-black'}`}
+                onClick={isMember ? handleLeave : (hasRequested ? handleCancelRequest : handleJoin)}
+                className={`px-4 py-1.5 rounded-full text-sm font-bold active:scale-95 transition-transform ${isMember ? 'bg-zinc-800 text-white border border-zinc-700' : hasRequested ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30' : 'bg-white text-black'}`}
               >
-                {isMember ? 'Joined' : 'Join'}
+                {isMember ? 'Joined' : (hasRequested ? 'Requested' : 'Join')}
               </button>
             )}
             {user && isAdmin && (
@@ -273,12 +394,28 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
           >
             Members
           </button>
+          {isAdmin && group.isPrivate && (
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={`flex-1 py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1 ${activeTab === 'requests' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}
+            >
+              Requests {group.joinRequests && group.joinRequests.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{group.joinRequests.length}</span>}
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setActiveTab('pending')}
               className={`flex-1 py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1 ${activeTab === 'pending' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}
             >
               Pending {pendingPosts.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingPosts.length}</span>}
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('blocked')}
+              className={`flex-1 py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1 ${activeTab === 'blocked' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}
+            >
+              Blocked
             </button>
           )}
         </div>
@@ -305,6 +442,7 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
                     key={post.id} 
                     post={post} 
                     isActive={true}
+                    isGroupAdmin={isAdmin}
                   />
                 ))
               )}
@@ -333,15 +471,64 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
                   </div>
                   
                   {isAdmin && member.userId !== user?.uid && (
-                    <button 
-                      onClick={() => handleRemoveMember(member.userId)}
-                      className="text-red-500 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => handleRemoveMember(member.userId)}
+                        className="text-yellow-500 bg-yellow-500/10 hover:bg-yellow-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                      >
+                        Remove
+                      </button>
+                      <button 
+                        onClick={() => handleBlockUser(member.userId)}
+                        className="text-red-500 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                      >
+                        Block
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'requests' && isAdmin && (
+            <div className="space-y-3">
+              {requestProfiles.length === 0 ? (
+                <div className="text-center p-8 text-zinc-500">No pending join requests.</div>
+              ) : (
+                requestProfiles.map(profile => (
+                  <div key={profile.uid} className="flex items-center justify-between bg-zinc-900 border border-zinc-800 p-3 rounded-xl">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigateProfile(profile.uid)}>
+                      {profile.profilePic ? (
+                        <img src={profile.profilePic} alt={profile.username} className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center">
+                          <User size={20} className="text-zinc-500" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-bold flex items-center gap-1.5">{profile.username}</div>
+                        <div className="text-xs text-zinc-500">Requested to join</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => handleAcceptRequest(profile.uid)}
+                        className="bg-white text-black hover:bg-zinc-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                      >
+                        <Check size={14} /> Accept
+                      </button>
+                      <button 
+                        onClick={() => handleDenyRequest(profile.uid)}
+                        className="text-zinc-400 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                      >
+                        <X size={14} /> Deny
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
@@ -389,6 +576,39 @@ export function GroupDetailView({ groupId, onBack, onNavigateProfile }: GroupDet
                         <Trash2 size={16} /> Delete
                       </button>
                     </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {activeTab === 'blocked' && isAdmin && (
+            <div className="space-y-3">
+              {blockedProfiles.length === 0 ? (
+                <div className="text-center p-8 text-zinc-500">No blocked users.</div>
+              ) : (
+                blockedProfiles.map(profile => (
+                  <div key={profile.uid} className="flex items-center justify-between bg-zinc-900 border border-zinc-800 p-3 rounded-xl">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigateProfile(profile.uid)}>
+                      {profile.profilePic ? (
+                        <img src={profile.profilePic} alt={profile.username} className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center">
+                          <User size={20} className="text-zinc-500" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-bold flex items-center gap-1.5">{profile.username}</div>
+                        <div className="text-xs text-zinc-500">Blocked User</div>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      onClick={() => handleUnblockUser(profile.uid)}
+                      className="bg-white text-black hover:bg-zinc-200 px-4 py-1.5 rounded-full text-xs font-bold transition-colors"
+                    >
+                      Unblock
+                    </button>
                   </div>
                 ))
               )}

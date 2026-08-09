@@ -42,7 +42,11 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.adminId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.adminId == request.auth.uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount']));
+      allow update: if isSignedIn() && (
+        resource.data.adminId == request.auth.uid || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount']) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['joinRequests'])
+      );
       allow delete: if isAdmin() || (isSignedIn() && resource.data.adminId == request.auth.uid);
     }
     match /groupMembers/{memberId} {

@@ -25,52 +25,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var import_express = __toESM(require("express"), 1);
 var import_path = __toESM(require("path"), 1);
 var import_dotenv = __toESM(require("dotenv"), 1);
-var import_app = require("firebase-admin/app");
-var import_messaging = require("firebase-admin/messaging");
 import_dotenv.default.config();
 var app = (0, import_express.default)();
 var PORT = 3e3;
-if (!(0, import_app.getApps)().length) {
-  try {
-    (0, import_app.initializeApp)();
-  } catch (err) {
-    console.error("Firebase Admin initialization error:", err);
-  }
-}
-app.use(import_express.default.json());
-app.post("/api/send-push", async (req, res) => {
-  try {
-    const { token, title, body } = req.body;
-    if (!token) {
-      return res.status(400).json({ error: "Missing token" });
-    }
-    const message = {
-      notification: {
-        title: title || "New Notification",
-        body: body || "You have a new notification."
-      },
-      token,
-      android: {
-        priority: "high",
-        notification: {
-          sound: "default"
-        }
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default"
-          }
-        }
-      }
-    };
-    const response = await (0, import_messaging.getMessaging)().send(message);
-    res.json({ success: true, response });
-  } catch (error) {
-    console.error("Error sending push notification:", error);
-    res.status(500).json({ error: "Failed to send notification" });
-  }
-});
 app.get("/privacy-policy", (req, res) => {
   res.setHeader("Content-Type", "text/html");
   res.send(`<!DOCTYPE html><html lang="en"><head>
