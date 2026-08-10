@@ -328,6 +328,15 @@ export function Feed() {
             const adIndex = Math.floor(index / 2) % creatives.length;
             const creative = creatives[adIndex];
 
+            // If we are on native, show the custom placeholder. Otherwise, show AdSense slot on Web.
+            if (!admobService.isNative()) {
+              return (
+                <div key={item.id} className="w-full h-full snap-start snap-always bg-black flex items-center justify-center p-4">
+                  <AdSlot className="w-full max-w-sm" />
+                </div>
+              );
+            }
+
             return (
               <AdMobNativeFeedCard key={item.id} creative={creative} />
             );
@@ -348,6 +357,7 @@ export function Feed() {
     </div>
   );
 }
+
 
 interface AdMobNativeFeedCardProps {
   creative: {
@@ -373,7 +383,6 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
     setInstalling(true);
     setProgress(0);
     
-    // Simulate interactive ad install progress
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -385,14 +394,10 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
         return prev + 10;
       });
     }, 150);
-
-    // Track analytics event
-    trackOutboundClick();
   };
 
   return (
     <div className="h-full w-full snap-start snap-always relative bg-black font-sans overflow-hidden">
-      {/* Full Screen Ad Image & Gradient Overlay */}
       <div className="absolute inset-0 w-full h-full">
         <img 
           src={creative.image} 
@@ -404,7 +409,6 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
       </div>
 
       <div className="relative z-10 flex flex-col justify-between h-full pt-[calc(env(safe-area-inset-top,24px)+52px)] pb-[calc(env(safe-area-inset-bottom,24px)+80px)] px-4">
-        {/* Top Header Row */}
         <div className="flex items-center justify-between w-full mt-2">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden bg-zinc-900 flex-shrink-0 shadow-lg">
@@ -422,7 +426,6 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
           </div>
         </div>
 
-        {/* Bottom Info Content */}
         <div className="w-full flex flex-col justify-end mt-auto space-y-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -441,9 +444,7 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
             </p>
           </div>
 
-          {/* Action Button & Diagnostics Bottom Row */}
           <div className="w-full space-y-3 pb-4">
-            {/* Interactive CTA */}
             <button 
               onClick={handleCtaClick}
               disabled={installing || clicked}
@@ -464,16 +465,15 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
                 <Check size={14} className="stroke-[3]" /> INSTALLED SUCCESSFULLY
               </span>
             ) : (
-              <>
-                <span>{creative.cta}</span>
-                <ExternalLink size={12} />
-              </>
+              <span className="flex items-center gap-1.5 uppercase font-black">
+                {creative.cta}
+              </span>
             )}
           </div>
-        </button>
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-    </div>
     </div>
   );
 }

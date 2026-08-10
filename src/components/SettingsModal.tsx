@@ -73,7 +73,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [cacheClearedToast, setCacheClearedToast] = useState(false);
 
   // AdMob Local Settings State
-  const [bannerEnabled, setBannerEnabled] = useState(localStorage.getItem('admob-banner-enabled') === 'true');
+  const [bannerEnabled, setBannerEnabled] = useState(localStorage.getItem('admob-banner-enabled') !== 'false');
   const [bannerPosition, setBannerPosition] = useState<'top' | 'bottom'>((localStorage.getItem('admob-banner-position') as 'top' | 'bottom') || 'bottom');
   const [adFeedback, setAdFeedback] = useState<string | null>(null);
 

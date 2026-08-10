@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ADSENSE_CLIENT_ID, ADSENSE_SLOT_ID, ADSENSE_LAYOUT_KEY } from '../constants';
 import { Sparkles } from 'lucide-react';
 
@@ -13,7 +13,11 @@ declare global {
 }
 
 export function AdSlot({ className }: AdSlotProps) {
+  const adPushed = useRef(false);
+
   useEffect(() => {
+    if (adPushed.current) return;
+
     const consent = localStorage.getItem('gdpr-consent');
 
     // 1. Ensure AdSense script is loaded
@@ -28,17 +32,16 @@ export function AdSlot({ className }: AdSlotProps) {
 
     // 2. Initialize Ad
     try {
-      if (typeof window !== 'undefined' && window.adsbygoogle) {
+      if (typeof window !== 'undefined') {
         // GDPR: If user has not explicitly accepted, request non-personalized ads
+        (window as any).adsbygoogle = window.adsbygoogle || [];
         if (consent !== 'accepted') {
-          (window as any).adsbygoogle = window.adsbygoogle || [];
           (window as any).adsbygoogle.requestNonPersonalizedAds = 1;
         } else {
-          (window as any).adsbygoogle = window.adsbygoogle || [];
           (window as any).adsbygoogle.requestNonPersonalizedAds = 0;
         }
-
         (window.adsbygoogle = window.adsbygoogle || []).push({});
+        adPushed.current = true;
       }
     } catch (e) {
       console.error('AdSense error:', e);
@@ -53,6 +56,7 @@ export function AdSlot({ className }: AdSlotProps) {
         <span className="text-[8px] font-black tracking-[0.15em] uppercase font-sans">SPONSORED</span>
         <Sparkles size={8} className="fill-black" />
       </div>
+
       <ins
         className="adsbygoogle"
         style={{ display: 'block' }}
