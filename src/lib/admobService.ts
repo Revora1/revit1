@@ -1,18 +1,13 @@
 import { Capacitor } from '@capacitor/core';
+import { AdMob, BannerAdOptions, BannerAdSize, BannerAdPosition, BannerAdPluginEvents, AdMobRewardItem } from '@capacitor-community/admob';
 
-// Test Ad Unit IDs provided by Google AdMob
+// Real Ad Unit IDs provided by Google AdMob
 const ADMOB_IDS = {
   android: {
-    banner: 'ca-app-pub-3940256099942544/6300978111',
-    interstitial: 'ca-app-pub-3940256099942544/1033173712',
-    rewarded: 'ca-app-pub-3940256099942544/5224354917',
-    native: 'ca-app-pub-2103649447635694/7784451780',
+    native: 'ca-app-pub-2103649447635694/6789922553',
   },
   ios: {
-    banner: 'ca-app-pub-3940256099942544/2934735716',
-    interstitial: 'ca-app-pub-3940256099942544/4411468910',
-    rewarded: 'ca-app-pub-3940256099942544/1712485313',
-    native: 'ca-app-pub-2103649447635694/7784451780',
+    native: 'ca-app-pub-2103649447635694/6789922553',
   }
 };
 
@@ -32,9 +27,19 @@ export const admobService = {
   },
 
   initialize: async () => {
+    if (!admobService.isNative()) {
+       console.log('AdMob is only available on native devices.');
+       return false;
+    }
+    
     if (!isAdMobInitialized) {
       console.log('[AdMob Native Feed SDK] Initializing AdMob system...');
-      isAdMobInitialized = true;
+      try {
+        await AdMob.initialize({});
+        isAdMobInitialized = true;
+      } catch (err) {
+        console.error('Failed to initialize AdMob', err);
+      }
     }
     return true;
   },

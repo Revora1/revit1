@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, doc, getDoc, getCountFromServer, setDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getCountFromServer, setDoc, onSnapshot, query, where, updateDoc, arrayUnion } from 'firebase/firestore';
 import { Gift, Copy, CheckCircle2, ChevronLeft, Users, Trophy, ShieldCheck, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
@@ -22,6 +22,8 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
   const [hasCar, setHasCar] = useState(false);
   const [hasPost, setHasPost] = useState(false);
   const [showTC, setShowTC] = useState(false);
+  const [enteredGiveaways, setEnteredGiveaways] = useState<number[]>([]);
+  const [enteringGiveaway, setEnteringGiveaway] = useState<number | null>(null);
   
   const [milestones, setMilestones] = useState<any[]>([
     { target: 10000, prize: '£50 Giftcard' },
@@ -48,7 +50,9 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
         if (user) {
           const uDoc = await getDoc(doc(db, 'users', user.uid));
           if (uDoc.exists()) {
-            setMyReferrals(uDoc.data().referralsCount || 0);
+            const data = uDoc.data();
+            setMyReferrals(data.referralsCount || 0);
+            setEnteredGiveaways(data.enteredGiveaways || []);
           }
           
           const qGarage = query(collection(db, 'garage'), where('ownerId', '==', user.uid));
@@ -75,6 +79,25 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
   const currentMilestoneIndex = milestones.findIndex(m => totalUsers < m.target);
   const activeMilestoneIndex = currentMilestoneIndex === -1 ? milestones.length - 1 : currentMilestoneIndex;
   const activeMilestone = milestones[activeMilestoneIndex];
+
+  const handleEnterGiveaway = async (target: number) => {
+    if (!user) return;
+    const isEligible = (user.emailVerified || true) && hasCar && hasPost && myReferrals >= 10; // We assume true if logged in since we check 'user' below for simplicity or match the existing UI
+    if (!isEligible) return;
+
+    try {
+      setEnteringGiveaway(target);
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        enteredGiveaways: arrayUnion(target)
+      });
+      setEnteredGiveaways(prev => [...prev, target]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setEnteringGiveaway(null);
+    }
+  };
 
   const handleShare = async () => {
     if (!user) return;
@@ -271,6 +294,26 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                         )}
                       </div>
                     )}
+                    
+                    <div className="mt-4">
+                      {enteredGiveaways.includes(m.target) ? (
+                        <button disabled className="w-full bg-green-500/20 text-green-500 py-3 rounded-xl font-bold uppercase tracking-wider text-sm flex items-center justify-center gap-2 border border-green-500/30">
+                          <CheckCircle2 size={18} /> Entered
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleEnterGiveaway(m.target)}
+                          disabled={isLocked || isPassed || enteringGiveaway === m.target || !((user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10)}
+                          className={`w-full py-3 rounded-xl font-bold uppercase tracking-wider text-sm flex items-center justify-center gap-2 transition-transform ${
+                            !isLocked && !isPassed && ((user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10)
+                              ? 'bg-amber-500 text-black active:scale-95 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
+                              : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                          }`}
+                        >
+                          {isPassed ? 'Giveaway Closed' : enteringGiveaway === m.target ? 'Entering...' : 'Enter Giveaway'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   {/* Glowing Effect for Active */}
@@ -302,10 +345,14 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                 {hasPost ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
                 <span className={`text-sm font-bold uppercase tracking-wide ${hasPost ? 'text-white' : 'text-zinc-500'}`}>Post a Build Update</span>
               </div>
+              <div className="flex items-center gap-3">
+                {myReferrals >= 10 ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
+                <span className={`text-sm font-bold uppercase tracking-wide ${myReferrals >= 10 ? 'text-white' : 'text-zinc-500'}`}>Invite 10 Friends</span>
+              </div>
             </div>
             
-            <div className={`mt-4 pt-4 border-t border-zinc-800 text-center font-black italic uppercase tracking-widest ${(user?.emailVerified || user) && hasCar && hasPost ? 'text-green-500' : 'text-zinc-500'}`}>
-              {(user?.emailVerified || user) && hasCar && hasPost ? 'TICKET UNLOCKED' : 'TICKET LOCKED'}
+            <div className={`mt-4 pt-4 border-t border-zinc-800 text-center font-black italic uppercase tracking-widest ${(user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10 ? 'text-green-500' : 'text-zinc-500'}`}>
+              {(user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10 ? 'TICKET UNLOCKED' : 'TICKET LOCKED'}
             </div>
           </div>
 
@@ -371,7 +418,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                   <p>
                     <strong className="text-white block mb-1">1. Eligibility</strong>
                     The RevItUp Giveaway is open to all registered users of the RevItUp application. No purchase is necessary. 
-                    Users must have a verified account, at least 1 car in their garage, and 1 build update posted to qualify for an entry ticket.
+                    Users must have a verified account, at least 1 car in their garage, 1 build update posted, and at least 10 referred signups to qualify for an entry ticket.
                   </p>
                   <p>
                     <strong className="text-white block mb-1">2. Non-Affiliation</strong>

@@ -11,7 +11,9 @@
 		}
 	},
 	"packageClassList": [
+		"AdMobPlugin",
 		"PushNotificationsPlugin",
+		"ScreenOrientationPlugin",
 		"SharePlugin",
 		"AppTrackingTransparencyPlugin"
 	]

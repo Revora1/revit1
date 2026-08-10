@@ -131,7 +131,7 @@ export function Feed() {
   const filteredPosts = posts.filter(post => !blockedUserIds.includes(post.authorId));
   filteredPosts.forEach((post, index) => {
     feedItems.push({ type: 'post', data: post, id: post.id });
-    if ((index + 1) % 4 === 0) {
+    if ((index + 1) % 3 === 0) {
       feedItems.push({ type: 'ad', id: `ad-${index}` });
     }
   });
@@ -391,79 +391,64 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
   };
 
   return (
-    <div className="h-full w-full snap-start snap-always relative bg-zinc-950 flex flex-col justify-between pt-[calc(env(safe-area-inset-top,24px)+52px)] pb-24 px-4 font-sans overflow-hidden">
-      {/* Background glow overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-zinc-900/40 pointer-events-none" />
-
-      {/* Top Header Row */}
-      <div className="relative z-10 flex items-center justify-between w-full px-2 mt-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border border-white/10 overflow-hidden bg-zinc-900 flex-shrink-0">
-            <img src={creative.avatar} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-white text-xs font-black uppercase tracking-tight">{creative.sponsor}</span>
-              <span className="bg-yellow-500 text-black text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                <Sparkles size={6} className="fill-current" /> SPONSORED
-              </span>
-            </div>
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">@{creative.handle} • Verified Partner</p>
-          </div>
-        </div>
+    <div className="h-full w-full snap-start snap-always relative bg-black font-sans overflow-hidden">
+      {/* Full Screen Ad Image & Gradient Overlay */}
+      <div className="absolute inset-0 w-full h-full">
+        <img 
+          src={creative.image} 
+          className="w-full h-full object-cover scale-102 transition-transform duration-700 brightness-90 contrast-[1.05]" 
+          alt="" 
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
       </div>
 
-      {/* Main Creative Container */}
-      <div className="relative z-10 w-full max-w-sm mx-auto flex-1 flex flex-col justify-center my-4">
-        {/* Elegant SPONSORED Logo Header */}
-        <div className="flex items-center justify-center gap-2 mb-3 bg-yellow-500 text-black py-1 px-4 rounded-full self-center shadow-[0_4px_12px_rgba(234,179,8,0.25)] border border-yellow-400 animate-pulse">
-          <Sparkles size={10} className="fill-black" />
-          <span className="text-[9px] font-black tracking-[0.2em] uppercase font-sans">SPONSORED</span>
-          <Sparkles size={10} className="fill-black" />
-        </div>
-        <div className="w-full aspect-[4/5] bg-zinc-900/80 border border-zinc-850 rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl relative backdrop-blur-md group">
-          
-          {/* Ad Image & Gradient Overlay */}
-          <div className="absolute inset-0 w-full h-full">
-            <img 
-              src={creative.image} 
-              className="w-full h-full object-cover scale-102 group-hover:scale-105 transition-transform duration-700 brightness-90 contrast-[1.05]" 
-              alt="" 
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/10" />
-          </div>
-
-          {/* Top Info Tag */}
-          <div className="relative z-10 p-4 flex justify-between items-start">
-            <span className="bg-black/45 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full text-[8px] font-mono font-bold uppercase tracking-wider text-zinc-300">
-              {creative.installs} Tuners Upgraded
-            </span>
-            <div className="flex items-center gap-1 bg-black/45 backdrop-blur-md border border-white/10 px-2 py-0.5 rounded-md text-[9px] font-black text-yellow-500">
-              <Star size={9} fill="currentColor" /> {creative.rating}
+      <div className="relative z-10 flex flex-col justify-between h-full pt-[calc(env(safe-area-inset-top,24px)+52px)] pb-[calc(env(safe-area-inset-bottom,24px)+80px)] px-4">
+        {/* Top Header Row */}
+        <div className="flex items-center justify-between w-full mt-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden bg-zinc-900 flex-shrink-0 shadow-lg">
+              <img src={creative.avatar} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-white text-sm font-black uppercase tracking-tight shadow-black drop-shadow-md">{creative.sponsor}</span>
+                <span className="bg-yellow-500 text-black text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-lg">
+                  <Sparkles size={8} className="fill-current" /> SPONSORED
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-300 font-bold uppercase tracking-wider drop-shadow-md">@{creative.handle} • Verified Partner</p>
             </div>
           </div>
+        </div>
 
-          {/* Bottom Info Content */}
-          <div className="relative z-10 p-6 space-y-3 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
-            <h3 className="text-xl font-black italic text-white tracking-tighter uppercase leading-none">
+        {/* Bottom Info Content */}
+        <div className="w-full flex flex-col justify-end mt-auto space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="bg-black/45 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-300">
+                {creative.installs} Tuners Upgraded
+              </span>
+              <div className="flex items-center gap-1 bg-black/45 backdrop-blur-md border border-white/10 px-2 py-1 rounded-full text-[10px] font-black text-yellow-500">
+                <Star size={10} fill="currentColor" /> {creative.rating}
+              </div>
+            </div>
+            <h3 className="text-3xl font-black italic text-white tracking-tighter uppercase leading-none drop-shadow-lg">
               {creative.headline}
             </h3>
-            <p className="text-xs text-zinc-300 font-medium leading-relaxed">
+            <p className="text-sm text-zinc-200 font-medium leading-relaxed drop-shadow-md max-w-[90%]">
               {creative.description}
             </p>
           </div>
-        </div>
-      </div>
 
-      {/* Action Button & Diagnostics Bottom Row */}
-      <div className="relative z-10 w-full max-w-sm mx-auto space-y-4 px-2">
-        {/* Interactive CTA */}
-        <button 
-          onClick={handleCtaClick}
-          disabled={installing || clicked}
-          className="w-full relative overflow-hidden h-14 bg-white text-black font-black uppercase italic tracking-widest text-xs rounded-2xl flex items-center justify-center transition-all active:scale-98 shadow-[0_12px_32px_rgba(255,255,255,0.15)] hover:bg-zinc-100"
-        >
+          {/* Action Button & Diagnostics Bottom Row */}
+          <div className="w-full space-y-3 pb-4">
+            {/* Interactive CTA */}
+            <button 
+              onClick={handleCtaClick}
+              disabled={installing || clicked}
+              className="w-full relative overflow-hidden h-14 bg-white text-black font-black uppercase italic tracking-widest text-sm rounded-2xl flex items-center justify-center transition-all active:scale-98 shadow-[0_12px_32px_rgba(255,255,255,0.15)] hover:bg-zinc-100"
+            >
           {installing && (
             <div 
               className="absolute left-0 top-0 bottom-0 bg-red-500/20 transition-all duration-150"
@@ -487,6 +472,8 @@ export function AdMobNativeFeedCard({ creative }: AdMobNativeFeedCardProps) {
           </div>
         </button>
       </div>
+    </div>
+    </div>
     </div>
   );
 }
