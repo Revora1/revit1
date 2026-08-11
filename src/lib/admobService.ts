@@ -1,13 +1,16 @@
 import { Capacitor } from '@capacitor/core';
 import { AdMob, BannerAdOptions, BannerAdSize, BannerAdPosition, BannerAdPluginEvents, AdMobRewardItem } from '@capacitor-community/admob';
+import { AdMobNativeAdvanced } from '@brandonknudsen/admob-native-advanced';
 
 // Real Ad Unit IDs provided by Google AdMob
 const ADMOB_IDS = {
   android: {
     native: 'ca-app-pub-2103649447635694/6789922553',
+    appId: 'ca-app-pub-2103649447635694~2975257474'
   },
   ios: {
     native: 'ca-app-pub-2103649447635694/6789922553',
+    appId: 'ca-app-pub-2103649447635694~2975257474'
   }
 };
 
@@ -36,6 +39,10 @@ export const admobService = {
       console.log('[AdMob Native Feed SDK] Initializing AdMob system...');
       try {
         await AdMob.initialize({});
+        
+        const appId = Capacitor.getPlatform() === 'ios' ? ADMOB_IDS.ios.appId : ADMOB_IDS.android.appId;
+        await AdMobNativeAdvanced.initialize({ appId });
+        
         isAdMobInitialized = true;
       } catch (err) {
         console.error('Failed to initialize AdMob', err);

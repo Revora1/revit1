@@ -141,6 +141,28 @@ export interface ChatMessage {
   createdAt: number;
 }
 
+export interface MarketplaceItem {
+  id: string;
+  sellerId: string;
+  title: string;
+  description: string;
+  price: number;
+  currency: string;
+  category: 'Engine' | 'Suspension' | 'Wheels' | 'Interior' | 'Exterior' | 'Electronics' | 'Other';
+  make?: string; // Optional compatibility
+  model?: string; // Optional compatibility
+  wheelSize?: string;
+  tireSize?: string;
+  mediaUrls: string[];
+  condition: 'New' | 'Used - Like New' | 'Used - Good' | 'Used - Fair';
+  location: string;
+  lat?: number;
+  lng?: number;
+  status: 'available' | 'sold';
+  soldAt?: number;
+  createdAt: number;
+}
+
 export interface Group {
   id: string;
   name: string;

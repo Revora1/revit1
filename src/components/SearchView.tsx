@@ -431,12 +431,18 @@ export function SearchView() {
         </div>
 
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
           <button 
             onClick={() => (window as any).openGroupsView?.()}
             className="bg-white text-black px-4 py-2 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-zinc-200 transition-colors whitespace-nowrap shadow-lg"
           >
             <User size={16} /> Car Clubs
+          </button>
+          <button 
+            onClick={() => (window as any).openMarketplace?.()}
+            className="bg-yellow-500 text-black px-4 py-2 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-yellow-400 transition-colors whitespace-nowrap shadow-lg"
+          >
+            <Layers size={16} /> Marketplace
           </button>
         </div>
       </div>

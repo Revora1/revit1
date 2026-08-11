@@ -136,5 +136,11 @@ service cloud.firestore {
         allow write: if isSignedIn();
       }
     }
+    match /marketplace/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
   }
 }

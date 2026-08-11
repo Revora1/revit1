@@ -16,6 +16,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { AnimatePresence } from 'motion/react';
 import { GroupsView } from './components/GroupsView';
 import { GroupDetailView } from './components/GroupDetailView';
+import { MarketplaceView } from './components/MarketplaceView';
 
 import { CookieConsent } from './components/CookieConsent';
 import { db, messaging } from './lib/firebase';
@@ -304,6 +305,7 @@ function InnerAppContent() {
   
   React.useEffect(() => {
     (window as any).openGroupsView = () => setActiveView('groups');
+    (window as any).openMarketplace = () => setActiveView('marketplace');
     (window as any).openGroupDetail = (groupId: string) => {
       setTargetGroupId(groupId);
       setActiveView('group_detail');
@@ -525,6 +527,7 @@ function InnerAppContent() {
         )}
         {activeView === 'post' && targetPostId && <SinglePostView postId={targetPostId} onBack={() => setActiveView(prevViewRef.current)} autoOpenComments={autoOpenComments} />}
         {activeView === 'groups' && <GroupsView onBack={() => setActiveView('search')} onSelectGroup={(groupId) => { setTargetGroupId(groupId); setActiveView('group_detail'); }} />}
+        {activeView === 'marketplace' && <MarketplaceView onBack={() => setActiveView('search')} />}
         {activeView === 'group_detail' && targetGroupId && <GroupDetailView groupId={targetGroupId} onBack={() => setActiveView('groups')} onNavigateProfile={(uid) => { setTargetUserId(uid); setActiveView('profile'); }} />}
         {activeView === 'giveaway' && <GiveawaysView onBack={() => setActiveView(prevViewRef.current || 'feed')} />}
 
