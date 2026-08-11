@@ -44,23 +44,24 @@ export default function App() {
   const isWeb = Capacitor.getPlatform() === 'web';
 
   React.useEffect(() => {
-    // Request ATT if on iOS
-    const requestATT = async () => {
+    const initAdsAndTracking = async () => {
       if (Capacitor.getPlatform() === 'ios') {
         try {
           const status = await AppTrackingTransparency.getStatus();
           if (status.status === 'notDetermined') {
             setShowATTPrompt(true);
+            // Don't initialize AdMob yet, wait for the prompt to complete
+            return;
           }
         } catch (e) {
           console.log("Failed to request ATT permission:", e);
         }
       }
+      
+      // Initialize AdMob if Android, or if iOS status is already determined
+      admobService.initialize();
     };
-    requestATT();
-
-    // Initialize AdMob on app startup
-    admobService.initialize();
+    initAdsAndTracking();
 
     // Lock screen orientation to portrait if supported
     const lockOrientation = async () => {
@@ -157,7 +158,10 @@ export default function App() {
       </div>
       <CookieConsent />
       <AdMobOverlays />
-      {showATTPrompt && <ATTPrompt onComplete={() => setShowATTPrompt(false)} />}
+      {showATTPrompt && <ATTPrompt onComplete={() => {
+        setShowATTPrompt(false);
+        admobService.initialize();
+      }} />}
     </AuthProvider>
   );
 }
