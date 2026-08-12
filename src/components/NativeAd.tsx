@@ -23,7 +23,16 @@ export function NativeAd({ adUnitId }: { adUnitId?: string }) {
     };
     
     if (Capacitor.isNativePlatform()) {
-      loadAd();
+      if (admobService.isInitialized()) {
+        loadAd();
+      } else {
+        const handleInit = () => {
+          loadAd();
+          window.removeEventListener('admob-initialized', handleInit);
+        };
+        window.addEventListener('admob-initialized', handleInit);
+        return () => window.removeEventListener('admob-initialized', handleInit);
+      }
     }
   }, [adUnitId]);
 

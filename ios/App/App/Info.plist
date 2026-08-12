@@ -91,7 +91,7 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>RevitUp needs access to save photos to your library.</string>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>RevitUp uses this to deliver personalized ads and content to improve your experience.</string>
+	<string>This identifier will be used to deliver personalized ads to you.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>RevitUp needs microphone access to record audio when you capture videos of your cars.</string>
 </dict>

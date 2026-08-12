@@ -21,6 +21,9 @@ export const admobService = {
     return Capacitor.isNativePlatform();
   },
 
+  isInitialized: (): boolean => {
+    return isAdMobInitialized;
+  },
   getAdUnitId: (type: 'banner' | 'interstitial' | 'rewarded' | 'native'): string => {
     const platform = Capacitor.getPlatform();
     if (platform === 'ios') {
@@ -44,9 +47,12 @@ export const admobService = {
         await AdMobNativeAdvanced.initialize({ appId });
         
         isAdMobInitialized = true;
+        window.dispatchEvent(new Event('admob-initialized'));
       } catch (err) {
         console.error('Failed to initialize AdMob', err);
       }
+    } else {
+      window.dispatchEvent(new Event('admob-initialized'));
     }
     return true;
   },
