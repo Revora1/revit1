@@ -30,6 +30,7 @@ import GarageScreen from './screens/GarageScreen';
 import DynoBoardScreen from './screens/DynoBoardScreen';
 import BattlesScreen from './screens/BattlesScreen';
 import TopTunersScreen from './screens/TopTunersScreen';
+import MechanicBoardScreen from './screens/MechanicBoardScreen';
 import CookieConsentModal from './components/CookieConsentModal';
 
 const Tab = createBottomTabNavigator();
@@ -134,6 +135,7 @@ export default function App() {
           <Stack.Screen name="DynoBoard" component={DynoBoardScreen} options={{ title: 'Dyno Board' }} />
           <Stack.Screen name="Battles" component={BattlesScreen} options={{ title: 'Battles' }} />
           <Stack.Screen name="TopTuners" component={TopTunersScreen} options={{ title: 'Top Tuners' }} />
+          <Stack.Screen name="ServiceBoard" component={MechanicBoardScreen} options={{ title: 'Service Board' }} />
         </Stack.Navigator>
       </NavigationContainer>
       <CookieConsentModal userId={user?.uid} />

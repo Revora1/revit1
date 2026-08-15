@@ -16,6 +16,7 @@ export default function MenuScreen({ navigation }: any) {
     { icon: 'trophy-outline', title: 'Top Tuners', route: 'TopTuners', desc: 'Leaderboards' },
     { icon: 'car-sport-outline', title: 'Battles', route: 'Battles', desc: 'Car of the Month' },
     { icon: 'gift-outline', title: 'Giveaways', route: 'Giveaways', desc: 'Win free gear' },
+    { icon: 'build-outline', title: 'Service Board', route: 'ServiceBoard', desc: 'Find mechanics & shops' },
   ];
 
   return (
