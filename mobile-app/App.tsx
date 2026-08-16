@@ -10,7 +10,7 @@ import { registerForPushNotificationsAsync } from './lib/notifications';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 
 // Screens
-import LoginScreen from './screens/LoginScreen';
+import LoginScreen from './screens/AuthScreen';
 import FeedScreen from './screens/FeedScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import UploadScreen from './screens/UploadScreen';

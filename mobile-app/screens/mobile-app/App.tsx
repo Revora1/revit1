@@ -10,7 +10,7 @@ import { registerForPushNotificationsAsync } from './lib/notifications';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 
 // Screens
-import LoginScreen from './screens/LoginScreen';
+import LoginScreen from './screens/AuthScreen';
 import FeedScreen from './screens/FeedScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import UploadScreen from './screens/UploadScreen';
@@ -30,6 +30,7 @@ import GarageScreen from './screens/GarageScreen';
 import DynoBoardScreen from './screens/DynoBoardScreen';
 import BattlesScreen from './screens/BattlesScreen';
 import TopTunersScreen from './screens/TopTunersScreen';
+import CookieConsentModal from './components/CookieConsentModal';
 import MechanicBoardScreen from './screens/MechanicBoardScreen';
 import CookieConsentModal from './components/CookieConsentModal';
 
@@ -138,6 +139,7 @@ export default function App() {
           <Stack.Screen name="ServiceBoard" component={MechanicBoardScreen} options={{ title: 'Service Board' }} />
         </Stack.Navigator>
       </NavigationContainer>
+      <CookieConsentModal userId={user?.uid} />
       <CookieConsentModal userId={user?.uid} />
     </>
   );
