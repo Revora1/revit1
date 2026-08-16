@@ -98,7 +98,7 @@ function VideoItem({ item, isActive, onPlay }: { item: any, isActive: boolean, o
   const [hasPlayedEndRoll, setHasPlayedEndRoll] = useState(false);
   
   const [isPlaying, setIsPlaying] = useState(false);
-  const player = useVideoPlayer(item.videoUrl, (p: any) => {
+  const player = useVideoPlayer(item.videoUrl, p => {
     p.loop = false;
   });
   
@@ -109,7 +109,7 @@ function VideoItem({ item, isActive, onPlay }: { item: any, isActive: boolean, o
 
 
   useEffect(() => {
-    const timeUpdateSub = player.addListener('timeUpdate', (event: any) => {
+    const timeUpdateSub = player.addListener('timeUpdate', (event) => {
       const durationMillis = (player.duration || 0) * 1000;
       const positionMillis = event.currentTime * 1000;
       

@@ -163,7 +163,7 @@ export default function ProfileScreen({ route, navigation }: any) {
             orderBy("createdAt", "desc")
           );
           const pgSnap = await getDocs(pgQuery);
-          setPartnerGarage(pgSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+          setPartnerGarage(pgSnap.docs.map(d: any => ({ id: d.id, ...d.data() })));
           
           const ppQuery = query(
             collection(db, "posts"),
@@ -171,7 +171,7 @@ export default function ProfileScreen({ route, navigation }: any) {
             orderBy("createdAt", "desc")
           );
           const ppSnap = await getDocs(ppQuery);
-          setPartnerPosts(ppSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+          setPartnerPosts(ppSnap.docs.map(d: any => ({ id: d.id, ...d.data() })));
         }
 
         // Fetch dynamic counts
@@ -227,7 +227,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         : query(collection(db, "follows"), where("followerId", "==", targetUserId));
         
       const snapshot = await getDocs(q);
-      const userIds = snapshot.docs.map((d: any) => type === 'followers' ? d.data().followerId : d.data().followingId);
+      const userIds = snapshot.docs.map(d: any => type === 'followers' ? d.data().followerId : d.data().followingId);
       
       const users = [];
       for (const id of userIds) {
