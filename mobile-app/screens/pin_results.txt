@@ -1,0 +1,44 @@
+src/components/TopTuners.tsx:105:      "Pin posts to the Top Tuners index"
+src/components/TopTuners.tsx:386:          <div className="w-10 h-10 border-2 border-zinc-700 border-t-yellow-500 rounded-full animate-spin" />
+src/components/Feed.tsx:210:              <RefreshCw size={12} className={refreshing ? "text-amber-500 animate-spin" : "text-amber-500"} />
+src/components/Feed.tsx:213:              {refreshing ? "STAGING GREEN LIGHT..." : pullOffset >= 50 ? "RELEASE TO SPIN" : "DRAG TO REFRESH"}
+src/components/DynoBoard.tsx:95:            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+src/components/StoryCreator.tsx:159:                               <Activity className="animate-spin" size={20} />
+src/components/StoryCreator.tsx:216:              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+src/components/SettingsModal.tsx:578:                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+src/components/SettingsModal.tsx:596:                        <div className="w-3 h-3 border-2 border-zinc-500/30 border-t-zinc-400 rounded-full animate-spin" />
+src/components/SettingsModal.tsx:633:                      <div className="w-3 h-3 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+src/components/SettingsModal.tsx:673:                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+src/components/AuthView.tsx:100:                  <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+src/components/DuoGarageView.tsx:81:      <div className="w-8 h-8 border-2 border-red-500 border-t-white rounded-full animate-spin" />
+src/components/ChatView.tsx:118:      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+src/components/PostCard.tsx:877:              {/* Spinning Vinyl Disc Artwork */}
+src/components/PostCard.tsx:882:                    className={`w-full h-full object-cover transition-transform ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : ''}`} 
+src/components/EditProfileModal.tsx:268:                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
+src/components/CommunityGarageView.tsx:209:              <div className="w-12 h-12 border-4 border-white/10 border-t-white rounded-full animate-spin" />
+src/components/CommunityGarageView.tsx:290:              <div className="w-12 h-12 border-4 border-red-500/20 border-t-red-500 rounded-full animate-spin" />
+src/components/FollowListModal.tsx:80:            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+src/components/FollowListModal.tsx:95:                  <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+src/components/MessagesView.tsx:94:             <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+src/components/NotificationsView.tsx:82:        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+src/components/MusicSelector.tsx:211:            <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+src/components/StoryViewer.tsx:258:         <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+src/components/UploadView.tsx:393:               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+src/components/SupportView.tsx:2:import { ArrowLeft, Mail, MapPin, Phone } from 'lucide-react';
+src/components/BuildTimeline.tsx:5:  Trash2, Camera, X, Trophy, DollarSign, ArrowUpRight, ShoppingBag, Settings2 
+src/components/GiveawaysView.tsx:126:        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+src/components/CommentsSheet.tsx:408:            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+src/components/NewChatModal.tsx:146:            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+src/components/SinglePostView.tsx:51:        <div className="w-8 h-8 border-2 border-zinc-500 border-t-white rounded-full animate-spin" />
+src/components/CarDetailsModal.tsx:46:        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+src/components/SearchView.tsx:519:              <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+src/components/SearchView.tsx:609:                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Try typing different parts, brands, or setups</p>
+src/components/SearchView.tsx:637:                  <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+src/components/SearchView.tsx:975:                <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+src/components/Profile.tsx:215:      "Pin posts to the Top Tuners index"
+src/components/Profile.tsx:763:      <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+src/components/Profile.tsx:806:              <RefreshCw size={12} className={refreshing ? "text-red-500 animate-spin" : "text-red-500"} />
+src/components/Profile.tsx:1053:                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+src/lib/utils.ts:23:  // 3. Safe character escaping to prevent HTML injection execution
+src/context/AuthContext.tsx:42:    // Safety timeout to ensure loading spinner does not get stuck forever (e.g. 10 seconds)
+src/App.tsx:477:        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />

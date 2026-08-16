@@ -66,6 +66,24 @@ export default function DiscoverScreen({ navigation }: any) {
             <Text style={styles.actionBtnTextWhite}>VIDEOS</Text>
           </TouchableOpacity>
         </View>
+        <View style={styles.actionButtonsRow}>
+          <TouchableOpacity style={[styles.actionBtnWhite, { backgroundColor: '#333' }]} onPress={() => navigation.navigate('ServiceBoard')}>
+            <Ionicons name="build-outline" size={18} color="#ffcc00" style={{ marginRight: 6 }} />
+            <Text style={styles.actionBtnTextWhite}>SERVICES</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtnWhite, { backgroundColor: '#333' }]} onPress={() => navigation.navigate('DynoBoard')}>
+            <Ionicons name="speedometer-outline" size={18} color="#4ade80" style={{ marginRight: 6 }} />
+            <Text style={styles.actionBtnTextWhite}>DYNO</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtnWhite, { backgroundColor: '#333' }]} onPress={() => navigation.navigate('Battles')}>
+            <Ionicons name="car-sport-outline" size={18} color="#60a5fa" style={{ marginRight: 6 }} />
+            <Text style={styles.actionBtnTextWhite}>BATTLES</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtnWhite, { backgroundColor: '#333' }]} onPress={() => navigation.navigate('TopTuners')}>
+            <Ionicons name="trophy-outline" size={18} color="#c084fc" style={{ marginRight: 6 }} />
+            <Text style={styles.actionBtnTextWhite}>TUNERS</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.segmentControl}>
           {['POSTS', 'BUILDS', 'USERS'].map((tab) => (
