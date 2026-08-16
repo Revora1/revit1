@@ -32,7 +32,6 @@ import BattlesScreen from './screens/BattlesScreen';
 import TopTunersScreen from './screens/TopTunersScreen';
 import CookieConsentModal from './components/CookieConsentModal';
 import MechanicBoardScreen from './screens/MechanicBoardScreen';
-import CookieConsentModal from './components/CookieConsentModal';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -139,7 +138,6 @@ export default function App() {
           <Stack.Screen name="ServiceBoard" component={MechanicBoardScreen} options={{ title: 'Service Board' }} />
         </Stack.Navigator>
       </NavigationContainer>
-      <CookieConsentModal userId={user?.uid} />
       <CookieConsentModal userId={user?.uid} />
     </>
   );
