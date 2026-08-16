@@ -1,0 +1,273 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "usernameLower": { "type": "string" },
+        "bio": { "type": "string" },
+        "profilePic": { "type": "string" },
+        "followersCount": { "type": "integer" },
+        "followingCount": { "type": "integer" },
+        "garage": { "type": "array", "items": { "type": "string" } },
+        "partnerId": { "type": "string" },
+        "fcmTokens": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "username"]
+    },
+    "PrivateInfo": {
+      "title": "PrivateInfo",
+      "description": "Sensitive user information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Video post from a user",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "caption": { "type": "string" },
+        "carTagId": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "likesCount": { "type": "integer" },
+        "commentsCount": { "type": "integer" },
+        "viewCount": { "type": "integer" },
+        "views": { "type": "array", "items": { "type": "string" } },
+        "isDuo": { "type": "boolean" },
+        "songId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["postId", "authorId", "videoUrl", "createdAt"]
+    },
+    "Car": {
+      "title": "Car",
+      "description": "Individual car build in a user's garage",
+      "type": "object",
+      "properties": {
+        "carId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "make": { "type": "string" },
+        "model": { "type": "string" },
+        "year": { "type": "integer" },
+        "engine": { "type": "string" },
+        "mods": { "type": "string" },
+        "stage": { "type": "string", "enum": ["Stock", "Stage 1", "Stage 2", "Stage 3", "Track Ready", "Show Car"] },
+        "coverImage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["carId", "ownerId", "make", "model", "year", "createdAt"]
+    },
+    "Like": {
+      "title": "Like",
+      "description": "User like on a post",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "postId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "postId", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "User comment on a post",
+      "type": "object",
+      "properties": {
+        "commentId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "postId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["commentId", "authorId", "postId", "text", "createdAt"]
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "Follow relationship between users",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string" },
+        "followingId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["followerId", "followingId", "createdAt"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Direct message chat between two users",
+      "type": "object",
+      "properties": {
+        "participantIds": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "integer" },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "integer" },
+        "lastSenderId": { "type": "string" }
+      },
+      "required": ["participantIds", "createdAt", "lastMessage", "lastMessageAt", "lastSenderId"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Individual message within a chat",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["chatId", "senderId", "text", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Activity notification for a user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "comment", "follow", "message"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "integer" },
+        "postId": { "type": "string" }
+      },
+      "required": ["userId", "actorId", "type", "read", "createdAt"]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "Short-lived visual content",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["authorId", "mediaUrl", "mediaType", "createdAt"]
+    },
+    "PerformanceRecord": {
+      "title": "PerformanceRecord",
+      "description": "Verified performance record for a car",
+      "type": "object",
+      "properties": {
+        "carId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerUsername": { "type": "string" },
+        "carMake": { "type": "string" },
+        "carModel": { "type": "string" },
+        "horsepower": { "type": "number" },
+        "torque": { "type": "number" },
+        "quarterMileTime": { "type": "number" },
+        "proofUrl": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["carId", "ownerId", "proofUrl", "createdAt"]
+    },
+    "HelpfulVote": {
+      "title": "HelpfulVote",
+      "description": "User vote marking a comment as helpful",
+      "type": "object",
+      "properties": {
+        "voterId": { "type": "string" },
+        "commentId": { "type": "string" },
+        "commentAuthorId": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["voterId", "commentId", "commentAuthorId", "createdAt"]
+    },
+    "Block": {
+      "title": "Block",
+      "description": "User block action",
+      "type": "object",
+      "properties": {
+        "blockerId": { "type": "string" },
+        "blockedId": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["blockerId", "blockedId", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "User report against content or users",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string" },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["reporterId", "targetId", "targetType", "reason", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Internal user profile documents"
+    },
+    "/users/{userId}/private/info": {
+      "schema": "PrivateInfo",
+      "description": "Private user information"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Public video posts"
+    },
+    "/garage/{carId}": {
+      "schema": "Car",
+      "description": "Cars in users' garages"
+    },
+    "/likes/{likeId}": {
+      "schema": "Like",
+      "description": "Likes on posts"
+    },
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments on posts"
+    },
+    "/helpful_votes/{voteId}": {
+      "schema": "HelpfulVote",
+      "description": "Helpful votes on comments"
+    },
+    "/follows/{followId}": {
+      "schema": "Follow",
+      "description": "Follower relationships"
+    },
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Direct messaging chats"
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat messages"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User activity notifications"
+    },
+    "/stories/{storyId}": {
+      "schema": "Story",
+      "description": "Short-lived visual content from users"
+    },
+    "/performance_board/{recordId}": {
+      "schema": "PerformanceRecord",
+      "description": "Verified performance stats and proof"
+    },
+    "/blocks/{blockId}": {
+      "schema": "Block",
+      "description": "User block actions"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Content or user reports"
+    }
+  }
+}
