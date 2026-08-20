@@ -32,7 +32,9 @@ export default function CookieConsentModal({ userId }: { userId?: string }) {
         await AsyncStorage.setItem('gdpr-consent', 'accepted');
         // Request ATT immediately if accepted
         if (Platform.OS === 'ios') {
-          await requestTrackingPermissionsAsync();
+          await requestTrackingPermissionsAsync().catch((err) => {
+            console.warn('ATT request rejected or unavailable:', err);
+          });
         }
       } else {
         await AsyncStorage.removeItem('gdpr-consent');

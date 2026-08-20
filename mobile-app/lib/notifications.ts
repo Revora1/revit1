@@ -38,19 +38,21 @@ export async function registerForPushNotificationsAsync() {
       return;
     }
     
-    // Use the default Expo project ID if available, otherwise it falls back to empty
+    // Use the default Expo project ID if available
     try {
-      token = (await Notifications.getExpoPushTokenAsync()).data;
+      token = (await Notifications.getExpoPushTokenAsync({
+        projectId: '1e9392c2-6443-4c87-8ff2-cd2c76425689'
+      })).data;
       console.log('Expo Push Token:', token);
       
       // Save token to Firestore
-      if (auth.currentUser) {
+      if (auth.currentUser && token) {
         await updateDoc(doc(db, 'users', auth.currentUser.uid), {
           pushToken: token
         });
       }
     } catch (e) {
-      console.log(e);
+      console.warn('Could not register push token:', e);
     }
   } else {
     console.log('Must use physical device for Push Notifications');
