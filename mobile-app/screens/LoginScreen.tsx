@@ -1,0 +1,150 @@
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, db } from '../firebaseConfig';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Ionicons } from '@expo/vector-icons';
+
+export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  const handleAuth = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      if (isSignUp) {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        // Create user profile
+        await setDoc(doc(db, 'users', user.uid), {
+          email: user.email,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (err: any) {
+      Alert.alert('Authentication Failed', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>REVITUP</Text>
+            <Text style={styles.subtitle}>FOR THE CAR COMMUNITY</Text>
+          </View>
+          
+          <View style={styles.formContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              placeholderTextColor="#666"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#666"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+            
+            <TouchableOpacity style={styles.mainBtn} onPress={handleAuth} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <View style={styles.mainBtnContent}>
+                  <Text style={styles.mainBtnText}>{isSignUp ? 'CREATE ACCOUNT' : 'SIGN IN'}</Text>
+                  {isSignUp ? (
+                    <Ionicons name="person-add-outline" size={18} color="#000" style={{ marginLeft: 8 }} />
+                  ) : (
+                    <Ionicons name="chevron-forward" size={18} color="#000" style={{ marginLeft: 8 }} />
+                  )}
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.separator} />
+
+            <TouchableOpacity style={styles.toggleBtn} onPress={() => setIsSignUp(!isSignUp)}>
+              {isSignUp ? (
+                <Ionicons name="log-in-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+              ) : (
+                <Ionicons name="person-add-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+              )}
+              <Text style={styles.toggleBtnText}>
+                {isSignUp ? 'ALREADY HAVE AN ACCOUNT? SIGN IN' : 'NEED AN ACCOUNT? SIGN UP'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.forgotBtn} onPress={() => Alert.alert('Forgot Password', 'Password reset flow would initiate here.')}>
+              <Text style={styles.forgotBtnText}>FORGOT PASSWORD?</Text>
+            </TouchableOpacity>
+          </View>
+          
+        </ScrollView>
+        <Text style={styles.footerText}>By joining, you agree to our Terms and Service.</Text>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1 },
+  scrollContent: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  
+  logoContainer: { alignItems: 'center', marginBottom: 48 },
+  logoText: { fontSize: 48, fontWeight: '900', fontStyle: 'italic', color: '#fff', letterSpacing: -2 },
+  subtitle: { fontSize: 13, color: '#aaa', marginTop: 8, letterSpacing: 0.5, textTransform: 'uppercase', fontWeight: 'bold' },
+  
+  formContainer: { width: '100%' },
+  input: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 16
+  },
+  mainBtn: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8
+  },
+  mainBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  mainBtnText: { color: '#000', fontSize: 16, fontWeight: 'bold' },
+  
+  separator: { height: 1, backgroundColor: '#222', width: '100%', marginVertical: 32 },
+  
+  toggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  toggleBtnText: { color: '#fff', fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 },
+  
+  forgotBtn: { alignItems: 'center' },
+  forgotBtnText: { color: '#888', fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  footerText: { color: '#555', fontSize: 12, textAlign: 'center', marginBottom: 24 }
+});
