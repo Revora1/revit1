@@ -74,7 +74,7 @@ export default function MarketplaceScreen({ navigation }: any) {
   }, []);
 
   const pickImage = async () => {
-    if (imageUris && imageUris.length >= 10) {
+    if (imageUris.length >= 10) {
       Alert.alert('Limit Reached', 'You can upload a maximum of 10 images.');
       return;
     }
@@ -86,7 +86,7 @@ export default function MarketplaceScreen({ navigation }: any) {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
-      selectionLimit: 10 - (imageUris ? imageUris.length : 0),
+      selectionLimit: 10 - imageUris.length,
       quality: 0.8,
     });
     if (!result.canceled) {
@@ -169,17 +169,17 @@ export default function MarketplaceScreen({ navigation }: any) {
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e53935" colors={["#e53935"]} />} style={styles.content} contentContainerStyle={styles.scrollContent}>
         {loading ? (
           <ActivityIndicator size="large" color="#fff" style={{ marginTop: 40 }} />
-        ) : filteredItems && filteredItems.length > 0 ? (
+        ) : filteredItems.length > 0 ? (
           filteredItems.map(item => (
-            <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.9} onPress={() => navigation.navigate('ListingDetail', { item })}>
-              {item.images && Array.isArray(item.images) && item.images.length > 0 ? (
+            <View key={item.id} style={styles.card}>
+              {item.images && item.images.length > 0 ? (
                 <View>
                   <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={{ width: CARD_WIDTH, height: 200 }}>
                     {item.images.map((imgUri: string, idx: number) => (
                       <Image key={idx} source={{ uri: imgUri }} style={{ width: CARD_WIDTH, height: 200, resizeMode: 'cover' }} />
                     ))}
                   </ScrollView>
-                  {Array.isArray(item.images) && item.images.length > 1 && (
+                  {item.images.length > 1 && (
                     <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
                       <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{item.images.length} Photos</Text>
                     </View>
@@ -239,7 +239,7 @@ export default function MarketplaceScreen({ navigation }: any) {
                 </View>
                 <Text style={styles.location}>{item.description || 'No description'}</Text>
               </View>
-            </TouchableOpacity>
+            </View>
           ))
         ) : (
           <Text style={styles.empty}>No marketplace items found.</Text>
@@ -324,11 +324,11 @@ export default function MarketplaceScreen({ navigation }: any) {
                     </TouchableOpacity>
                   </View>
                 ))}
-                {(!imageUris || imageUris.length < 10) && (
+                {imageUris.length < 10 && (
                   <TouchableOpacity style={styles.addMorePhotosBtn} onPress={pickImage}>
                     <Ionicons name="camera-outline" size={32} color="#666" />
-                    <Text style={styles.imagePickerText}>{!imageUris || imageUris.length === 0 ? "Add Photos" : "Add More"}</Text>
-                    <Text style={{ color: '#666', fontSize: 12, marginTop: 4 }}>{10 - (imageUris ? imageUris.length : 0)} left</Text>
+                    <Text style={styles.imagePickerText}>{imageUris.length === 0 ? "Add Photos" : "Add More"}</Text>
+                    <Text style={{ color: '#666', fontSize: 12, marginTop: 4 }}>{10 - imageUris.length} left</Text>
                   </TouchableOpacity>
                 )}
               </ScrollView>

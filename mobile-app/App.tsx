@@ -33,7 +33,6 @@ import TopTunersScreen from './screens/TopTunersScreen';
 import CookieConsentModal from './components/CookieConsentModal';
 import MechanicBoardScreen from './screens/MechanicBoardScreen';
 import MenuScreen from './screens/MenuScreen';
-import ListingDetailScreen from './screens/ListingDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -124,7 +123,6 @@ export default function App() {
           <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
           <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Car Clubs' }} />
           <Stack.Screen name="Marketplace" component={MarketplaceScreen} options={{ title: 'Marketplace' }} />
-          <Stack.Screen name="ListingDetail" component={ListingDetailScreen} options={{ title: 'Listing Details' }} />
           <Stack.Screen name="Admin" component={AdminScreen} options={{ title: 'Admin Panel' }} />
           <Stack.Screen name="Giveaways" component={GiveawaysScreen} options={{ title: 'Giveaways' }} />
           <Stack.Screen name="Videos" component={VideosScreen} options={{ headerShown: false }} />

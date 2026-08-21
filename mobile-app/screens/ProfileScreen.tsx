@@ -1562,8 +1562,8 @@ const handleOpenEditProfile = () => {
                 <View style={styles.garageList}>
                   {listings.length > 0 ? (
                     listings.map((item) => (
-                      <TouchableOpacity key={item.id} style={styles.garageCard} activeOpacity={0.8} onPress={() => navigation.navigate("ListingDetail", { item })}>
-                        {item.images && Array.isArray(item.images) && item.images.length > 0 ? (
+                      <View key={item.id} style={styles.garageCard}>
+                        {item.images && item.images.length > 0 ? (
                           <Image
                             source={{ uri: item.images[0] }}
                             style={styles.garageCardImage}
@@ -1596,7 +1596,7 @@ const handleOpenEditProfile = () => {
                             <Ionicons name="trash-outline" size={18} color="#fff" />
                           </TouchableOpacity>
                         )}
-                      </TouchableOpacity>
+                      </View>
                     ))
                   ) : (
                     <View style={styles.emptyState}>

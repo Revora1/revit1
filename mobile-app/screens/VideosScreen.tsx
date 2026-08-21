@@ -15,14 +15,9 @@ const adUnitId = __DEV__
   ? TestIds.INTERSTITIAL 
   : 'ca-app-pub-3940256099942544/1033173712'; // Test ID used as fallback
 
-let interstitial: any = null;
-try {
-  interstitial = InterstitialAd.createForAdRequest(adUnitId, {
-    requestNonPersonalizedAdsOnly: true,
-  });
-} catch (e) {
-  console.warn('Failed to create interstitial ad request:', e);
-}
+const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
+  requestNonPersonalizedAdsOnly: true,
+});
 
 export default function VideosScreen({ navigation }: any) {
   const [videos, setVideos] = useState<any[]>([]);
@@ -34,17 +29,11 @@ export default function VideosScreen({ navigation }: any) {
     fetchVideos();
     
     // Pre-load interstitial
-    let unsubscribeLoaded = () => {};
-    try {
-      if (interstitial?.addAdEventListener) {
-        unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-          console.log('Interstitial ad loaded');
-        });
-        interstitial.load();
-      }
-    } catch (e) {
-      console.warn('Interstitial load error:', e);
-    }
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      console.log('Interstitial ad loaded');
+    });
+    
+    interstitial.load();
 
     return () => {
       unsubscribeLoaded();
@@ -129,8 +118,8 @@ function VideoItem({ item, isActive, onPlay }: { item: any, isActive: boolean, o
         if (!hasPlayedMidRoll) {
           setHasPlayedMidRoll(true);
           player.pause();
-          if (interstitial?.loaded) {
-            try { interstitial.show(); } catch { player.play(); }
+          if (interstitial.loaded) {
+            interstitial.show();
           } else {
             player.play();
           }
@@ -141,8 +130,8 @@ function VideoItem({ item, isActive, onPlay }: { item: any, isActive: boolean, o
     const playToEndSub = player.addListener('playToEnd', () => {
       if (!hasPlayedEndRoll) {
         setHasPlayedEndRoll(true);
-        if (interstitial?.loaded) {
-          try { interstitial.show(); } catch {}
+        if (interstitial.loaded) {
+          interstitial.show();
         }
       }
     });
@@ -154,17 +143,13 @@ function VideoItem({ item, isActive, onPlay }: { item: any, isActive: boolean, o
   }, [player, hasPlayedMidRoll, hasPlayedEndRoll]);
 
   useEffect(() => {
-    let unsubscribeClosed = () => {};
-    try {
-      if (interstitial?.addAdEventListener) {
-        unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-          try { interstitial?.load(); } catch {}
-          if (isActive && player) {
-            player.play();
-          }
-        });
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      // Resume video after ad is closed
+      interstitial.load(); // preload next
+      if (isActive && player) {
+        player.play();
       }
-    } catch {}
+    });
     return () => {
       unsubscribeClosed();
     };
@@ -172,7 +157,7 @@ function VideoItem({ item, isActive, onPlay }: { item: any, isActive: boolean, o
 
   useEffect(() => {
     if (isActive) {
-      if (hasPlayedPreRoll || !interstitial?.loaded) {
+      if (hasPlayedPreRoll || !interstitial.loaded) {
          player.play();
       }
     } else {
@@ -187,9 +172,10 @@ function VideoItem({ item, isActive, onPlay }: { item: any, isActive: boolean, o
     
     if (!hasPlayedPreRoll) {
       setHasPlayedPreRoll(true);
-      if (interstitial?.loaded) {
-        try { interstitial.show(); } catch { player.play(); }
+      if (interstitial.loaded) {
+        interstitial.show();
       } else {
+        // If ad not ready, just play
         player.play();
       }
     } else {

@@ -137,18 +137,16 @@ export default function FeedScreen({ navigation }: any) {
   useEffect(() => {
     let currentAd: NativeAd | null = null;
     const initAds = async () => {
+      await requestTrackingPermissionsAsync();
+      await mobileAds().initialize();
+      
       try {
-        if (Platform.OS === 'ios') {
-          await requestTrackingPermissionsAsync().catch(() => {});
-        }
-        await mobileAds().initialize();
-        
         currentAd = await NativeAd.createForAdRequest(adUnitId, {
           requestNonPersonalizedAdsOnly: true
         });
         setNativeAd(currentAd);
       } catch (err) {
-        console.warn('Native Ad / Tracking init error (handled safely):', err);
+        console.log('Native Ad load failed:', err);
       }
     };
     initAds();
