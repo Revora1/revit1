@@ -268,7 +268,7 @@ export default function FeedScreen({ navigation }: any) {
   for (let i = 0; i < visiblePostsBase.length; i++) {
     feedItems.push({ ...visiblePostsBase[i], type: 'post' });
     postCounter++;
-    if (postCounter % 4 === 0 && nativeAd) {
+    if (postCounter % 3 === 0 && nativeAd) {
       feedItems.push({ id: `ad_${i}`, type: 'ad' });
     }
   }

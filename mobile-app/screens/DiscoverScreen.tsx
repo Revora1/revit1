@@ -48,14 +48,7 @@ export default function DiscoverScreen({ navigation }: any) {
         <Text style={styles.titleText}>DISCOVER</Text>
         <Text style={styles.subtitleText}>SEARCH THE GLOBAL COMMUNITY BUILD REGISTRY</Text>
         
-        <TouchableOpacity style={styles.directoryBtn} onPress={() => {
-          try {
-            navigation.navigate('Menu');
-          } catch(e) {
-             console.log(e);
-             try { navigation.getParent()?.navigate('Menu'); } catch(e2) {}
-          }
-        }}>
+        <TouchableOpacity style={styles.directoryBtn} onPress={() => { const parent = navigation.getParent(); if (parent) { parent.navigate('Menu'); } else { navigation.navigate('Menu'); } }}>
           <Ionicons name="folder-open-outline" size={20} color="#000" style={{ marginRight: 8 }} />
           <Text style={styles.directoryBtnText}>BROWSE DIRECTORY</Text>
         </TouchableOpacity>
