@@ -21,6 +21,14 @@ export default function MechanicBoardScreen() {
   const [phone, setPhone] = useState('');
   const [website, setWebsite] = useState('');
   const [email, setEmail] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
+
+  const imagePresets = [
+    { name: 'Garage', url: 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200' },
+    { name: 'Tuning', url: 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&q=80&w=1200' },
+    { name: 'Detailing', url: 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?auto=format&fit=crop&q=80&w=1200' },
+    { name: 'Engine', url: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=1200' }
+  ];
 
   useEffect(() => {
     const q = query(collection(db, 'mechanics'), orderBy('createdAt', 'desc'));
@@ -49,7 +57,7 @@ export default function MechanicBoardScreen() {
         phone,
         website,
         email,
-        bannerUrl: 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200',
+        bannerUrl: bannerUrl || 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200',
         addedBy: auth.currentUser?.uid || 'anonymous',
         userId: auth.currentUser?.uid || 'anonymous',
         createdAt: serverTimestamp()
@@ -57,7 +65,7 @@ export default function MechanicBoardScreen() {
       
       setShowModal(false);
       setCompanyName(''); setSpecialties(''); setLocation('');
-      setPhone(''); setWebsite(''); setEmail('');
+      setPhone(''); setWebsite(''); setEmail(''); setBannerUrl('');
       Alert.alert('Success', 'Shop added to Service Board!');
     } catch (err: any) {
       Alert.alert('Error', err.message);
@@ -248,6 +256,50 @@ export default function MechanicBoardScreen() {
           </View>
           
           <ScrollView style={styles.modalForm}>
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ color: '#888', fontSize: 11, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' }}>
+                Business Banner Image
+              </Text>
+              
+              {bannerUrl ? (
+                <View style={{ height: 120, borderRadius: 10, overflow: 'hidden', marginBottom: 8, borderWidth: 1, borderColor: '#333' }}>
+                  <Image source={{ uri: bannerUrl }} style={{ width: '100%', height: '100%' }} />
+                </View>
+              ) : null}
+
+              <TextInput 
+                style={styles.input} 
+                value={bannerUrl} 
+                onChangeText={setBannerUrl} 
+                placeholder="Business Banner Image URL (https://...)" 
+                placeholderTextColor="#666" 
+                keyboardType="url"
+                autoCapitalize="none"
+              />
+
+              <Text style={{ color: '#666', fontSize: 10, marginBottom: 6 }}>Or pick a photo preset:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
+                {imagePresets.map((item, idx) => (
+                  <TouchableOpacity 
+                    key={idx}
+                    onPress={() => setBannerUrl(item.url)}
+                    style={{ 
+                      paddingHorizontal: 12, 
+                      paddingVertical: 6, 
+                      borderRadius: 16, 
+                      backgroundColor: bannerUrl === item.url ? '#f5d547' : '#222',
+                      borderWidth: 1,
+                      borderColor: bannerUrl === item.url ? '#f5d547' : '#333'
+                    }}
+                  >
+                    <Text style={{ color: bannerUrl === item.url ? '#000' : '#fff', fontSize: 11, fontWeight: 'bold' }}>
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
             <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company / Garage Name *" placeholderTextColor="#666" />
             <TextInput style={styles.input} value={specialties} onChangeText={setSpecialties} placeholder="Specialties (e.g. Tuning, Fabrications, Euro) *" placeholderTextColor="#666" />
             <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="City, State / Address *" placeholderTextColor="#666" />

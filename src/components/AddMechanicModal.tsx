@@ -26,12 +26,21 @@ export function AddMechanicModal({ onClose, onAdded }: AddMechanicModalProps) {
   const [location, setLocation] = useState('');
   
   const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerUrlInput, setBannerUrlInput] = useState('');
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+
+  const presets = [
+    { name: 'Garage Bay', url: 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200' },
+    { name: 'Dyno / Tuning', url: 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&q=80&w=1200' },
+    { name: 'Detailing', url: 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?auto=format&fit=crop&q=80&w=1200' },
+    { name: 'Engine Swap', url: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=1200' }
+  ];
 
   const handleBannerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setBannerPreview(URL.createObjectURL(file));
+      setBannerUrlInput('');
       try {
         const compressedFile = await imageCompression(file, {
           maxSizeMB: 1,
@@ -46,6 +55,12 @@ export function AddMechanicModal({ onClose, onAdded }: AddMechanicModalProps) {
     }
   };
 
+  const handleSelectPreset = (url: string) => {
+    setBannerUrlInput(url);
+    setBannerPreview(url);
+    setBannerFile(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -53,11 +68,11 @@ export function AddMechanicModal({ onClose, onAdded }: AddMechanicModalProps) {
     setError(null);
 
     try {
-      let bannerUrl = '';
+      let finalBannerUrl = bannerUrlInput;
       if (bannerFile) {
         const fileRef = ref(storage, `mechanic_banners/${Date.now()}_${bannerFile.name}`);
         await uploadBytes(fileRef, bannerFile);
-        bannerUrl = await getDownloadURL(fileRef);
+        finalBannerUrl = await getDownloadURL(fileRef);
       }
 
       await addDoc(collection(db, 'mechanics'), {
@@ -69,7 +84,7 @@ export function AddMechanicModal({ onClose, onAdded }: AddMechanicModalProps) {
         email,
         website,
         location,
-        bannerUrl,
+        bannerUrl: finalBannerUrl,
         createdAt: serverTimestamp()
       });
 
@@ -108,24 +123,27 @@ export function AddMechanicModal({ onClose, onAdded }: AddMechanicModalProps) {
         <div className="overflow-y-auto p-4 custom-scrollbar">
           <form id="mechanic-form" onSubmit={handleSubmit} className="space-y-4">
             
-            {/* Banner Upload */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Shop Banner (Optional)</label>
+            {/* Banner Upload / Presets / URL */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Business / Shop Image (Optional)</label>
+              
+              {/* Image Preview Box */}
               <div 
                 onClick={() => document.getElementById('banner-upload')?.click()}
-                className="w-full h-32 border-2 border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors cursor-pointer relative overflow-hidden group"
+                className="w-full h-36 border-2 border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors cursor-pointer relative overflow-hidden group"
               >
                 {bannerPreview ? (
                   <>
                     <img src={bannerPreview} alt="Banner Preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">Change Image</span>
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">Change File</span>
                     </div>
                   </>
                 ) : (
-                  <div className="flex flex-col items-center text-zinc-500 group-hover:text-zinc-400 transition-colors">
-                    <ImageIcon size={24} className="mb-2" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Upload Banner</span>
+                  <div className="flex flex-col items-center text-zinc-500 group-hover:text-zinc-400 transition-colors p-4 text-center">
+                    <ImageIcon size={28} className="mb-2 text-yellow-500/80" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-300">Upload Image File</span>
+                    <span className="text-[10px] text-zinc-500 mt-1">Click or drag photo here</span>
                   </div>
                 )}
                 <input 
@@ -134,6 +152,43 @@ export function AddMechanicModal({ onClose, onAdded }: AddMechanicModalProps) {
                   accept="image/*"
                   className="hidden"
                   onChange={handleBannerSelect}
+                />
+              </div>
+
+              {/* Presets */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 uppercase font-semibold">Or pick a stock photo:</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {presets.map((p, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSelectPreset(p.url)}
+                      className={`relative h-14 rounded-lg overflow-hidden border text-left group transition-all cursor-pointer ${
+                        bannerPreview === p.url ? 'border-yellow-500 ring-2 ring-yellow-500/30' : 'border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      <img src={p.url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex items-end p-1.5">
+                        <span className="text-[9px] font-bold text-white truncate">{p.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Direct URL Input */}
+              <div className="pt-1">
+                <input
+                  type="url"
+                  placeholder="Or paste image URL (https://...)"
+                  value={bannerUrlInput}
+                  onChange={(e) => {
+                    setBannerUrlInput(e.target.value);
+                    setBannerPreview(e.target.value);
+                    setBannerFile(null);
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500 transition-colors placeholder:text-zinc-600 font-medium"
                 />
               </div>
             </div>
