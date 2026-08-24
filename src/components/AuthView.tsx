@@ -161,7 +161,7 @@ export function AuthView() {
           </div>
 
           <p className="text-xs text-zinc-500 px-8 pt-4">
-            By joining, you agree to our Terms and Service.
+            By joining, you agree to our <a href="/privacy-policy" className="underline hover:text-zinc-300">Privacy & Cookie Policy</a> and Terms of Service.
           </p>
 
           {isWeb && (

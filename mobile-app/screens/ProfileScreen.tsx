@@ -1,10 +1,9 @@
-import { TextInput } from 'react-native';
 import React, { useEffect, useState } from "react";
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   StyleSheet,
   Text,
   View,
-  SafeAreaView,
   ScrollView,
   Platform,
   TouchableOpacity,
@@ -15,6 +14,9 @@ import {
   Modal,
   Share,
   Linking,
+  TextInput,
+  KeyboardAvoidingView,
+  FlatList,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,9 +32,14 @@ import {
   where,
   getDocs,
   orderBy,
-  getCountFromServer, collectionGroup,
+  getCountFromServer,
+  collectionGroup,
   updateDoc,
   deleteDoc,
+  setDoc,
+  addDoc,
+  increment,
+  serverTimestamp,
 } from "firebase/firestore";
 import { signOut, deleteUser } from "firebase/auth";
 
@@ -82,8 +89,43 @@ const SettingsItem = ({
   </TouchableOpacity>
 );
 
+
+const formatTimeAgo = (timestamp: any) => {
+  if (!timestamp) return '';
+  try {
+    const date = timestamp?.toDate ? timestamp.toDate() : (timestamp?.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp));
+    if (isNaN(date.getTime())) return '';
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (diffInSeconds < 60) return 'Just now';
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) return `${diffInWeeks}w ago`;
+    return date.toLocaleDateString();
+  } catch (e) {
+    return '';
+  }
+};
+
 export default function ProfileScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<any>(null);
+  // Profile Post Feed Viewer States
+  const [showFeedViewer, setShowFeedViewer] = useState(false);
+  const [feedInitialIndex, setFeedInitialIndex] = useState(0);
+  const [feedViewerPosts, setFeedViewerPosts] = useState<any[]>([]);
+  const feedFlatListRef = React.useRef<any>(null);
+  const [showFeedCommentsModal, setShowFeedCommentsModal] = useState(false);
+  const [selectedFeedPost, setSelectedFeedPost] = useState<any>(null);
+  const [feedComments, setFeedComments] = useState<any[]>([]);
+  const [newFeedComment, setNewFeedComment] = useState('');
+  const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
+
   const [posts, setPosts] = useState<any[]>([]);
   const [garage, setGarage] = useState<any[]>([]);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
@@ -105,6 +147,8 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [dynamicFollowingCount, setDynamicFollowingCount] = useState<
     number | null
   >(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [checkingFollow, setCheckingFollow] = useState(false);
 
   const [adminStats, setAdminStats] = useState({ users: 0, garages: 0, logs: 0 });
 
@@ -161,7 +205,32 @@ export default function ProfileScreen({ route, navigation }: any) {
           orderBy("createdAt", "desc"),
         );
         const pSnap = await getDocs(pQuery);
-        setPosts(pSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+        const fetchedPosts = pSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+        const currentUid = auth.currentUser?.uid;
+        const likedPostIds = new Set<string>();
+        if (currentUid && fetchedPosts.length > 0) {
+          try {
+            const likeChecks = await Promise.all(
+              fetchedPosts.map(p => getDoc(doc(db, 'likes', `${currentUid}_${p.id}`)))
+            );
+            likeChecks.forEach((lSnap, idx) => {
+              if (lSnap.exists()) {
+                likedPostIds.add(fetchedPosts[idx].id);
+              }
+            });
+          } catch (e) {
+            console.log('Error checking likes:', e);
+          }
+        }
+
+        const enrichedPosts = fetchedPosts.map(p => ({
+          ...p,
+          isLiked: likedPostIds.has(p.id),
+          likesCount: Number(p.likesCount) || 0
+        }));
+
+        setPosts(enrichedPosts);
 
         const lQuery = query(
           collection(db, "marketplace"),
@@ -210,6 +279,15 @@ export default function ProfileScreen({ route, navigation }: any) {
         setDynamicFollowersCount(actualFollowers);
         setDynamicFollowingCount(actualFollowing);
 
+        if (auth.currentUser && !isCurrentUser) {
+          try {
+            const followSnap = await getDoc(doc(db, "follows", `${auth.currentUser.uid}_${targetUserId}`));
+            setIsFollowing(followSnap.exists());
+          } catch (e) {
+            console.error("Error checking follow status:", e);
+          }
+        }
+
         if (isCurrentUser && auth.currentUser?.email === "tonyang11552883@gmail.com") {
           try {
             const usersCountQ = await getCountFromServer(collection(db, "users"));
@@ -230,10 +308,10 @@ export default function ProfileScreen({ route, navigation }: any) {
           (profileData.followersCount !== actualFollowers ||
             profileData.followingCount !== actualFollowing)
         ) {
-          await updateDoc(docRef, {
+          await setDoc(docRef, {
             followersCount: actualFollowers,
             followingCount: actualFollowing,
-          });
+          }, { merge: true });
         }
       } catch (err) {
         console.error("Error fetching profile data:", err);
@@ -243,7 +321,59 @@ export default function ProfileScreen({ route, navigation }: any) {
     };
 
     fetchData();
-  }, []);
+  }, [targetUserId]);
+
+  const handleFollowToggle = async () => {
+    if (!auth.currentUser) {
+      Alert.alert("Sign In Required", "Please sign in to follow users.");
+      return;
+    }
+    if (isCurrentUser || checkingFollow || !targetUserId) return;
+    setCheckingFollow(true);
+    const myUid = auth.currentUser.uid;
+    const followId = `${myUid}_${targetUserId}`;
+    const followRef = doc(db, 'follows', followId);
+    const myRef = doc(db, 'users', myUid);
+    const targetRef = doc(db, 'users', targetUserId);
+
+    const willFollow = !isFollowing;
+    setIsFollowing(willFollow);
+    setDynamicFollowersCount(prev => (prev !== null ? (willFollow ? prev + 1 : Math.max(0, prev - 1)) : (willFollow ? 1 : 0)));
+
+    try {
+      if (!willFollow) {
+        await deleteDoc(followRef);
+        try { await setDoc(myRef, { followingCount: increment(-1) }, { merge: true }); } catch (e) {}
+        try { await setDoc(targetRef, { followersCount: increment(-1) }, { merge: true }); } catch (e) {}
+      } else {
+        await setDoc(followRef, {
+          followerId: myUid,
+          followingId: targetUserId,
+          createdAt: Date.now()
+        });
+        try { await setDoc(myRef, { followingCount: increment(1) }, { merge: true }); } catch (e) {}
+        try { await setDoc(targetRef, { followersCount: increment(1) }, { merge: true }); } catch (e) {}
+
+        const notifId = `${Date.now()}_${myUid}_follow_${targetUserId}`;
+        try {
+          await setDoc(doc(db, 'notifications', notifId), {
+            userId: targetUserId,
+            actorId: myUid,
+            type: 'follow',
+            read: false,
+            createdAt: Date.now()
+          });
+        } catch (e) {}
+      }
+    } catch (error) {
+      console.error("Follow error:", error);
+      setIsFollowing(!willFollow);
+      setDynamicFollowersCount(prev => (prev !== null ? (!willFollow ? prev + 1 : Math.max(0, prev - 1)) : 0));
+      Alert.alert("Error", "Could not update follow status.");
+    } finally {
+      setCheckingFollow(false);
+    }
+  };
 
   // --- Handlers for Edit Profile ---
     const handleOpenFollows = async (type: 'followers' | 'following') => {
@@ -258,7 +388,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         : query(collection(db, "follows"), where("followerId", "==", targetUserId));
         
       const snapshot = await getDocs(q);
-      const userIds = snapshot.docs.map((d: any) => type === 'followers' ? d.data().followerId : d.data().followingId);
+      const userIds = [...new Set(snapshot.docs.map((d: any) => type === 'followers' ? d.data().followerId : d.data().followingId))];
       
       const users = [];
       for (const id of userIds) {
@@ -320,7 +450,7 @@ const handleOpenEditProfile = () => {
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.4,
     });
     if (!result.canceled) {
       setEditAvatarUri(result.assets[0].uri);
@@ -390,6 +520,219 @@ const handleOpenEditProfile = () => {
         }}
       ]
     );
+  };
+
+  
+  const handleOpenFeedViewer = async (index: number, postList?: any[]) => {
+    const list = postList || posts;
+    if (!list || list.length === 0) return;
+
+    const currentUid = auth.currentUser?.uid;
+    let preparedList = list;
+    if (currentUid) {
+      try {
+        const likeChecks = await Promise.all(
+          list.map(p => getDoc(doc(db, 'likes', `${currentUid}_${p.id}`)))
+        );
+        preparedList = list.map((p, idx) => ({
+          ...p,
+          isLiked: likeChecks[idx].exists(),
+          likesCount: Number(p.likesCount) || 0
+        }));
+      } catch (e) {
+        console.log('Error verifying feed viewer likes:', e);
+      }
+    }
+
+    setFeedViewerPosts(preparedList);
+    setFeedInitialIndex(index);
+    setShowFeedViewer(true);
+  };
+
+  const handleFeedLike = async (postId: string) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      Alert.alert("Sign In Required", "Please sign in to like posts.");
+      return;
+    }
+
+    const targetPost = feedViewerPosts.find(p => p.id === postId) || posts.find(p => p.id === postId);
+    if (!targetPost) return;
+
+    const wasLiked = Boolean(targetPost.isLiked);
+    const currentCount = Number(targetPost.likesCount) || 0;
+    const newLiked = !wasLiked;
+    const newCount = wasLiked ? Math.max(0, currentCount - 1) : currentCount + 1;
+
+    setPosts(current => current.map(p => 
+      p.id === postId ? { ...p, isLiked: newLiked, likesCount: newCount } : p
+    ));
+    setFeedViewerPosts(current => current.map(p => 
+      p.id === postId ? { ...p, isLiked: newLiked, likesCount: newCount } : p
+    ));
+
+    const likeId = `${userId}_${postId}`;
+    const likeRef = doc(db, 'likes', likeId);
+    const postRef = doc(db, 'posts', postId);
+
+    try {
+      if (wasLiked) {
+        await deleteDoc(likeRef);
+        await updateDoc(postRef, { likesCount: increment(-1) });
+      } else {
+        await setDoc(likeRef, {
+          userId: userId,
+          postId: postId,
+          createdAt: Date.now()
+        });
+        await updateDoc(postRef, { likesCount: increment(1) });
+
+        if (targetPost.authorId && targetPost.authorId !== userId) {
+          const notifId = `${Date.now()}_${userId}_like_${postId}`;
+          setDoc(doc(db, 'notifications', notifId), {
+            userId: targetPost.authorId,
+            actorId: userId,
+            type: 'like',
+            postId: postId,
+            read: false,
+            createdAt: Date.now()
+          }).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling feed like:', err);
+      // Revert if error
+      setPosts(current => current.map(p => 
+        p.id === postId ? { ...p, isLiked: wasLiked, likesCount: currentCount } : p
+      ));
+      setFeedViewerPosts(current => current.map(p => 
+        p.id === postId ? { ...p, isLiked: wasLiked, likesCount: currentCount } : p
+      ));
+    }
+  };
+
+  const handleFeedShare = async (post: any) => {
+    try {
+      const shareUrl = `https://revitup.today/?p=${post.id}${auth.currentUser?.uid ? `&ref=${auth.currentUser.uid}` : ''}`;
+      await Share.share({
+        message: `Check out this post by @${post.authorUsername || username} on RevitUp! ${shareUrl}`,
+      });
+    } catch (error: any) {
+      console.log('Error sharing', error);
+    }
+  };
+
+  const handleFeedPostOptions = (post: any) => {
+    const isOwner = post.authorId === auth.currentUser?.uid;
+    const options: any[] = [];
+    if (isOwner) {
+      options.push({ text: 'Delete Post', onPress: () => handleDeletePostFromFeed(post), style: 'destructive' });
+    } else {
+      options.push({ 
+        text: 'Report Post', 
+        onPress: () => Alert.alert('Reported', 'Thank you. Our team will review this post.'), 
+        style: 'destructive' 
+      });
+    }
+    options.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Post Options', '', options);
+  };
+
+  const handleDeletePostFromFeed = async (post: any) => {
+    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteDoc(doc(db, 'posts', post.id));
+            setPosts(prev => prev.filter(p => p.id !== post.id));
+            setFeedViewerPosts(prev => {
+              const updated = prev.filter(p => p.id !== post.id);
+              if (updated.length === 0) {
+                setShowFeedViewer(false);
+              }
+              return updated;
+            });
+            Alert.alert('Success', 'Post deleted successfully');
+          } catch (err) {
+            console.error(err);
+            Alert.alert('Error', 'Failed to delete post');
+          }
+        }
+      }
+    ]);
+  };
+
+  const openFeedComments = async (post: any) => {
+    setSelectedFeedPost(post);
+    setShowFeedCommentsModal(true);
+    if (post.id) {
+      updateDoc(doc(db, 'posts', post.id), { viewsCount: increment(1) }).catch(console.error);
+    }
+    try {
+      const q = query(collection(db, 'posts', post.id, 'comments'), orderBy('createdAt', 'asc'));
+      const snap = await getDocs(q);
+      setFeedComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.log('Error loading comments:', e);
+    }
+  };
+
+  const submitFeedComment = async () => {
+    if (!newFeedComment.trim() || !selectedFeedPost) return;
+    try {
+      const currentUserName = profile?.username || auth.currentUser?.displayName || `tuner_${auth.currentUser?.uid?.substring(0, 4)}`;
+      await addDoc(collection(db, 'posts', selectedFeedPost.id, 'comments'), {
+        text: newFeedComment.trim(),
+        authorId: auth.currentUser?.uid,
+        authorUsername: currentUserName,
+        createdAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'posts', selectedFeedPost.id), { commentsCount: increment(1) });
+      
+      setPosts(current => current.map(p => 
+        p.id === selectedFeedPost.id ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p
+      ));
+      setFeedViewerPosts(current => current.map(p => 
+        p.id === selectedFeedPost.id ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p
+      ));
+      setFeedComments(prev => [...prev, { id: Date.now().toString(), text: newFeedComment.trim(), authorUsername: currentUserName }]);
+      setNewFeedComment('');
+    } catch (e) {
+      console.error('Error submitting comment:', e);
+    }
+  };
+
+  const handlePostOptions = (post: any) => {
+    const isOwner = post.authorId === auth.currentUser?.uid;
+    if (!isOwner) return; // Only allow deletion if owner
+
+    Alert.alert(
+      'Post Options',
+      '',
+      [
+        { text: 'Delete Post', onPress: () => handleDeletePost(post), style: 'destructive' },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const handleDeletePost = async (post: any) => {
+    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteDoc(doc(db, 'posts', post.id));
+            setPosts(posts.filter(p => p.id !== post.id));
+            Alert.alert('Success', 'Post deleted');
+          } catch (err) {
+            console.error(err);
+            Alert.alert('Error', 'Failed to delete post');
+          }
+      }}
+    ]);
   };
 
   const handleInvite = async () => {
@@ -1258,7 +1601,18 @@ const handleOpenEditProfile = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>{isCurrentUser ? "Profile" : (profile?.username || "Tuner")}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {(!isCurrentUser || (navigation.canGoBack && navigation.canGoBack())) && (
+            <TouchableOpacity 
+              onPress={() => navigation.goBack()} 
+              style={{ padding: 6, marginRight: 10 }}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.headerText}>{isCurrentUser ? "Profile" : (profile?.username || "Tuner")}</Text>
+        </View>
         {isCurrentUser && (
           <TouchableOpacity
             onPress={() => setShowSettings(true)}
@@ -1349,7 +1703,17 @@ const handleOpenEditProfile = () => {
                 <TouchableOpacity style={styles.editButton} onPress={handleOpenEditProfile}>
                   <Text style={styles.editButtonText}>Edit Profile</Text>
                 </TouchableOpacity>
-              ) : null}
+              ) : (
+                <TouchableOpacity
+                  style={[styles.editButton, isFollowing && { backgroundColor: '#222', borderWidth: 1, borderColor: '#444' }]}
+                  onPress={handleFollowToggle}
+                  disabled={checkingFollow}
+                >
+                  <Text style={[styles.editButtonText, isFollowing && { color: '#fff' }]}>
+                    {checkingFollow ? 'Updating...' : isFollowing ? 'Following' : 'Follow'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Tabs */}
@@ -1506,14 +1870,22 @@ const handleOpenEditProfile = () => {
                      Duo Feed
                   </Text>
                   <View style={styles.postGrid}>
-                    {[...posts, ...partnerPosts].sort((a,b) => b.createdAt?.toMillis?.() - a.createdAt?.toMillis?.()).map((post, index) => (
-                      <TouchableOpacity key={post.id || index} style={styles.postItem} onPress={() => setSelectedImage(post.mediaUrls?.[0] || post.mediaUrl)}>
-                        <Image
-                          source={{ uri: post.mediaUrls?.[0] || post.mediaUrl || "https://via.placeholder.com/300" }}
-                          style={styles.postImage}
-                        />
-                      </TouchableOpacity>
-                    ))}
+                    {(() => {
+                      const duoList = [...posts, ...partnerPosts].sort((a,b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                      return duoList.map((post, index) => (
+                        <TouchableOpacity 
+                          key={post.id || index} 
+                          style={styles.postItem} 
+                          onPress={() => handleOpenFeedViewer(index, duoList)} 
+                          onLongPress={() => handlePostOptions(post)}
+                        >
+                          <Image
+                            source={{ uri: post.mediaUrls?.[0] || post.mediaUrl || "https://via.placeholder.com/300" }}
+                            style={styles.postImage}
+                          />
+                        </TouchableOpacity>
+                      ));
+                    })()}
                     {[...posts, ...partnerPosts].length === 0 && (
                         <Text style={{ color: '#666', padding: 16 }}>No shared posts yet.</Text>
                     )}
@@ -1524,8 +1896,13 @@ const handleOpenEditProfile = () => {
               {activeTab === "posts" && (
                 <View style={styles.postGrid}>
                   {posts.length > 0 ? (
-                    posts.map((post) => (
-                      <TouchableOpacity key={post.id} style={styles.postItem} onPress={() => setSelectedImage(post.mediaUrls?.[0] || post.mediaUrl)}>
+                    posts.map((post, index) => (
+                      <TouchableOpacity 
+                        key={post.id} 
+                        style={styles.postItem} 
+                        onPress={() => handleOpenFeedViewer(index, posts)} 
+                        onLongPress={() => handlePostOptions(post)}
+                      >
                         {post.mediaUrl ||
                         (post.mediaUrls && post.mediaUrls[0]) ? (
                           <Image
@@ -1878,16 +2255,250 @@ const handleOpenEditProfile = () => {
         </View>
       </Modal>
 
-      {/* Image Viewer Modal */}
-      <Modal visible={!!selectedImage} transparent={true} animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }} onPress={() => setSelectedImage(null)}>
-            <Ionicons name="close" size={32} color="#fff" />
-          </TouchableOpacity>
-          {selectedImage && (
-            <Image source={{ uri: selectedImage }} style={{ width: '100%', height: '80%', resizeMode: 'contain' }} />
-          )}
+      {/* Profile Post Feed Modal */}
+      <Modal 
+        visible={showFeedViewer} 
+        animationType="slide" 
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowFeedViewer(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Feed Header */}
+          <View 
+            pointerEvents="box-none" 
+            style={{ 
+              position: 'absolute', 
+              top: insets.top > 0 ? insets.top + 12 : (Platform.OS === 'ios' ? 56 : 36), 
+              left: 0, 
+              right: 0, 
+              zIndex: 99999, 
+              elevation: 99,
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              justifyContent: 'space-between', 
+              paddingHorizontal: 16 
+            }}
+          >
+            {/* Back Button with text and generous touch area */}
+            <TouchableOpacity 
+              style={{ 
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: 'rgba(20,20,20,0.92)', 
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                borderRadius: 24,
+                borderWidth: 1.5,
+                borderColor: 'rgba(255,255,255,0.4)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.6,
+                shadowRadius: 5,
+                elevation: 8,
+              }} 
+              onPress={() => setShowFeedViewer(false)}
+              hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={22} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', letterSpacing: 0.5 }}>Back</Text>
+            </TouchableOpacity>
+
+            {/* Title Pill */}
+            <View 
+              style={{ 
+                backgroundColor: 'rgba(20,20,20,0.92)', 
+                paddingHorizontal: 14, 
+                paddingVertical: 9, 
+                borderRadius: 20, 
+                borderWidth: 1, 
+                borderColor: 'rgba(255,255,255,0.25)' 
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>
+                @{profile?.username || username}'s Posts
+              </Text>
+            </View>
+
+            {/* Quick Close (X) Button */}
+            <TouchableOpacity 
+              style={{ 
+                width: 42, 
+                height: 42, 
+                borderRadius: 21, 
+                backgroundColor: 'rgba(20,20,20,0.92)', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                borderWidth: 1.5,
+                borderColor: 'rgba(255,255,255,0.4)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.6,
+                shadowRadius: 5,
+                elevation: 8,
+              }} 
+              onPress={() => setShowFeedViewer(false)}
+              hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Vertical Feed List */}
+          <FlatList
+            ref={feedFlatListRef}
+            data={feedViewerPosts}
+            keyExtractor={(item, index) => item.id || index.toString()}
+            pagingEnabled
+            showsVerticalScrollIndicator={false}
+            snapToInterval={windowHeight}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            initialScrollIndex={feedInitialIndex < feedViewerPosts.length ? feedInitialIndex : 0}
+            getItemLayout={(data, index) => ({
+              length: windowHeight,
+              offset: windowHeight * index,
+              index,
+            })}
+            renderItem={({ item }) => {
+              const postAuthor = item.authorUsername || profile?.username || username;
+              const postTime = formatTimeAgo(item.createdAt);
+
+              return (
+                <View style={{ width: windowWidth, height: windowHeight, backgroundColor: '#000', position: 'relative' }}>
+                  {/* Media Content */}
+                  {item.mediaUrls && item.mediaUrls.length > 0 ? (
+                    <View style={{ width: '100%', height: '100%' }}>
+                      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+                        {item.mediaUrls.map((uri: string, idx: number) => (
+                          <View key={idx} style={{ width: windowWidth, height: windowHeight }}>
+                            <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          </View>
+                        ))}
+                      </ScrollView>
+                      {item.mediaUrls.length > 1 && (
+                        <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 110 : 95, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                          <Ionicons name="images" size={14} color="#fff" style={{ marginRight: 6 }} />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{item.mediaUrls.length}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : item.mediaUrl ? (
+                    <Image source={{ uri: item.mediaUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : (
+                    <View style={{ width: '100%', height: '100%', backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="car-sport" size={64} color="#333" />
+                      {item.caption ? (
+                        <Text style={{ color: '#fff', padding: 24, textAlign: 'center', fontSize: 16 }}>{item.caption}</Text>
+                      ) : null}
+                    </View>
+                  )}
+
+                  {/* Post Overlay Info & Right Action Buttons */}
+                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 100, paddingBottom: 40, paddingHorizontal: 16, backgroundColor: 'rgba(0,0,0,0.45)' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                      {/* Left Info: Name, Time Added, Caption, Music Ticker */}
+                      <View style={{ flex: 1, paddingRight: 20 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                          <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }}>@{postAuthor}</Text>
+                          {postTime ? (
+                            <>
+                              <Text style={{ color: '#aaa', marginHorizontal: 6 }}>•</Text>
+                              <Text style={{ color: '#aaa', fontSize: 13, fontWeight: '500' }}>{postTime}</Text>
+                            </>
+                          ) : null}
+                        </View>
+
+                        {item.caption ? (
+                          <Text style={{ color: '#fff', fontSize: 15, marginBottom: 12, lineHeight: 20 }}>
+                            {item.caption}
+                          </Text>
+                        ) : null}
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                          <Ionicons name="musical-notes" size={13} color="#fff" style={{ marginRight: 6 }} />
+                          <Text style={{ color: '#fff', fontSize: 13 }}>Original Sound - RevitUp</Text>
+                        </View>
+                      </View>
+
+                      {/* Right Navigation / Action Buttons */}
+                      <View style={{ alignItems: 'center', gap: 20 }}>
+                        {/* Like Button */}
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedLike(item.id)}>
+                          <Ionicons name={item.isLiked ? "heart" : "heart-outline"} size={36} color={item.isLiked ? "#e53935" : "#fff"} />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                            {item.likesCount || 0}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Comment Button */}
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => openFeedComments(item)}>
+                          <Ionicons name="chatbubble-ellipses" size={32} color="#fff" />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                            {item.commentsCount || 0}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Share Button */}
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedShare(item)}>
+                          <Ionicons name="share-social" size={32} color="#fff" />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                            Share
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Options Button (Delete / Report) */}
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedPostOptions(item)}>
+                          <Ionicons name="ellipsis-horizontal" size={26} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              );
+            }}
+          />
         </View>
+      </Modal>
+
+      {/* Feed Comments Modal */}
+      <Modal visible={showFeedCommentsModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#111' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#333' }}>
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Comments</Text>
+            <TouchableOpacity onPress={() => setShowFeedCommentsModal(false)}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={{ flex: 1, padding: 16 }}>
+            {feedComments.map(c => (
+              <View key={c.id} style={{ marginBottom: 16, backgroundColor: '#1a1a1a', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#333' }}>
+                <Text style={{ color: '#aaa', fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>@{c.authorUsername}</Text>
+                <Text style={{ color: '#fff', fontSize: 15, lineHeight: 22 }}>{c.text}</Text>
+              </View>
+            ))}
+            {feedComments.length === 0 && (
+              <Text style={{ color: '#666', textAlign: 'center', marginTop: 40 }}>Be the first to comment!</Text>
+            )}
+          </ScrollView>
+
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: '#333', backgroundColor: '#1a1a1a' }}>
+              <TextInput 
+                style={{ flex: 1, backgroundColor: '#000', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: '#fff', marginRight: 12, borderWidth: 1, borderColor: '#333' }}
+                placeholder="Add a comment..." 
+                placeholderTextColor="#666" 
+                value={newFeedComment}
+                onChangeText={setNewFeedComment}
+              />
+              <TouchableOpacity onPress={submitFeedComment}>
+                <Ionicons name="send" size={24} color="#e53935" />
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       </Modal>
 
       {/* Follows Modal */}

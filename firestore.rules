@@ -10,25 +10,35 @@ service cloud.firestore {
     }
 
     match /{path=**}/build_logs/{logId} {
-      allow read: if isSignedIn();
+      allow read: if true;
     }
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow read: if true;
+      allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         request.auth.uid == userId ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount', 'followersCount']) ||
+        (resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount', 'followersCount', 'followingCount', 'updatedAt', 'reputationBonus'])) ||
         isAdmin()
       );
       allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
-    }
-    
-    match /users/{userId}/private/{docId} {
-      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      
+      match /following/{followingId} {
+        allow read: if true;
+        allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+      
+      match /followers/{followerId} {
+        allow read: if true;
+        allow write: if isSignedIn() && (request.auth.uid == followerId || request.auth.uid == userId || isAdmin());
+      }
+      
+      match /private/{docId} {
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
     }
 
     match /posts/{postId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.authorId == request.auth.uid ||
@@ -41,23 +51,36 @@ service cloud.firestore {
         isAdmin() ||
         (resource.data.keys().hasAll(['groupId']) && get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.adminId == request.auth.uid)
       );
+      
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      }
     }
+    
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+
     match /groups/{groupId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && request.resource.data.adminId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.adminId == request.auth.uid || 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount']) ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['joinRequests'])
       );
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.adminId == request.auth.uid);
+      allow delete: if isSignedIn();
     }
     match /groupMembers/{memberId} {
       allow read, write: if isSignedIn();
     }
 
     match /garage/{carId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.ownerId == request.auth.uid ||
@@ -67,29 +90,32 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
       
       match /build_logs/{logId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow write: if isSignedIn() && get(/databases/$(database)/documents/garage/$(carId)).data.ownerId == request.auth.uid;
       }
     }
 
-    match /comments/{commentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
-    }
-
     match /stories/{storyId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow read: if true;
+      allow create: if isSignedIn() && (
+        (request.resource.data.keys().hasAny(['userId']) && request.resource.data.userId == request.auth.uid) ||
+        (request.resource.data.keys().hasAny(['authorId']) && request.resource.data.authorId == request.auth.uid)
+      );
+      allow update, delete: if isSignedIn() && (
+        (resource.data.keys().hasAny(['userId']) && resource.data.userId == request.auth.uid) ||
+        (resource.data.keys().hasAny(['authorId']) && resource.data.authorId == request.auth.uid) ||
+        isAdmin()
+      );
     }
 
     match /dyno/{recordId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /performance_board/{recordId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /chats/{chatId} {
@@ -103,8 +129,12 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    match /groupMessages/{messageId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /videos/{videoId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -122,7 +152,8 @@ service cloud.firestore {
     }
 
     match /follows/{followId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /notifications/{notificationId} {
@@ -130,10 +161,11 @@ service cloud.firestore {
     }
 
     match /helpful_votes/{voteId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
     match /giveaways/{giveawayId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
       match /tickets/{ticketId} {
         allow read, write: if isSignedIn();
@@ -141,25 +173,36 @@ service cloud.firestore {
     }
 
     match /battles/{battleId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSignedIn();
       
       match /entries/{entryId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow write: if isSignedIn();
       }
     }
     match /marketplace/{itemId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
       allow update: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
       allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
     }
     match /mechanics/{shopId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if true;
+      allow create: if isSignedIn() && (
+        (request.resource.data.keys().hasAny(['userId']) && request.resource.data.userId == request.auth.uid) ||
+        (request.resource.data.keys().hasAny(['addedBy']) && request.resource.data.addedBy == request.auth.uid)
+      );
+      allow update: if isSignedIn() && (
+        (resource.data.keys().hasAny(['userId']) && resource.data.userId == request.auth.uid) ||
+        (resource.data.keys().hasAny(['addedBy']) && resource.data.addedBy == request.auth.uid) ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        (resource.data.keys().hasAny(['userId']) && resource.data.userId == request.auth.uid) ||
+        (resource.data.keys().hasAny(['addedBy']) && resource.data.addedBy == request.auth.uid) ||
+        isAdmin()
+      );
     }
   }
 }

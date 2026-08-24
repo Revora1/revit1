@@ -17,8 +17,14 @@ interface ChatViewProps {
 export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState(otherUser?.initialMessage || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (otherUser?.initialMessage) {
+      setInputText(otherUser.initialMessage);
+    }
+  }, [otherUser?.initialMessage]);
 
   useEffect(() => {
     if (!user || !chatId) return;
@@ -81,16 +87,18 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
         createdAt: Date.now()
       });
 
-      await updateDoc(doc(db, 'chats', chatId), {
+      await setDoc(doc(db, 'chats', chatId), {
+        participantIds: Array.from(new Set([user.uid, otherUser?.uid || otherUser?.id || ''])).filter(Boolean),
         lastMessage: text,
         lastMessageAt: Date.now(),
         lastSenderId: user.uid
-      });
+      }, { merge: true });
 
-      if (otherUser) {
-        const notifId = `${Date.now()}_${user.uid}_msg_${otherUser.uid}`;
+      const targetRecipientId = otherUser?.uid || otherUser?.id;
+      if (targetRecipientId) {
+        const notifId = `${Date.now()}_${user.uid}_msg_${targetRecipientId}`;
         await setDoc(doc(db, 'notifications', notifId), {
-          userId: otherUser.uid,
+          userId: targetRecipientId,
           actorId: user.uid,
           type: 'message',
           read: false,
@@ -125,13 +133,13 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
         <div className="flex-1 flex items-center gap-3">
            <div className="w-10 h-10 rounded-full border border-zinc-700 overflow-hidden bg-zinc-800 flex-shrink-0 flex items-center justify-center">
              {otherUser?.profilePic ? (
-               <img src={otherUser.profilePic} className="w-full h-full object-cover" alt={otherUser.username} />
+               <img src={otherUser.profilePic} className="w-full h-full object-cover" alt={otherUser?.username || otherUser?.displayName || 'User'} />
              ) : (
-               <div className="font-bold text-zinc-500">{otherUser?.username[0]?.toUpperCase() || '?'}</div>
+               <div className="font-bold text-zinc-500">{(otherUser?.username || otherUser?.displayName || '?')[0]?.toUpperCase()}</div>
              )}
            </div>
            <div>
-             <h2 className="font-bold text-lg leading-tight">{otherUser?.username || 'Unknown'}</h2>
+             <h2 className="font-bold text-lg leading-tight">{otherUser?.displayName || otherUser?.username || otherUser?.shopName || 'Service Provider'}</h2>
            </div>
         </div>
       </div>

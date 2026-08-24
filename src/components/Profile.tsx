@@ -583,7 +583,11 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
   }, [effectiveUserId, isOwnProfile, currentUser]);
 
   const handleFollowClick = async () => {
-    if (!currentUser || !effectiveUserId || checkingFollow) return;
+    if (!currentUser) {
+      alert("Please sign in to follow users.");
+      return;
+    }
+    if (!effectiveUserId || checkingFollow || currentUser.uid === effectiveUserId) return;
     setCheckingFollow(true);
     const followId = `${currentUser.uid}_${effectiveUserId}`;
     const followRef = doc(db, 'follows', followId);
@@ -593,27 +597,30 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     try {
       if (isFollowing) {
         await deleteDoc(followRef);
-        await updateDoc(myRef, { followingCount: increment(-1) });
-        await updateDoc(targetRef, { followersCount: increment(-1) });
+        setIsFollowing(false);
+        try { await setDoc(myRef, { followingCount: increment(-1) }, { merge: true }); } catch (e) { console.error(e); }
+        try { await setDoc(targetRef, { followersCount: increment(-1) }, { merge: true }); } catch (e) { console.error(e); }
       } else {
         await setDoc(followRef, {
           followerId: currentUser.uid,
           followingId: effectiveUserId,
           createdAt: Date.now()
         });
-        await updateDoc(myRef, { followingCount: increment(1) });
-        await updateDoc(targetRef, { followersCount: increment(1) });
+        setIsFollowing(true);
+        try { await setDoc(myRef, { followingCount: increment(1) }, { merge: true }); } catch (e) { console.error(e); }
+        try { await setDoc(targetRef, { followersCount: increment(1) }, { merge: true }); } catch (e) { console.error(e); }
         
         // Notification
-
         const notifId = `${Date.now()}_${currentUser.uid}_follow_${effectiveUserId}`;
-        await setDoc(doc(db, 'notifications', notifId), {
-          userId: effectiveUserId,
-          actorId: currentUser.uid,
-          type: 'follow',
-          read: false,
-          createdAt: Date.now()
-        });
+        try {
+          await setDoc(doc(db, 'notifications', notifId), {
+            userId: effectiveUserId,
+            actorId: currentUser.uid,
+            type: 'follow',
+            read: false,
+            createdAt: Date.now()
+          });
+        } catch (e) { console.error(e); }
         
         // Push notification
         try {

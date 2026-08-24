@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { collection, query, orderBy, getDocs, deleteDoc, doc, limit, where, getDoc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebaseConfig';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
-export default function AdminScreen() {
+export default function AdminScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState<'reports' | 'users' | 'giveaways' | 'videos'>('reports');
   const [loading, setLoading] = useState(true);
   
@@ -18,6 +19,8 @@ export default function AdminScreen() {
   const [newVideoTitle, setNewVideoTitle] = useState('');
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [newVideoThumbnail, setNewVideoThumbnail] = useState('');
+  const [newVideoOrientation, setNewVideoOrientation] = useState<'landscape' | 'portrait'>('landscape');
+  const [newVideoCameraModel, setNewVideoCameraModel] = useState('');
   const [milestonesConfig, setMilestonesConfig] = useState<any[]>([
     { target: '10000', prize: '£50 Giftcard', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
     { target: '100000', prize: '£1000 Cash', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
@@ -193,13 +196,26 @@ export default function AdminScreen() {
         title: newVideoTitle,
         videoUrl: videoDownloadUrl,
         thumbnailUrl: thumbnailDownloadUrl,
+        orientation: newVideoOrientation,
+        aspectRatio: newVideoOrientation === 'portrait' ? '9:16' : '16:9',
+        cameraModel: newVideoCameraModel.trim() || (newVideoOrientation === 'landscape' ? 'Camera / 16:9' : 'Phone / 9:16'),
         createdAt: serverTimestamp(),
       });
-      setAdminVideos(prev => [{ id: docRef.id, title: newVideoTitle, videoUrl: videoDownloadUrl, thumbnailUrl: thumbnailDownloadUrl, createdAt: new Date() }, ...prev]);
+      setAdminVideos(prev => [{ 
+        id: docRef.id, 
+        title: newVideoTitle, 
+        videoUrl: videoDownloadUrl, 
+        thumbnailUrl: thumbnailDownloadUrl, 
+        orientation: newVideoOrientation,
+        aspectRatio: newVideoOrientation === 'portrait' ? '9:16' : '16:9',
+        cameraModel: newVideoCameraModel.trim(),
+        createdAt: new Date() 
+      }, ...prev]);
       setNewVideoTitle('');
       setNewVideoUrl('');
       setNewVideoThumbnail('');
-      Alert.alert('Success', 'Video added successfully!');
+      setNewVideoCameraModel('');
+      Alert.alert('Success', 'Video added successfully to RevitUp TV!');
     } catch (err) {
       Alert.alert('Error', 'Failed to add video');
     }
@@ -231,8 +247,8 @@ export default function AdminScreen() {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.8,
+      aspect: newVideoOrientation === 'portrait' ? [9, 16] : [16, 9],
+      quality: 0.5,
     });
     if (!result.canceled) {
       setNewVideoThumbnail(result.assets[0].uri);
@@ -257,7 +273,11 @@ export default function AdminScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
         <Text style={styles.title}>Admin Panel</Text>
+        <View style={{ width: 24 }} />
       </View>
       
       <View style={styles.tabContainer}>
@@ -415,15 +435,51 @@ export default function AdminScreen() {
                 </View>
                 
                 <View style={styles.card}>
+                  <Text style={styles.inputLabel}>VIDEO ORIENTATION & FORMAT</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                    <TouchableOpacity 
+                      onPress={() => setNewVideoOrientation('landscape')} 
+                      style={[
+                        { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+                        newVideoOrientation === 'landscape' 
+                          ? { backgroundColor: '#06b6d4', borderColor: '#06b6d4' } 
+                          : { backgroundColor: '#1a1a1a', borderColor: '#333' }
+                      ]}
+                    >
+                      <Ionicons name="camera" size={18} color={newVideoOrientation === 'landscape' ? '#000' : '#888'} />
+                      <Text style={{ fontSize: 11, fontWeight: 'bold', marginTop: 4, color: newVideoOrientation === 'landscape' ? '#000' : '#888' }}>
+                        Landscape (16:9 Camera)
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      onPress={() => setNewVideoOrientation('portrait')} 
+                      style={[
+                        { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+                        newVideoOrientation === 'portrait' 
+                          ? { backgroundColor: '#a855f7', borderColor: '#a855f7' } 
+                          : { backgroundColor: '#1a1a1a', borderColor: '#333' }
+                      ]}
+                    >
+                      <Ionicons name="phone-portrait" size={18} color={newVideoOrientation === 'portrait' ? '#000' : '#888'} />
+                      <Text style={{ fontSize: 11, fontWeight: 'bold', marginTop: 4, color: newVideoOrientation === 'portrait' ? '#000' : '#888' }}>
+                        Portrait (9:16 Phone)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <Text style={styles.inputLabel}>VIDEO TITLE</Text>
-                  <TextInput style={[styles.input, {marginBottom: 12}]} value={newVideoTitle} onChangeText={setNewVideoTitle} placeholder="e.g., Track Day VLOG" placeholderTextColor="#555" />
+                  <TextInput style={[styles.input, {marginBottom: 12}]} value={newVideoTitle} onChangeText={setNewVideoTitle} placeholder="e.g., Dyno Pull 4K or Track Day VLOG" placeholderTextColor="#555" />
+
+                  <Text style={styles.inputLabel}>CAMERA / RIG MODEL (OPTIONAL)</Text>
+                  <TextInput style={[styles.input, {marginBottom: 12}]} value={newVideoCameraModel} onChangeText={setNewVideoCameraModel} placeholder="e.g., Sony A7S III, GoPro 12, RED, iPhone 15 Pro" placeholderTextColor="#555" />
                   
                   <Text style={styles.inputLabel}>VIDEO FILE</Text>
                   <TouchableOpacity onPress={pickVideo} style={[styles.input, {marginBottom: 12, justifyContent: 'center'}]}>
                     <Text style={{color: newVideoUrl ? '#4caf50' : '#555'}}>{newVideoUrl ? 'Video Selected' : 'Tap to select video from camera roll'}</Text>
                   </TouchableOpacity>
                   
-                  <Text style={styles.inputLabel}>THUMBNAIL IMAGE (OPTIONAL)</Text>
+                  <Text style={styles.inputLabel}>THUMBNAIL IMAGE ({newVideoOrientation === 'landscape' ? '16:9' : '9:16'} OPTIONAL)</Text>
                   <TouchableOpacity onPress={pickThumbnail} style={[styles.input, {justifyContent: 'center'}]}>
                     <Text style={{color: newVideoThumbnail ? '#4caf50' : '#555'}}>{newVideoThumbnail ? 'Thumbnail Selected' : 'Tap to select thumbnail from camera roll'}</Text>
                   </TouchableOpacity>
@@ -437,8 +493,21 @@ export default function AdminScreen() {
                 {adminVideos.map(v => (
                   <View key={v.id} style={styles.userCard}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.boldText}>{v.title || 'Untitled'}</Text>
-                      <Text style={[styles.infoText, {fontSize: 10}]} numberOfLines={1}>{v.videoUrl}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <Text style={styles.boldText}>{v.title || 'Untitled'}</Text>
+                        <Text style={{ 
+                          fontSize: 9, 
+                          fontWeight: '800', 
+                          color: v.orientation === 'portrait' ? '#a855f7' : '#06b6d4', 
+                          backgroundColor: '#18181b', 
+                          paddingHorizontal: 5, 
+                          paddingVertical: 2, 
+                          borderRadius: 4 
+                        }}>
+                          {v.orientation === 'portrait' ? '9:16' : '16:9'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.infoText, {fontSize: 10}]} numberOfLines={1}>{v.cameraModel ? `${v.cameraModel} • ` : ''}{v.videoUrl}</Text>
                     </View>
                     <TouchableOpacity onPress={() => deleteVideo(v.id)} style={styles.iconBtn}>
                       <Ionicons name="trash" size={20} color="#e53935" />
@@ -456,8 +525,9 @@ export default function AdminScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#000' },
-  header: { padding: 16, paddingBottom: 0 },
-  title: { color: '#fff', fontSize: 28, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.5 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingBottom: 0 },
+  backBtn: { padding: 4 },
+  title: { color: '#fff', fontSize: 24, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.5 },
   
   tabContainer: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 16, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#333' },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center' },

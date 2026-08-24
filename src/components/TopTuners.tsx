@@ -139,7 +139,7 @@ export function TopTuners({ hideHeader }: { hideHeader?: boolean } = {}) {
     let active = true;
     const loadData = async () => {
       try {
-        const [usersSnap, garageSnap, postsSnap, commentsSnap, votesSnap] = await Promise.all([
+        const [usersRes, garageRes, postsRes, commentsRes, votesRes] = await Promise.allSettled([
           getDocs(collection(db, 'users')),
           getDocs(collection(db, 'garage')),
           getDocs(collection(db, 'posts')),
@@ -147,14 +147,24 @@ export function TopTuners({ hideHeader }: { hideHeader?: boolean } = {}) {
           getDocs(collection(db, 'helpful_votes'))
         ]);
         if (!active) return;
-        setUsers(usersSnap.docs.map(d => ({ uid: d.id, ...d.data() })));
-        setCars(garageSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setPosts(postsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setComments(commentsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setVotes(votesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        if (usersRes.status === 'fulfilled') {
+          setUsers(usersRes.value.docs.map(d => ({ uid: d.id, ...d.data() })));
+        }
+        if (garageRes.status === 'fulfilled') {
+          setCars(garageRes.value.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+        if (postsRes.status === 'fulfilled') {
+          setPosts(postsRes.value.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+        if (commentsRes.status === 'fulfilled') {
+          setComments(commentsRes.value.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+        if (votesRes.status === 'fulfilled') {
+          setVotes(votesRes.value.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
         setLoading(false);
       } catch (err) {
-        console.error("Error loading top tuners data:", err);
+        console.warn("Top tuners data load notice:", err);
         if (active) setLoading(false);
       }
     };

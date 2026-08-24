@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, Platform, Image, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Platform, Image, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
 import { compressImage } from '../lib/imageCompression';
 
 export default function UploadScreen({ navigation }: any) {
   const [caption, setCaption] = useState('');
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageUris, setImageUris] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const [buildLogChecked, setBuildLogChecked] = useState(false);
@@ -22,48 +23,57 @@ export default function UploadScreen({ navigation }: any) {
       return;
     }
     let result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
       mediaTypes: ['images'],
-      allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.8,
+      quality: 0.4,
     });
     if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
+      setImageUris([...imageUris, ...result.assets.map(a => a.uri)].slice(0, 10));
     }
   };
 
   const handlePost = async () => {
-    if (!caption && !imageUri) {
+    if (!caption && imageUris.length === 0) {
       Alert.alert('Empty Post', 'Please add an image or caption.');
       return;
     }
     setUploading(true);
     try {
-      let downloadUrl = null;
-      if (imageUri) {
-        const compressedUri = await compressImage(imageUri);
-        const response = await fetch(compressedUri);
-        const blob = await response.blob();
-        
-        const filename = `posts/${auth.currentUser?.uid}/${Date.now()}.jpg`;
-        const storageRef = ref(storage, filename);
-        
-        await uploadBytes(storageRef, blob);
-        downloadUrl = await getDownloadURL(storageRef);
+      let downloadUrls: string[] = [];
+      if (imageUris.length > 0) {
+        downloadUrls = await Promise.all(
+          imageUris.map(async (uri, index) => {
+            const compressedUri = await compressImage(uri);
+            const blob: any = await new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.onload = function() { resolve(xhr.response); };
+              xhr.onerror = function(e) { reject(new TypeError("Network request failed")); };
+              xhr.responseType = "blob";
+              xhr.open("GET", compressedUri, true);
+              xhr.send(null);
+            });
+            const filename = `posts/${auth.currentUser?.uid}/${Date.now()}_${index}.jpg`;
+            const storageRef = ref(storage, filename);
+            await uploadBytes(storageRef, blob);
+            return await getDownloadURL(storageRef);
+          })
+        );
       }
       await addDoc(collection(db, 'posts'), {
         authorId: auth.currentUser?.uid,
-        authorUsername: 'tuner_' + Math.floor(Math.random() * 1000), 
+        authorUsername: (await getDoc(doc(db, 'users', auth.currentUser?.uid as string))).data()?.username || 'tuner_' + Math.floor(Math.random() * 1000), 
         caption,
-        mediaUrl: downloadUrl,
-        mediaUrls: downloadUrl ? [downloadUrl] : [],
+        mediaUrl: downloadUrls.length > 0 ? downloadUrls[0] : null,
+        mediaUrls: downloadUrls,
         likesCount: 0,
         commentsCount: 0,
         createdAt: serverTimestamp()
       });
       Alert.alert('Success', 'Post uploaded successfully!');
       setCaption('');
-      setImageUri(null);
+      setImageUris([]);
       
       if (navigation?.navigate) {
         navigation.navigate('Home');
@@ -89,18 +99,38 @@ export default function UploadScreen({ navigation }: any) {
 
       <ScrollView style={styles.content}>
         
-        <Text style={styles.sectionLabel}>POST PHOTOS (0/10)</Text>
-        <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-          {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.previewImage} />
-          ) : (
-            <>
-              <Ionicons name="camera-outline" size={40} color="#666" style={{ marginBottom: 12 }} />
-              <Text style={styles.imagePickerTitle}>Upload Photos</Text>
-              <Text style={styles.imagePickerSubtitle}>Select up to 10 from your camera roll</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Replaced below */}
+        <Text style={styles.sectionLabel}>POST PHOTOS ({imageUris.length}/10)</Text>
+        {imageUris.length > 0 ? (
+          <View style={[styles.imagePicker, { borderStyle: 'solid', borderColor: 'transparent', backgroundColor: 'transparent', padding: 0 }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{width: '100%', height: '100%'}}>
+              {imageUris.map((uri, index) => (
+                <View key={index} style={{ width: 320, height: '100%', marginRight: 8, padding: 8 }}>
+                  <Image source={{ uri }} style={{ width: '100%', height: '100%', borderRadius: 16 }} />
+                  <TouchableOpacity 
+                    style={{ position: 'absolute', top: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 15, padding: 4, zIndex: 10 }}
+                    onPress={() => setImageUris(imageUris.filter((_, i) => i !== index))}
+                  >
+                    <Ionicons name="close" size={20} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {imageUris.length < 10 && (
+                <TouchableOpacity style={{ width: 120, height: '100%', marginRight: 16, padding: 8, justifyContent: 'center' }} onPress={pickImage}>
+                  <View style={{ flex: 1, backgroundColor: '#161616', borderRadius: 16, borderWidth: 2, borderColor: '#2a2a2a', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="add" size={32} color="#666" />
+                  </View>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+            <Ionicons name="camera-outline" size={40} color="#666" style={{ marginBottom: 12 }} />
+            <Text style={styles.imagePickerTitle}>Upload Photos</Text>
+            <Text style={styles.imagePickerSubtitle}>Select up to 10 from your camera roll</Text>
+          </TouchableOpacity>
+        )}
         
         <Text style={styles.sectionLabel}>CAPTION</Text>
         <TextInput 

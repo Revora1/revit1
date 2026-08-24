@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Linking } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ export default function LoginScreen() {
         // Create user profile
         await setDoc(doc(db, 'users', user.uid), {
           email: user.email,
+          username: 'tuner_' + user.uid.substring(0, 6),
           createdAt: serverTimestamp(),
         });
       } else {
@@ -34,6 +36,19 @@ export default function LoginScreen() {
       Alert.alert('Authentication Failed', err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Email Required', 'Please enter your email address in the field above to receive a password reset link.');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      Alert.alert('Email Sent', `A password reset link has been sent to ${email.trim()}.`);
+    } catch (err: any) {
+      Alert.alert('Password Reset Failed', err.message);
     }
   };
 
@@ -94,13 +109,17 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.forgotBtn} onPress={() => Alert.alert('Forgot Password', 'Password reset flow would initiate here.')}>
+            <TouchableOpacity style={styles.forgotBtn} onPress={handleForgotPassword}>
               <Text style={styles.forgotBtnText}>FORGOT PASSWORD?</Text>
             </TouchableOpacity>
           </View>
           
         </ScrollView>
-        <Text style={styles.footerText}>By joining, you agree to our Terms and Service.</Text>
+        <TouchableOpacity onPress={() => Linking.openURL('https://revitup.today/privacy-policy/')} style={{ paddingBottom: 16 }}>
+          <Text style={styles.footerText}>
+            By joining, you agree to our <Text style={{ textDecorationLine: 'underline', color: '#888' }}>Privacy & Cookie Policy</Text> and Terms of Service.
+          </Text>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

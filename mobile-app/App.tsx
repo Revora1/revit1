@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { TouchableOpacity, Platform } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -33,6 +34,8 @@ import TopTunersScreen from './screens/TopTunersScreen';
 import CookieConsentModal from './components/CookieConsentModal';
 import MechanicBoardScreen from './screens/MechanicBoardScreen';
 import MenuScreen from './screens/MenuScreen';
+import GroupChatScreen from './screens/GroupChatScreen';
+import GroupFeedScreen from './screens/GroupFeedScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -107,6 +110,7 @@ export default function App() {
       <>
         <StatusBar style="light" />
         <LoginScreen />
+        <CookieConsentModal />
       </>
     );
   }
@@ -121,10 +125,10 @@ export default function App() {
           headerTitleStyle: { fontWeight: 'bold' },        
         }}>
           <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-          <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Car Clubs' }} />
-          <Stack.Screen name="Marketplace" component={MarketplaceScreen} options={{ title: 'Marketplace' }} />
-          <Stack.Screen name="Admin" component={AdminScreen} options={{ title: 'Admin Panel' }} />
-          <Stack.Screen name="Giveaways" component={GiveawaysScreen} options={{ title: 'Giveaways' }} />
+          <Stack.Screen name="Groups" component={GroupsScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Marketplace" component={MarketplaceScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Admin" component={AdminScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Giveaways" component={GiveawaysScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Videos" component={VideosScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Inbox" component={InboxScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
@@ -133,11 +137,20 @@ export default function App() {
           <Stack.Screen name="StoryViewer" component={StoryViewerScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
           <Stack.Screen name="BuildTimeline" component={BuildTimelineScreen} options={{ headerShown: false }} />
           <Stack.Screen name="MyGarage" component={GarageScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="DynoBoard" component={DynoBoardScreen} options={{ title: 'Dyno Board' }} />
-          <Stack.Screen name="Battles" component={BattlesScreen} options={{ title: 'Battles' }} />
-          <Stack.Screen name="TopTuners" component={TopTunersScreen} options={{ title: 'Top Tuners' }} />
-          <Stack.Screen name="ServiceBoard" component={MechanicBoardScreen} options={{ title: 'Service Board' }} />
-          <Stack.Screen name="Menu" component={MenuScreen} options={{ title: 'Directory' }} />
+          <Stack.Screen name="DynoBoard" component={DynoBoardScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Battles" component={BattlesScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="TopTuners" component={TopTunersScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ServiceBoard" component={MechanicBoardScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Menu" component={MenuScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="GroupChat" component={GroupChatScreen} options={({ route }: any) => ({ title: (route.params?.groupName || 'Group') + ' Chat' })} />
+          <Stack.Screen name="GroupFeed" component={GroupFeedScreen} options={({ route, navigation }: any) => ({ 
+            title: route.params?.groupName || 'Club Feed',
+            headerRight: () => (
+              <TouchableOpacity onPress={() => navigation.navigate('GroupChat', route.params)} style={{ marginRight: 16 }}>
+                <Ionicons name="chatbubbles" size={24} color="#fff" />
+              </TouchableOpacity>
+            )
+          })} />
         </Stack.Navigator>
       </NavigationContainer>
       <CookieConsentModal userId={user?.uid} />

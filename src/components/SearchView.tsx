@@ -434,23 +434,45 @@ export function SearchView() {
 
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
           <button 
-            onClick={() => (window as any).openGroupsView?.()}
-            className="bg-white text-black px-4 py-2 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-zinc-200 transition-colors whitespace-nowrap shadow-lg"
+            onClick={() => (window as any).openMechanicBoard?.()}
+            className="bg-yellow-500 text-black px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 hover:bg-yellow-400 transition-colors whitespace-nowrap shadow-lg shadow-yellow-500/20 border border-yellow-400"
           >
-            <User size={16} /> Car Clubs
+            <Wrench size={16} className="text-black" /> Service Board
           </button>
           <button 
             onClick={() => (window as any).openMarketplace?.()}
-            className="bg-yellow-500 text-black px-4 py-2 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-yellow-400 transition-colors whitespace-nowrap shadow-lg"
-          >
-            <Layers size={16} /> Marketplace
-          </button>
-          <button 
-            onClick={() => (window as any).openMechanicBoard?.()}
             className="bg-zinc-800 text-white px-4 py-2 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-zinc-700 transition-colors whitespace-nowrap shadow-lg border border-zinc-700"
           >
-            <Wrench size={16} className="text-yellow-500" /> Service Board
+            <Layers size={16} className="text-yellow-500" /> Marketplace
           </button>
+          <button 
+            onClick={() => (window as any).openGroupsView?.()}
+            className="bg-zinc-800 text-white px-4 py-2 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-zinc-700 transition-colors whitespace-nowrap shadow-lg border border-zinc-700"
+          >
+            <User size={16} className="text-zinc-400" /> Car Clubs
+          </button>
+        </div>
+      </div>
+
+      {/* Featured Service Board Promo Banner */}
+      <div 
+        onClick={() => (window as any).openMechanicBoard?.()}
+        className="mt-3 bg-gradient-to-r from-zinc-900 via-zinc-900 to-amber-950/40 border border-yellow-500/30 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer hover:border-yellow-500/60 transition-all group shadow-md"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-400 group-hover:scale-105 transition-transform flex-shrink-0">
+            <Wrench size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black uppercase tracking-wider text-white">Service & Repair Directory</span>
+              <span className="bg-yellow-500/20 text-yellow-400 text-[9px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest border border-yellow-500/30">FEATURED</span>
+            </div>
+            <p className="text-[11px] text-zinc-400 font-medium leading-tight mt-0.5">Find verified mechanics, tuners, detailers & performance shops</p>
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-1 text-xs font-black uppercase text-yellow-400 tracking-wider pl-2">
+          EXPLORE <Wrench size={12} />
         </div>
       </div>
       

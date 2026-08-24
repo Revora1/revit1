@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, Platform, Image, TouchableOpacity, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Platform, Image, TouchableOpacity, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../firebaseConfig';
@@ -65,7 +66,7 @@ export default function GarageScreen({ navigation }: any) {
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [16, 9],
-      quality: 0.8,
+      quality: 0.4,
     });
 
     if (!result.canceled) {

@@ -1,7 +1,8 @@
 import { db } from '../firebaseConfig';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, Platform, TouchableOpacity, TextInput, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Platform, TouchableOpacity, TextInput, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function DiscoverScreen({ navigation }: any) {
@@ -52,6 +53,40 @@ export default function DiscoverScreen({ navigation }: any) {
           <Ionicons name="folder-open-outline" size={20} color="#000" style={{ marginRight: 8 }} />
           <Text style={styles.directoryBtnText}>BROWSE DIRECTORY</Text>
         </TouchableOpacity>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 10 }}>
+          <TouchableOpacity 
+            style={{ backgroundColor: '#f5d547', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, marginRight: 8, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => navigation.navigate('ServiceBoard')}
+          >
+            <Ionicons name="build" size={14} color="#000" style={{ marginRight: 6 }} />
+            <Text style={{ color: '#000', fontWeight: '900', fontSize: 12 }}>SERVICE BOARD</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={{ backgroundColor: '#1e1e1e', borderWidth: 1, borderColor: '#333', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, marginRight: 8, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => navigation.navigate('Marketplace')}
+          >
+            <Ionicons name="cart-outline" size={14} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>MARKETPLACE</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={{ backgroundColor: '#1e1e1e', borderWidth: 1, borderColor: '#333', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, marginRight: 8, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => navigation.navigate('Groups')}
+          >
+            <Ionicons name="people-outline" size={14} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>CAR CLUBS</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={{ backgroundColor: '#1e1e1e', borderWidth: 1, borderColor: '#333', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, marginRight: 8, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => navigation.navigate('DynoBoard')}
+          >
+            <Ionicons name="speedometer-outline" size={14} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>DYNO</Text>
+          </TouchableOpacity>
+        </ScrollView>
 
         <View style={styles.segmentControl}>
           {['POSTS', 'BUILDS', 'USERS'].map((tab) => (

@@ -1,9 +1,9 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect, useLayoutEffect } from "react";
 import {
   StyleSheet,
   Text,
   View,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
@@ -11,8 +11,7 @@ import {
   Alert,
   Share,
   Platform,
-  Image,
-} from "react-native";
+  Image } from "react-native";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   collection,
@@ -172,24 +171,15 @@ export default function GiveawaysScreen({ navigation }: any) {
   const isEligibleForTicket = hasCar && hasPost && myReferrals >= 10;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.closeBtn}
-        >
-          <Ionicons name="close" size={24} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Feather
-            name="gift"
-            size={18}
-            color="#f59e0b"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.headerTitle}>MILESTONES</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingRight: 16 }}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>GIVEAWAYS</Text>
         </View>
-        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
@@ -553,29 +543,23 @@ export default function GiveawaysScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#09090b" },
+  safeArea: { flex: 1, backgroundColor: "#000", paddingTop: Platform.OS === 'android' ? 40 : 0 },
+  container: { flex: 1, backgroundColor: "#000" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#27272a",
+    paddingVertical: 16,
+    backgroundColor: "#000",
   },
-  closeBtn: {
-    padding: 8,
-    marginLeft: -8,
-  },
-  headerTitleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center" },
   headerTitle: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "900",
     fontStyle: "italic",
+    letterSpacing: -0.5,
   },
   content: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },

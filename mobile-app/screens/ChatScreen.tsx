@@ -7,18 +7,24 @@ import {
   TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
-  Platform,
-  SafeAreaView
+  Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, orderBy, onSnapshot, setDoc, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 
 export default function ChatScreen({ route, navigation }: any) {
-  const { chatId, otherUser } = route.params;
+  const { chatId, otherUser } = route.params || {};
   const [messages, setMessages] = useState<any[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState(otherUser?.initialMessage || '');
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    if (otherUser?.initialMessage) {
+      setInputText(otherUser.initialMessage);
+    }
+  }, [otherUser?.initialMessage]);
 
   useEffect(() => {
     if (!auth.currentUser || !chatId) return;
@@ -57,13 +63,26 @@ export default function ChatScreen({ route, navigation }: any) {
         createdAt: Date.now()
       });
       
+      const recipientId = otherUser?.id || otherUser?.uid || '';
       await setDoc(doc(db, 'chats', chatId), {
         lastMessage: text,
         lastMessageAt: Date.now(),
         updatedAt: Date.now(),
         lastSenderId: auth.currentUser.uid,
-        participants: [auth.currentUser.uid, otherUser?.id || '']
+        participants: Array.from(new Set([auth.currentUser.uid, recipientId])).filter(Boolean)
       }, { merge: true });
+
+      if (recipientId) {
+        const notifId = `${Date.now()}_${auth.currentUser.uid}_msg_${recipientId}`;
+        await setDoc(doc(db, 'notifications', notifId), {
+          userId: recipientId,
+          actorId: auth.currentUser.uid,
+          type: 'message',
+          read: false,
+          text: `sent you a message: "${text.substring(0, 40)}${text.length > 40 ? '...' : ''}"`,
+          createdAt: Date.now()
+        });
+      }
     } catch (e) {
       console.error('Error sending message:', e);
     }
@@ -72,6 +91,21 @@ export default function ChatScreen({ route, navigation }: any) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+        {/* Custom Screen Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {otherUser?.displayName || otherUser?.username || 'Chat'}
+            </Text>
+            {otherUser?.isMechanic || otherUser?.initialMessage ? (
+              <Text style={styles.headerSubtitle}>Service Provider Quote Request</Text>
+            ) : null}
+          </View>
+        </View>
+
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -115,6 +149,34 @@ export default function ChatScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#000' },
   container: { flex: 1, backgroundColor: '#000' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#18181b',
+    backgroundColor: '#09090b',
+    gap: 12
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#18181b',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  headerTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  headerSubtitle: {
+    color: '#eab308',
+    fontSize: 11,
+    fontWeight: '600'
+  },
   messagesList: {
     padding: 16,
     gap: 12

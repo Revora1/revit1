@@ -18,6 +18,7 @@ import { GroupsView } from './components/GroupsView';
 import { GroupDetailView } from './components/GroupDetailView';
 import { MarketplaceView } from './components/MarketplaceView';
 import { MechanicBoardView } from './components/MechanicBoardView';
+import { RevitUpTV } from './components/RevitUpTV';
 
 import { CookieConsent } from './components/CookieConsent';
 import { db, messaging } from './lib/firebase';
@@ -368,6 +369,13 @@ function InnerAppContent() {
       setInboxTargetTab(tab);
       setActiveView('inbox');
     };
+    const handleServiceBoardNav = () => {
+      setNavigationHistory(prev => [
+        ...prev,
+        { ...stateRef.current }
+      ]);
+      setActiveView('mechanic_board');
+    };
     const handleGiveawayNav = () => {
       setShowGiveaways(true);
     };
@@ -379,6 +387,13 @@ function InnerAppContent() {
       ]);
       setInboxTargetTab('leaderboards-dyno');
       setActiveView('inbox');
+    };
+    const handleTvNav = () => {
+      setNavigationHistory(prev => [
+        ...prev,
+        { ...stateRef.current }
+      ]);
+      setActiveView('tv');
     };
     const handleNavigateBack = () => {
       setNavigationHistory(prev => {
@@ -413,6 +428,8 @@ function InnerAppContent() {
     window.addEventListener('navigate-inbox', handleInboxNav);
     window.addEventListener('navigate-dyno', handleDynoNav);
     window.addEventListener('navigate-giveaway', handleGiveawayNav);
+    window.addEventListener('navigate-tv', handleTvNav);
+    window.addEventListener('navigate-service-board', handleServiceBoardNav);
     window.addEventListener('navigate-back', handleNavigateBack);
     window.addEventListener('open-settings', handleOpenSettings);
     return () => {
@@ -422,6 +439,8 @@ function InnerAppContent() {
       window.removeEventListener('navigate-inbox', handleInboxNav);
       window.removeEventListener('navigate-dyno', handleDynoNav);
       window.removeEventListener('navigate-giveaway', handleGiveawayNav);
+      window.removeEventListener('navigate-tv', handleTvNav);
+      window.removeEventListener('navigate-service-board', handleServiceBoardNav);
       window.removeEventListener('navigate-back', handleNavigateBack);
       window.removeEventListener('open-settings', handleOpenSettings);
     };
@@ -537,6 +556,7 @@ function InnerAppContent() {
         {activeView === 'mechanic_board' && <MechanicBoardView onBack={() => setActiveView('search')} />}
         {activeView === 'group_detail' && targetGroupId && <GroupDetailView groupId={targetGroupId} onBack={() => setActiveView('groups')} onNavigateProfile={(uid) => { setTargetUserId(uid); setActiveView('profile'); }} />}
         {activeView === 'giveaway' && <GiveawaysView onBack={() => setActiveView(prevViewRef.current || 'feed')} />}
+        {activeView === 'tv' && <RevitUpTV onClose={() => window.dispatchEvent(new CustomEvent('navigate-back'))} onOpenAdmin={() => setShowSettings(true)} />}
 
       </Layout>
     );

@@ -1,5 +1,8 @@
 {
   "ios": {
     "bundleIdentifier": "com.anonymous.revit"
+  },
+  "expo": {
+    "scheme": "revitup"
   }
 }

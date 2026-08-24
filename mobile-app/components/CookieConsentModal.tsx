@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,15 +9,16 @@ export default function CookieConsentModal({ userId }: { userId?: string }) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (!userId) {
-      setShow(false);
-      return;
-    }
-    
     const checkConsent = async () => {
       try {
         const consent = await AsyncStorage.getItem('gdpr-consent');
-        if (consent !== 'accepted') {
+        if (consent === 'accepted') {
+          if (Platform.OS === 'ios') {
+            await requestTrackingPermissionsAsync();
+          }
+        } else if (consent === 'declined') {
+          setShow(false);
+        } else {
           setShow(true);
         }
       } catch (e) {
@@ -35,7 +37,7 @@ export default function CookieConsentModal({ userId }: { userId?: string }) {
           await requestTrackingPermissionsAsync();
         }
       } else {
-        await AsyncStorage.removeItem('gdpr-consent');
+        await AsyncStorage.setItem('gdpr-consent', 'declined');
       }
     } catch (e) {
       console.error(e);

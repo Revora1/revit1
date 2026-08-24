@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, X, Check } from 'lucide-react';
 import { GOOGLE_ANALYTICS_ID } from '../constants';
-import { useAuth } from '../context/AuthContext';
 
 export function CookieConsent() {
-  const { user } = useAuth();
   const [show, setShow] = useState(false);
 
   const loadGoogleScripts = () => {
@@ -28,28 +26,32 @@ export function CookieConsent() {
   };
 
   useEffect(() => {
-    if (!user) {
-      setShow(false);
-      return;
+    try {
+      const consent = localStorage.getItem('gdpr-consent');
+      if (consent === 'accepted') {
+        loadGoogleScripts();
+      } else if (consent === 'declined') {
+        setShow(false);
+      } else {
+        setShow(true);
+      }
+    } catch (e) {
+      console.warn("Storage access issue:", e);
     }
-    const consent = localStorage.getItem('gdpr-consent');
-    if (consent !== 'accepted') {
-      setShow(true);
-    } else {
-      loadGoogleScripts();
-    }
-  }, [user]);
+  }, []);
 
   const handleConsent = (accepted: boolean) => {
-    if (accepted) {
-      localStorage.setItem('gdpr-consent', 'accepted');
-      loadGoogleScripts();
-      setShow(false);
-      window.location.reload();
-    } else {
-      localStorage.removeItem('gdpr-consent');
-      setShow(false);
+    try {
+      if (accepted) {
+        localStorage.setItem('gdpr-consent', 'accepted');
+        loadGoogleScripts();
+      } else {
+        localStorage.setItem('gdpr-consent', 'declined');
+      }
+    } catch (e) {
+      console.warn("Saving consent issue:", e);
     }
+    setShow(false);
   };
 
   return (

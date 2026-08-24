@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, Platform, Image, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert , RefreshControl, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Platform, Image, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, RefreshControl, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../firebaseConfig';
@@ -12,6 +13,7 @@ const CARD_WIDTH = Dimensions.get('window').width - 32;
 export default function MarketplaceScreen({ navigation }: any) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'discover' | 'my_listings'>('discover');
   const [showModal, setShowModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
@@ -27,10 +29,11 @@ export default function MarketplaceScreen({ navigation }: any) {
   const [currency, setCurrency] = useState('$');
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchItems = async () => {
     try {
-      const q = query(collection(db, 'marketplace'), orderBy('createdAt', 'desc'), limit(100)); // Increased limit to allow local filtering
+      const q = query(collection(db, 'marketplace'), orderBy('createdAt', 'desc'), limit(100));
       const snap = await getDocs(q);
       setItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (err) {
@@ -39,6 +42,16 @@ export default function MarketplaceScreen({ navigation }: any) {
       setLoading(false);
     }
   };
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await fetchItems();
+    setRefreshing(false);
+  }, []);
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
 
   const handleDeleteItem = async (itemId: string) => {
     Alert.alert(
@@ -49,7 +62,6 @@ export default function MarketplaceScreen({ navigation }: any) {
         { text: "Delete", style: "destructive", onPress: async () => {
             try {
                await deleteDoc(doc(db, "marketplace", itemId));
-               // optimistically remove from UI
                setItems(prev => prev.filter(item => item.id !== itemId));
                Alert.alert("Success", "Listing deleted.");
             } catch (e) {
@@ -60,18 +72,6 @@ export default function MarketplaceScreen({ navigation }: any) {
       ]
     );
   };
-
-  
-  const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = React.useCallback(async () => {
-    setRefreshing(true);
-    await fetchItems();
-    setRefreshing(false);
-  }, []);
-
-  useEffect(() => {
-    fetchItems();
-  }, []);
 
   const pickImage = async () => {
     if (imageUris.length >= 10) {
@@ -87,7 +87,7 @@ export default function MarketplaceScreen({ navigation }: any) {
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
       selectionLimit: 10 - imageUris.length,
-      quality: 0.8,
+      quality: 0.4,
     });
     if (!result.canceled) {
       const selectedUris = result.assets.map(asset => asset.uri);
@@ -136,7 +136,11 @@ export default function MarketplaceScreen({ navigation }: any) {
     }
   };
 
-  const filteredItems = items.filter(item => {
+  const baseItems = activeTab === 'discover'
+    ? items
+    : items.filter(item => item.sellerId === auth.currentUser?.uid);
+
+  const filteredItems = baseItems.filter(item => {
     const queryLower = searchQuery.toLowerCase();
     const matchesSearch = item.title?.toLowerCase().includes(queryLower) || item.description?.toLowerCase().includes(queryLower);
     const itemPrice = item.price || 0;
@@ -146,14 +150,45 @@ export default function MarketplaceScreen({ navigation }: any) {
   }).sort((a, b) => {
     if (appliedFilters.sortBy === 'price_asc') return (a.price || 0) - (b.price || 0);
     if (appliedFilters.sortBy === 'price_desc') return (b.price || 0) - (a.price || 0);
-    return 0; // newest is default from firestore
+    return 0;
   });
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingRight: 16 }}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>MARKETPLACE</Text>
+        </View>
+        <TouchableOpacity style={styles.createBtn} onPress={() => setShowModal(true)}>
+          <Ionicons name="add" size={18} color="#000" />
+          <Text style={styles.createBtnText}>Create</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'discover' && styles.activeTab]} 
+          onPress={() => setActiveTab('discover')}
+        >
+          <Text style={[styles.tabText, activeTab === 'discover' && styles.activeTabText]}>Discover</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'my_listings' && styles.activeTab]} 
+          onPress={() => setActiveTab('my_listings')}
+        >
+          <Text style={[styles.tabText, activeTab === 'my_listings' && styles.activeTabText]}>My Listings</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Search Header */}
       <View style={styles.searchHeader}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
+          <Ionicons name="search" size={18} color="#666" style={{ marginRight: 8 }} />
           <TextInput 
             style={styles.searchInput} 
             placeholder="Search parts, cars..." 
@@ -161,14 +196,24 @@ export default function MarketplaceScreen({ navigation }: any) {
             value={searchQuery} 
             onChangeText={setSearchQuery} 
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+              <Ionicons name="close-circle" size={16} color="#666" />
+            </TouchableOpacity>
+          )}
         </View>
         <TouchableOpacity style={styles.filterBtn} onPress={() => setShowFilterModal(true)}>
-          <Ionicons name="options" size={24} color="#fff" />
+          <Ionicons name="options" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
-      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e53935" colors={["#e53935"]} />} style={styles.content} contentContainerStyle={styles.scrollContent}>
+
+      <ScrollView 
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" colors={["#fff"]} />} 
+        style={styles.content} 
+        contentContainerStyle={styles.scrollContent}
+      >
         {loading ? (
-          <ActivityIndicator size="large" color="#fff" style={{ marginTop: 40 }} />
+          <ActivityIndicator size="large" color="#fff" style={{ marginTop: 60 }} />
         ) : filteredItems.length > 0 ? (
           filteredItems.map(item => (
             <View key={item.id} style={styles.card}>
@@ -186,11 +231,13 @@ export default function MarketplaceScreen({ navigation }: any) {
                   )}
                 </View>
               ) : (
-                <View style={styles.noImage}><Ionicons name="cart-outline" size={40} color="#666" /></View>
+                <View style={styles.noImage}>
+                  <Ionicons name="cart-outline" size={40} color="#666" />
+                </View>
               )}
               <View style={styles.info}>
-                <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start'}}>
-                  <View style={{flex: 1, paddingRight: 8}}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
                     <Text style={styles.title}>{item.title}</Text>
                     <Text style={styles.price}>{item.currency || '$'}{item.price}</Text>
                   </View>
@@ -199,12 +246,12 @@ export default function MarketplaceScreen({ navigation }: any) {
                       style={[styles.messageBtn, { backgroundColor: '#e53935' }]} 
                       onPress={() => handleDeleteItem(item.id)}
                     >
-                      <Ionicons name="trash-outline" size={20} color="#fff" />
+                      <Ionicons name="trash-outline" size={18} color="#fff" />
                     </TouchableOpacity>
                   ) : (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <TouchableOpacity 
-                        style={[styles.messageBtn, { backgroundColor: '#333' }]} 
+                        style={[styles.messageBtn, { backgroundColor: '#222' }]} 
                         onPress={async () => {
                           if (item.sellerId) {
                             import('firebase/firestore').then(async ({ getDoc, doc }) => {
@@ -221,7 +268,7 @@ export default function MarketplaceScreen({ navigation }: any) {
                           }
                         }}
                       >
-                        <Ionicons name="heart-outline" size={20} color="#fff" />
+                        <Ionicons name="heart-outline" size={18} color="#fff" />
                       </TouchableOpacity>
                       <TouchableOpacity 
                         style={styles.messageBtn} 
@@ -232,7 +279,7 @@ export default function MarketplaceScreen({ navigation }: any) {
                           navigation.navigate('Chat', { chatId, otherUser: { id: sellerId, username: 'Seller' } });
                         }}
                       >
-                        <Ionicons name="chatbubbles" size={20} color="#fff" />
+                        <Ionicons name="chatbubbles" size={18} color="#fff" />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -242,7 +289,11 @@ export default function MarketplaceScreen({ navigation }: any) {
             </View>
           ))
         ) : (
-          <Text style={styles.empty}>No marketplace items found.</Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.empty}>
+              {activeTab === 'my_listings' ? "You haven't listed any items yet." : "No listings found. Create one!"}
+            </Text>
+          </View>
         )}
       </ScrollView>
 
@@ -298,10 +349,7 @@ export default function MarketplaceScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowModal(true)}>
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
-
+      {/* Create Listing Modal */}
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
@@ -343,7 +391,7 @@ export default function MarketplaceScreen({ navigation }: any) {
                     { text: 'Cancel', style: 'cancel' }
                   ]);
                 }} 
-                style={{ backgroundColor: '#1a1a1a', padding: 16, borderRadius: 12, marginRight: 8, borderWidth: 1, borderColor: '#333', justifyContent: 'center' }}>
+                style={{ backgroundColor: '#111', padding: 16, borderRadius: 12, marginRight: 8, borderWidth: 1, borderColor: '#222', justifyContent: 'center' }}>
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{currency} ▼</Text>
               </TouchableOpacity>
               <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} placeholder="Price" placeholderTextColor="#666" keyboardType="numeric" value={price} onChangeText={setPrice} />
@@ -355,36 +403,46 @@ export default function MarketplaceScreen({ navigation }: any) {
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  searchHeader: { flexDirection: 'row', padding: 16, borderBottomWidth: 1, borderBottomColor: '#333', alignItems: 'center' },
-  searchContainer: { flex: 1, flexDirection: 'row', backgroundColor: '#1a1a1a', borderRadius: 12, paddingHorizontal: 12, alignItems: 'center', height: 44, borderWidth: 1, borderColor: '#333' },
-  searchInput: { flex: 1, color: '#fff', fontSize: 16 },
-  filterBtn: { marginLeft: 16, width: 44, height: 44, backgroundColor: '#1a1a1a', borderRadius: 12, borderWidth: 1, borderColor: '#333', alignItems: 'center', justifyContent: 'center' },
-  content: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: '#000', paddingTop: Platform.OS === 'android' ? 40 : 0 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 16, backgroundColor: '#000' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center' },
+  headerTitle: { color: '#fff', fontSize: 22, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.5 },
+  createBtn: { backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' },
+  createBtnText: { color: '#000', fontWeight: 'bold', fontSize: 14, marginLeft: 4 },
+  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
+  activeTab: { borderBottomWidth: 2, borderBottomColor: '#fff' },
+  tabText: { color: '#666', fontWeight: 'bold', fontSize: 15 },
+  activeTabText: { color: '#fff' },
+  searchHeader: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#000', alignItems: 'center' },
+  searchContainer: { flex: 1, flexDirection: 'row', backgroundColor: '#111', borderRadius: 12, paddingHorizontal: 12, alignItems: 'center', height: 44, borderWidth: 1, borderColor: '#222' },
+  searchInput: { flex: 1, color: '#fff', fontSize: 15 },
+  filterBtn: { marginLeft: 12, width: 44, height: 44, backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: '#222', alignItems: 'center', justifyContent: 'center' },
+  content: { flex: 1, backgroundColor: '#000' },
   scrollContent: { padding: 16, paddingBottom: 100 },
-  card: { backgroundColor: '#1a1a1a', borderRadius: 12, marginBottom: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#333' },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 80 },
+  empty: { color: '#555', fontSize: 16 },
+  card: { backgroundColor: '#111', borderRadius: 12, marginBottom: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
   image: { width: '100%', height: 200 },
-  noImage: { width: '100%', height: 150, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center' },
+  noImage: { width: '100%', height: 160, backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center' },
   info: { padding: 16 },
-  title: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
-  price: { color: '#4caf50', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  location: { color: '#888', fontSize: 14 },
-  messageBtn: { backgroundColor: '#e53935', padding: 8, borderRadius: 12 },
-  empty: { color: '#666', textAlign: 'center', marginTop: 40 },
-  fab: { position: 'absolute', bottom: 24, right: 24, width: 60, height: 60, borderRadius: 30, backgroundColor: '#e53935', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 8 },
-  modalContainer: { flex: 1, backgroundColor: '#111' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#333' },
+  title: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 6 },
+  price: { color: '#fff', fontSize: 17, fontWeight: '900', fontStyle: 'italic', marginBottom: 6 },
+  location: { color: '#aaa', fontSize: 14, lineHeight: 20 },
+  messageBtn: { backgroundColor: '#333', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  modalContainer: { flex: 1, backgroundColor: '#0a0a0a' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#222' },
   modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
   modalForm: { padding: 20 },
-  input: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, color: '#fff', fontSize: 16, borderWidth: 1, borderColor: '#333', marginBottom: 16 },
+  input: { backgroundColor: '#111', borderRadius: 12, padding: 16, color: '#fff', fontSize: 16, borderWidth: 1, borderColor: '#222', marginBottom: 16 },
   textArea: { height: 120, textAlignVertical: 'top' },
-  addMorePhotosBtn: { width: 120, height: 120, backgroundColor: '#1a1a1a', borderRadius: 12, borderWidth: 1, borderColor: '#333', alignItems: 'center', justifyContent: 'center' },
-  imagePickerText: { color: '#666', marginTop: 8, fontSize: 14, fontWeight: 'bold' },
+  addMorePhotosBtn: { width: 120, height: 120, backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: '#333', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  imagePickerText: { color: '#666', marginTop: 6, fontSize: 13, fontWeight: 'bold' },
   submitBtn: { backgroundColor: '#fff', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8, marginBottom: 40 },
   submitBtnText: { color: '#000', fontSize: 18, fontWeight: 'bold' },
   filterModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
@@ -392,7 +450,7 @@ const styles = StyleSheet.create({
   filterLabel: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 12, marginTop: 12 },
   sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   sortBtn: { backgroundColor: '#1a1a1a', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#333' },
-  sortBtnActive: { backgroundColor: '#e53935', borderColor: '#e53935' },
+  sortBtnActive: { backgroundColor: '#fff', borderColor: '#fff' },
   sortBtnText: { color: '#aaa', fontWeight: 'bold' },
-  sortBtnTextActive: { color: '#fff' }
+  sortBtnTextActive: { color: '#000' }
 });

@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, Platform, ActivityIndicator, Image, TouchableOpacity, Alert, Share, Modal, TextInput, KeyboardAvoidingView, FlatList, useWindowDimensions, ScrollView , RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, Platform, ActivityIndicator, Image, TouchableOpacity, Alert, Share, Modal, TextInput, KeyboardAvoidingView, FlatList, useWindowDimensions, ScrollView , RefreshControl, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import mobileAds, { NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView } from 'react-native-google-mobile-ads';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
-import { collection, where, query, orderBy, limit, getDocs, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, deleteDoc, setDoc, where, query, orderBy, limit, getDocs, getDoc, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -65,7 +66,7 @@ export default function FeedScreen({ navigation }: any) {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [9, 16],
-        quality: 0.8,
+        quality: 0.4,
       });
       if (!result.canceled && result.assets && result.assets[0].uri && auth.currentUser) {
         const uri = result.assets[0].uri;
@@ -81,6 +82,7 @@ export default function FeedScreen({ navigation }: any) {
         
         await addDoc(collection(db, 'stories'), {
           userId: auth.currentUser.uid,
+          authorId: auth.currentUser.uid,
           username: 'User_' + auth.currentUser.uid.substring(0, 5),
           profilePic: auth.currentUser.photoURL || null,
           mediaUrl: url,
@@ -118,15 +120,52 @@ export default function FeedScreen({ navigation }: any) {
 
   const fetchPosts = async () => {
     try {
-      await new Promise((resolve) => {
-        const unsubscribe = auth.onAuthStateChanged((user) => {
-          if (user) { resolve(user); unsubscribe(); }
+      const user: any = await new Promise((resolve) => {
+        const unsubscribe = auth.onAuthStateChanged((u) => {
+          resolve(u);
+          unsubscribe();
         });
       });
       const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(15));
       const snap = await getDocs(q);
       const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPosts(fetched);
+
+      const currentUid = user?.uid || auth.currentUser?.uid;
+      const likedPostIds = new Set<string>();
+      if (currentUid && fetched.length > 0) {
+        try {
+          const likeChecks = await Promise.all(
+            fetched.map(p => getDoc(doc(db, 'likes', `${currentUid}_${p.id}`)))
+          );
+          likeChecks.forEach((lSnap, idx) => {
+            if (lSnap.exists()) {
+              likedPostIds.add(fetched[idx].id);
+            }
+          });
+        } catch (e) {
+          console.log('Error loading likes status:', e);
+        }
+      }
+
+      const authorIds = [...new Set(fetched.map(p => p.authorId).filter(Boolean))];
+      const usersCache: Record<string, any> = {};
+      if (authorIds.length > 0) {
+        const userDocs = await Promise.all(authorIds.map(id => getDoc(doc(db, 'users', id as string))));
+        userDocs.forEach(uSnap => {
+          if (uSnap.exists()) {
+            usersCache[uSnap.id] = uSnap.data();
+          }
+        });
+      }
+
+      const mappedPosts = fetched.map(post => ({
+        ...post,
+        isLiked: likedPostIds.has(post.id),
+        likesCount: Number(post.likesCount) || 0,
+        authorUsername: usersCache[post.authorId]?.username || post.authorUsername || `tuner_${post.authorId?.substring(0,6)}`
+      }));
+
+      setPosts(mappedPosts);
     } catch (err) {
       console.log('Error fetching posts:', err);
     } finally {
@@ -157,15 +196,58 @@ export default function FeedScreen({ navigation }: any) {
 
   const handleLike = async (postId: string) => {
     const userId = auth.currentUser?.uid;
-    if (!userId) return;
+    if (!userId) {
+      Alert.alert('Sign In Required', 'Please sign in to like posts.');
+      return;
+    }
+
+    const targetPost = posts.find(p => p.id === postId);
+    if (!targetPost) return;
+
+    const wasLiked = Boolean(targetPost.isLiked);
+    const currentCount = Number(targetPost.likesCount) || 0;
+    const newLiked = !wasLiked;
+    const newCount = wasLiked ? Math.max(0, currentCount - 1) : currentCount + 1;
+
+    // Optimistic UI update
+    setPosts(current => current.map(p => 
+      p.id === postId ? { ...p, isLiked: newLiked, likesCount: newCount } : p
+    ));
+
+    const likeId = `${userId}_${postId}`;
+    const likeRef = doc(db, 'likes', likeId);
+    const postRef = doc(db, 'posts', postId);
+
     try {
-      setPosts(current => current.map(p => 
-        p.id === postId ? { ...p, likesCount: (p.likesCount || 0) + 1 } : p
-      ));
-      await updateDoc(doc(db, 'posts', postId), { likesCount: increment(1) });
+      if (wasLiked) {
+        await deleteDoc(likeRef);
+        await updateDoc(postRef, { likesCount: increment(-1) });
+      } else {
+        await setDoc(likeRef, {
+          userId: userId,
+          postId: postId,
+          createdAt: Date.now()
+        });
+        await updateDoc(postRef, { likesCount: increment(1) });
+
+        if (targetPost.authorId && targetPost.authorId !== userId) {
+          const notifId = `${Date.now()}_${userId}_like_${postId}`;
+          setDoc(doc(db, 'notifications', notifId), {
+            userId: targetPost.authorId,
+            actorId: userId,
+            type: 'like',
+            postId: postId,
+            read: false,
+            createdAt: Date.now()
+          }).catch(() => {});
+        }
+      }
     } catch (err) {
-      console.error(err);
-      fetchPosts(); 
+      console.error('Error toggling like:', err);
+      // Revert optimistic update
+      setPosts(current => current.map(p => 
+        p.id === postId ? { ...p, isLiked: wasLiked, likesCount: currentCount } : p
+      ));
     }
   };
 
@@ -181,15 +263,33 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handlePostOptions = (post: any) => {
-    Alert.alert(
-      'Post Options',
-      '',
-      [
-        { text: 'Report Post', onPress: () => handleReport(post), style: 'destructive' },
-        { text: 'Block User', onPress: () => handleBlock(post.authorId), style: 'destructive' },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    const isOwner = post.authorId === auth.currentUser?.uid;
+    const options: any[] = [];
+    if (isOwner) {
+      options.push({ text: 'Delete Post', onPress: () => handleDeletePost(post), style: 'destructive' });
+    } else {
+      options.push({ text: 'Report Post', onPress: () => handleReport(post), style: 'destructive' });
+      options.push({ text: 'Block User', onPress: () => handleBlock(post.authorId), style: 'destructive' });
+    }
+    options.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert('Post Options', '', options);
+  };
+
+  const handleDeletePost = async (post: any) => {
+    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteDoc(doc(db, 'posts', post.id));
+            setPosts(posts.filter(p => p.id !== post.id));
+            Alert.alert('Success', 'Post deleted');
+          } catch (err) {
+            console.error(err);
+            Alert.alert('Error', 'Failed to delete post');
+          }
+      }}
+    ]);
   };
 
   const handleReport = async (post: any) => {
@@ -333,8 +433,21 @@ export default function FeedScreen({ navigation }: any) {
     return (
       <View style={[styles.postContainer, { height: containerHeight }]}>
 
-        {item.mediaUrls?.[0] ? (
-          <Image source={{ uri: item.mediaUrls[0] }} style={styles.fullScreenImage} resizeMode="cover" />
+        {item.mediaUrls && item.mediaUrls.length > 0 ? (
+          <View style={styles.fullScreenImage}>
+            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+              {item.mediaUrls.map((uri: string, idx: number) => (
+                <View key={idx} style={{ width: Dimensions.get('window').width, height: containerHeight }}>
+                  <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                </View>
+              ))}
+            </ScrollView>
+            {item.mediaUrls.length > 1 && (
+              <View style={{ position: 'absolute', top: 20, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+                <Ionicons name="images" size={16} color="#fff" style={{ marginRight: 4 }} /><Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{item.mediaUrls.length}</Text>
+              </View>
+            )}
+          </View>
         ) : item.mediaUrl ? (
           <Image source={{ uri: item.mediaUrl }} style={styles.fullScreenImage} resizeMode="cover" />
         ) : (
@@ -360,7 +473,7 @@ export default function FeedScreen({ navigation }: any) {
 
             <View style={styles.rightActions}>
               <TouchableOpacity style={styles.actionButton} onPress={() => handleLike(item.id)}>
-                <Ionicons name="heart" size={36} color={item.likesCount > 0 ? "#e53935" : "#fff"} />
+                <Ionicons name={item.isLiked ? "heart" : "heart-outline"} size={36} color={item.isLiked ? "#e53935" : "#fff"} />
                 <Text style={styles.actionText}>{item.likesCount || 0}</Text>
               </TouchableOpacity>
               
@@ -390,16 +503,23 @@ export default function FeedScreen({ navigation }: any) {
         <Text style={styles.logoTextOverlay}>REVITUP</Text>
         <View style={styles.topHeaderRight}>
           <TouchableOpacity 
-            style={{ backgroundColor: '#ff9800', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 12, flexDirection: 'row', alignItems: 'center' }}
+            style={{ backgroundColor: '#222', borderWidth: 1, borderColor: '#f5d547', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, marginRight: 8, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => navigation.navigate('ServiceBoard')}
+          >
+            <Ionicons name="build" size={12} color="#f5d547" style={{ marginRight: 4 }} />
+            <Text style={{ color: '#f5d547', fontWeight: 'bold', fontSize: 11 }}>SERVICE</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={{ backgroundColor: '#ff9800', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, marginRight: 8, flexDirection: 'row', alignItems: 'center' }}
             onPress={() => navigation.navigate('Giveaways')}
           >
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>🎁 GIVEAWAY</Text>
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}>🎁 GIVEAWAY</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.chatBtnTop}
             onPress={() => navigation.navigate('Inbox')}
           >
-            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#fff" />
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>

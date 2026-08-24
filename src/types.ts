@@ -2,6 +2,12 @@ export interface UserProfile {
   uid: string;
   username: string;
   usernameLower: string;
+  id?: string;
+  displayName?: string;
+  shopName?: string;
+  initialMessage?: string;
+  isMechanic?: boolean;
+  photoURL?: string;
   birthdate?: string;
   email?: string; // Optional: Only available for owner via private subcollection
   bio?: string;
@@ -199,4 +205,19 @@ export interface MechanicShop {
   lng?: number;
   bannerUrl?: string;
   createdAt: number;
+}
+
+export interface RevitUpVideo {
+  id: string;
+  title: string;
+  description?: string;
+  videoUrl: string;
+  thumbnailUrl?: string;
+  orientation?: 'landscape' | 'portrait';
+  aspectRatio?: string;
+  cameraModel?: string;
+  resolution?: string;
+  fps?: number;
+  featured?: boolean;
+  createdAt: any;
 }

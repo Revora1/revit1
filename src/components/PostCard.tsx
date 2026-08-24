@@ -80,7 +80,11 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
 
   const handleFollowClick = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Stop navigation when click follow
-    if (!currentUser || currentUser.uid === profile.uid || checkingFollow) return;
+    if (!currentUser) {
+      alert("Please sign in to follow users.");
+      return;
+    }
+    if (currentUser.uid === profile.uid || checkingFollow) return;
     setCheckingFollow(true);
     const followId = `${currentUser.uid}_${profile.uid}`;
     const followRef = doc(db, 'follows', followId);
@@ -90,27 +94,29 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
     try {
       if (isFollowing) {
         await deleteDoc(followRef);
-        await updateDoc(myRef, { followingCount: increment(-1) });
-        await updateDoc(targetRef, { followersCount: increment(-1) });
+        setIsFollowing(false);
+        try { await setDoc(myRef, { followingCount: increment(-1) }, { merge: true }); } catch (err) {}
+        try { await setDoc(targetRef, { followersCount: increment(-1) }, { merge: true }); } catch (err) {}
       } else {
         await setDoc(followRef, {
           followerId: currentUser.uid,
           followingId: profile.uid,
           createdAt: Date.now()
         });
-        await updateDoc(myRef, { followingCount: increment(1) });
-        await updateDoc(targetRef, { followersCount: increment(1) });
+        setIsFollowing(true);
+        try { await setDoc(myRef, { followingCount: increment(1) }, { merge: true }); } catch (err) {}
+        try { await setDoc(targetRef, { followersCount: increment(1) }, { merge: true }); } catch (err) {}
         
-        // Push notification
-
         const notifId = `${Date.now()}_${currentUser.uid}_follow_${profile.uid}`;
-        await setDoc(doc(db, 'notifications', notifId), {
-          userId: profile.uid,
-          actorId: currentUser.uid,
-          type: 'follow',
-          read: false,
-          createdAt: Date.now()
-        });
+        try {
+          await setDoc(doc(db, 'notifications', notifId), {
+            userId: profile.uid,
+            actorId: currentUser.uid,
+            type: 'follow',
+            read: false,
+            createdAt: Date.now()
+          });
+        } catch (err) {}
         
         // Push notification
         try {
@@ -132,7 +138,6 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
         } catch (pushErr) {
           console.error("Failed to send push:", pushErr);
         }
-
       }
     } catch (error) {
       console.error("Error in follow action:", error);
@@ -602,7 +607,11 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
   };
 
   const handleFollow = async () => {
-    if (!user || user.uid === post.authorId || isFollowingLoading) return;
+    if (!user) {
+      alert("Please sign in to follow users.");
+      return;
+    }
+    if (user.uid === post.authorId || isFollowingLoading) return;
     setIsFollowingLoading(true);
     const followId = `${user.uid}_${post.authorId}`;
     const followRef = doc(db, 'follows', followId);
@@ -613,27 +622,29 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
     try {
       if (isFollowing) {
         await deleteDoc(followRef);
-        await updateDoc(currentUserRef, { followingCount: increment(-1) });
-        await updateDoc(authorRef, { followersCount: increment(-1) });
         setIsFollowing(false);
+        try { await setDoc(currentUserRef, { followingCount: increment(-1) }, { merge: true }); } catch (e) {}
+        try { await setDoc(authorRef, { followersCount: increment(-1) }, { merge: true }); } catch (e) {}
       } else {
         await setDoc(followRef, {
           followerId: user.uid,
           followingId: post.authorId,
           createdAt: Date.now()
         });
-        await updateDoc(currentUserRef, { followingCount: increment(1) });
-        await updateDoc(authorRef, { followersCount: increment(1) });
         setIsFollowing(true);
+        try { await setDoc(currentUserRef, { followingCount: increment(1) }, { merge: true }); } catch (e) {}
+        try { await setDoc(authorRef, { followersCount: increment(1) }, { merge: true }); } catch (e) {}
 
         const notifId = `${Date.now()}_${user.uid}_follow_${post.authorId}`;
-        await setDoc(doc(db, 'notifications', notifId), {
-          userId: post.authorId,
-          actorId: user.uid,
-          type: 'follow',
-          read: false,
-          createdAt: Date.now()
-        });
+        try {
+          await setDoc(doc(db, 'notifications', notifId), {
+            userId: post.authorId,
+            actorId: user.uid,
+            type: 'follow',
+            read: false,
+            createdAt: Date.now()
+          });
+        } catch (e) {}
         
         // Push notification
         try {
@@ -655,7 +666,6 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         } catch (pushErr) {
           console.error("Failed to send push:", pushErr);
         }
-
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `follows/${followId}`);

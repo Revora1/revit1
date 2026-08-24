@@ -1,13 +1,16 @@
-/**
- * Image compression is now handled directly by expo-image-picker's `quality` 
- * and `allowsEditing` properties when selecting images, avoiding the need 
- * for a separate native package that requires rebuilding the dev client.
- * 
- * @param uri The local URI of the image
- * @returns The original URI (compression handled upstream)
- */
+import * as ImageManipulator from 'expo-image-manipulator';
+
 export async function compressImage(uri: string): Promise<string> {
-  // We return the URI directly. 
-  // expo-image-picker is already configured with quality: 0.8 in the picker functions
-  return uri;
+  try {
+    // Compress and convert to JPEG
+    const manipResult = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 1080 } }],
+      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    return manipResult.uri;
+  } catch (error) {
+    console.error("Compression error:", error);
+    return uri; 
+  }
 }

@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Wrench, Search, MapPin, Phone, Globe, Mail, Plus } from 'lucide-react';
+import { ArrowLeft, Wrench, Search, MapPin, Phone, Globe, Mail, Plus, MessageSquare } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { MechanicShop } from '../types';
 import { AddMechanicModal } from './AddMechanicModal';
+import { useAuth } from '../context/AuthContext';
 
 interface MechanicBoardViewProps {
   onBack: () => void;
 }
 
 export function MechanicBoardView({ onBack }: MechanicBoardViewProps) {
+  const { user } = useAuth();
   const [shops, setShops] = useState<MechanicShop[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,6 +35,30 @@ export function MechanicBoardView({ onBack }: MechanicBoardViewProps) {
 
     return () => unsubscribe();
   }, []);
+
+  const handleRequestQuote = (shop: MechanicShop) => {
+    const currentUserId = user?.uid || 'anonymous';
+    const providerId = shop.userId || shop.id;
+    const chatId = `${currentUserId}_${providerId}`;
+
+    window.dispatchEvent(
+      new CustomEvent('navigate-chat', {
+        detail: {
+          chatId,
+          otherUser: {
+            id: providerId,
+            uid: providerId,
+            displayName: shop.companyName,
+            username: shop.companyName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+            photoURL: shop.bannerUrl || '',
+            shopName: shop.companyName,
+            isMechanic: true,
+            initialMessage: `Hi ${shop.companyName}, I would like to request a quote for service regarding: "${shop.specialties}".`
+          }
+        }
+      })
+    );
+  };
 
   const filteredShops = shops.filter(shop => {
     const term = searchQuery.toLowerCase();
@@ -93,19 +119,29 @@ export function MechanicBoardView({ onBack }: MechanicBoardViewProps) {
             {filteredShops.map((shop) => (
               <div 
                 key={shop.id}
-                className="bg-zinc-950 border border-zinc-900 rounded-2xl overflow-hidden group hover:border-zinc-800 transition-colors flex flex-col"
+                className="bg-zinc-950 border border-zinc-900 rounded-2xl overflow-hidden group hover:border-zinc-800 transition-colors flex flex-col relative"
               >
+                {/* Floating Request Quote FAB on Banner */}
+                <button
+                  onClick={() => handleRequestQuote(shop)}
+                  className="absolute top-3 right-3 z-20 bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1.5 rounded-full font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-[0_4px_16px_rgba(234,179,8,0.45)] active:scale-95 transition-all border border-yellow-300/50 cursor-pointer"
+                  title="Request Quote"
+                >
+                  <MessageSquare size={13} className="fill-black/20" />
+                  <span>Request Quote</span>
+                </button>
+
                 {shop.bannerUrl ? (
                   <div className="h-32 w-full bg-zinc-900 relative">
                     <img src={shop.bannerUrl} alt={shop.companyName} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
                   </div>
                 ) : (
-                  <div className="h-4 w-full bg-yellow-500/10" />
+                  <div className="h-10 w-full bg-yellow-500/10" />
                 )}
                 
                 <div className="p-4 flex-1 flex flex-col">
-                  <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1 pr-16">
                     {shop.companyName}
                   </h3>
                   
@@ -125,6 +161,15 @@ export function MechanicBoardView({ onBack }: MechanicBoardViewProps) {
                         {shop.specialties}
                       </p>
                     </div>
+
+                    {/* Primary Quote Request Action */}
+                    <button
+                      onClick={() => handleRequestQuote(shop)}
+                      className="w-full mt-2 flex items-center justify-center gap-2 text-black bg-gradient-to-r from-yellow-500 to-amber-400 hover:from-yellow-400 hover:to-amber-300 py-2.5 px-4 rounded-xl font-black text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(234,179,8,0.25)] active:scale-98 transition-all cursor-pointer"
+                    >
+                      <MessageSquare size={15} />
+                      Request Quote
+                    </button>
 
                     <div className="pt-3 border-t border-zinc-900 grid grid-cols-2 gap-2">
                       <a href={`tel:${shop.phone}`} className="flex items-center gap-2 text-zinc-300 hover:text-white transition-colors bg-zinc-900/50 p-2 rounded-lg justify-center">
