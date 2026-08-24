@@ -2,9 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Modal, TextInput, Alert, Image, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
-import { db, auth } from '../firebaseConfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage, auth } from '../firebaseConfig';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import { compressImage } from '../lib/imageCompression';
 
 export default function MechanicBoardScreen() {
   const navigation = useNavigation<any>();
@@ -22,6 +25,7 @@ export default function MechanicBoardScreen() {
   const [website, setWebsite] = useState('');
   const [email, setEmail] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
+  const [bannerLocalUri, setBannerLocalUri] = useState<string | null>(null);
 
   const imagePresets = [
     { name: 'Garage', url: 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200' },
@@ -29,6 +33,31 @@ export default function MechanicBoardScreen() {
     { name: 'Detailing', url: 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?auto=format&fit=crop&q=80&w=1200' },
     { name: 'Engine', url: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=1200' }
   ];
+
+  const pickBannerFromCameraRoll = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert('Permission required', 'Please grant photo library access to pick a photo from your camera roll.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        setBannerLocalUri(uri);
+        setBannerUrl(''); // override preset/manual url if camera roll image selected
+      }
+    } catch (err: any) {
+      Alert.alert('Error picking photo', err.message || 'Could not select image from camera roll');
+    }
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'mechanics'), orderBy('createdAt', 'desc'));
@@ -50,6 +79,26 @@ export default function MechanicBoardScreen() {
     
     setSubmitting(true);
     try {
+      let finalBannerUrl = bannerUrl;
+
+      // Upload camera roll photo if selected
+      if (bannerLocalUri) {
+        const compressedUri = await compressImage(bannerLocalUri);
+        const blob: any = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.onload = function() { resolve(xhr.response); };
+          xhr.onerror = function(e) { reject(new TypeError("Network request failed")); };
+          xhr.responseType = "blob";
+          xhr.open("GET", compressedUri, true);
+          xhr.send(null);
+        });
+
+        const filename = `mechanic_banners/${auth.currentUser?.uid || 'anon'}/${Date.now()}.jpg`;
+        const storageRef = ref(storage, filename);
+        await uploadBytes(storageRef, blob);
+        finalBannerUrl = await getDownloadURL(storageRef);
+      }
+
       await addDoc(collection(db, 'mechanics'), {
         companyName,
         specialties,
@@ -57,7 +106,7 @@ export default function MechanicBoardScreen() {
         phone,
         website,
         email,
-        bannerUrl: bannerUrl || 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200',
+        bannerUrl: finalBannerUrl || 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200',
         addedBy: auth.currentUser?.uid || 'anonymous',
         userId: auth.currentUser?.uid || 'anonymous',
         createdAt: serverTimestamp()
@@ -65,7 +114,7 @@ export default function MechanicBoardScreen() {
       
       setShowModal(false);
       setCompanyName(''); setSpecialties(''); setLocation('');
-      setPhone(''); setWebsite(''); setEmail(''); setBannerUrl('');
+      setPhone(''); setWebsite(''); setEmail(''); setBannerUrl(''); setBannerLocalUri(null);
       Alert.alert('Success', 'Shop added to Service Board!');
     } catch (err: any) {
       Alert.alert('Error', err.message);
@@ -256,43 +305,65 @@ export default function MechanicBoardScreen() {
           </View>
           
           <ScrollView style={styles.modalForm}>
-            <View style={{ marginBottom: 12 }}>
-              <Text style={{ color: '#888', fontSize: 11, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' }}>
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#888', fontSize: 11, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase' }}>
                 Business Banner Image
               </Text>
               
-              {bannerUrl ? (
-                <View style={{ height: 120, borderRadius: 10, overflow: 'hidden', marginBottom: 8, borderWidth: 1, borderColor: '#333' }}>
-                  <Image source={{ uri: bannerUrl }} style={{ width: '100%', height: '100%' }} />
+              {/* Selected Image Preview (from camera roll or preset/URL) */}
+              {(bannerLocalUri || bannerUrl) ? (
+                <View style={{ height: 140, borderRadius: 12, overflow: 'hidden', marginBottom: 10, borderWidth: 1, borderColor: '#333', position: 'relative' }}>
+                  <Image source={{ uri: bannerLocalUri || bannerUrl }} style={{ width: '100%', height: '100%' }} />
+                  <TouchableOpacity 
+                    onPress={() => { setBannerLocalUri(null); setBannerUrl(''); }}
+                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>Remove Photo</Text>
+                  </TouchableOpacity>
                 </View>
               ) : null}
 
-              <TextInput 
-                style={styles.input} 
-                value={bannerUrl} 
-                onChangeText={setBannerUrl} 
-                placeholder="Business Banner Image URL (https://...)" 
-                placeholderTextColor="#666" 
-                keyboardType="url"
-                autoCapitalize="none"
-              />
+              {/* Primary Camera Roll Picker Button */}
+              <TouchableOpacity
+                onPress={pickBannerFromCameraRoll}
+                style={{
+                  backgroundColor: '#222',
+                  borderWidth: 1.5,
+                  borderColor: '#f5d547',
+                  borderStyle: 'dashed',
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  paddingHorizontal: 16,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
+                  marginBottom: 10
+                }}
+              >
+                <Ionicons name="images-outline" size={22} color="#f5d547" />
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>
+                  {bannerLocalUri ? 'Change Photo from Camera Roll' : 'Choose Photo from Camera Roll'}
+                </Text>
+              </TouchableOpacity>
 
-              <Text style={{ color: '#666', fontSize: 10, marginBottom: 6 }}>Or pick a photo preset:</Text>
+              {/* Optional Stock Photo Presets */}
+              <Text style={{ color: '#666', fontSize: 10, marginBottom: 6 }}>Or pick a stock banner preset:</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
                 {imagePresets.map((item, idx) => (
                   <TouchableOpacity 
                     key={idx}
-                    onPress={() => setBannerUrl(item.url)}
+                    onPress={() => { setBannerLocalUri(null); setBannerUrl(item.url); }}
                     style={{ 
                       paddingHorizontal: 12, 
                       paddingVertical: 6, 
                       borderRadius: 16, 
-                      backgroundColor: bannerUrl === item.url ? '#f5d547' : '#222',
+                      backgroundColor: (bannerUrl === item.url && !bannerLocalUri) ? '#f5d547' : '#222',
                       borderWidth: 1,
-                      borderColor: bannerUrl === item.url ? '#f5d547' : '#333'
+                      borderColor: (bannerUrl === item.url && !bannerLocalUri) ? '#f5d547' : '#333'
                     }}
                   >
-                    <Text style={{ color: bannerUrl === item.url ? '#000' : '#fff', fontSize: 11, fontWeight: 'bold' }}>
+                    <Text style={{ color: (bannerUrl === item.url && !bannerLocalUri) ? '#000' : '#fff', fontSize: 11, fontWeight: 'bold' }}>
                       {item.name}
                     </Text>
                   </TouchableOpacity>
