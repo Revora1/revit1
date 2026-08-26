@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect, Component, ReactNode } from 'react';
+import { TouchableOpacity, Platform, View, Text } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -9,6 +9,51 @@ import { auth } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { registerForPushNotificationsAsync } from './lib/notifications';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
+
+// Error Boundary Component
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.log('App ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Ionicons name="warning-outline" size={48} color="#f5d547" style={{ marginBottom: 16 }} />
+          <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' }}>Something went wrong</Text>
+          <Text style={{ color: '#888', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
+            An unexpected error occurred. Please restart the app.
+          </Text>
+          <TouchableOpacity 
+            onPress={() => this.setState({ hasError: false })}
+            style={{ backgroundColor: '#f5d547', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+          >
+            <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 14 }}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Screens
 import LoginScreen from './screens/LoginScreen';
@@ -107,16 +152,16 @@ export default function App() {
 
   if (!user) {
     return (
-      <>
+      <ErrorBoundary>
         <StatusBar style="light" />
         <LoginScreen />
         <CookieConsentModal />
-      </>
+      </ErrorBoundary>
     );
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <StatusBar style="light" />
       <NavigationContainer theme={DarkTheme}>
         <Stack.Navigator screenOptions={{ 
@@ -154,6 +199,6 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
       <CookieConsentModal userId={user?.uid} />
-    </>
+    </ErrorBoundary>
   );
 }

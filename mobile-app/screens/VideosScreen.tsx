@@ -15,10 +15,22 @@ const { width } = Dimensions.get('window');
 // RevitUp TV Interstitial Ad Unit ID
 const INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-2103649447635694/1878039475';
 
-// Create global or singleton interstitial instance
-let interstitial: InterstitialAd = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID, {
-  requestNonPersonalizedAdsOnly: true,
-});
+// Lazy interstitial reference
+let interstitialInstance: InterstitialAd | null = null;
+
+function getInterstitialAd(): InterstitialAd | null {
+  if (!interstitialInstance) {
+    try {
+      interstitialInstance = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID, {
+        requestNonPersonalizedAdsOnly: true,
+      });
+    } catch (e) {
+      console.log('Error creating InterstitialAd instance:', e);
+      interstitialInstance = null;
+    }
+  }
+  return interstitialInstance;
+}
 
 export default function VideosScreen({ navigation }: any) {
   const [videos, setVideos] = useState<any[]>([]);
@@ -32,67 +44,81 @@ export default function VideosScreen({ navigation }: any) {
   const onAdClosedCallbackRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
+    try {
+      setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
+    } catch (e) {
+      console.log('Audio mode set failed:', e);
+    }
     fetchVideos();
+
+    let unsubLoaded: (() => void) | null = null;
+    let unsubClosed: (() => void) | null = null;
+    let unsubError: (() => void) | null = null;
 
     const initAndLoadAds = async () => {
       try {
-        await requestTrackingPermissionsAsync();
-        await mobileAds().initialize();
+        await requestTrackingPermissionsAsync().catch(() => {});
+        await mobileAds().initialize().catch(() => {});
+
+        const ad = getInterstitialAd();
+        if (ad) {
+          unsubLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
+            setAdLoaded(true);
+          });
+
+          unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+            setAdLoaded(false);
+            if (onAdClosedCallbackRef.current) {
+              const cb = onAdClosedCallbackRef.current;
+              onAdClosedCallbackRef.current = null;
+              cb();
+            }
+            loadInterstitialAd();
+          });
+
+          unsubError = ad.addAdEventListener(AdEventType.ERROR, (error) => {
+            console.log('Interstitial ad error:', error);
+            setAdLoaded(false);
+            if (onAdClosedCallbackRef.current) {
+              const cb = onAdClosedCallbackRef.current;
+              onAdClosedCallbackRef.current = null;
+              cb();
+            }
+          });
+
+          loadInterstitialAd();
+        }
       } catch (err) {
         console.log('Mobile ads init:', err);
       }
-      loadInterstitialAd();
     };
 
     initAndLoadAds();
 
-    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      setAdLoaded(true);
-    });
-
-    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-      setAdLoaded(false);
-      // Run callback if waiting for post-ad action
-      if (onAdClosedCallbackRef.current) {
-        const cb = onAdClosedCallbackRef.current;
-        onAdClosedCallbackRef.current = null;
-        cb();
-      }
-      // Re-load next interstitial for subsequent rolls
-      loadInterstitialAd();
-    });
-
-    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
-      console.log('Interstitial ad error:', error);
-      setAdLoaded(false);
-      if (onAdClosedCallbackRef.current) {
-        const cb = onAdClosedCallbackRef.current;
-        onAdClosedCallbackRef.current = null;
-        cb();
-      }
-    });
-
     return () => {
-      unsubscribeLoaded();
-      unsubscribeClosed();
-      unsubscribeError();
+      if (unsubLoaded) unsubLoaded();
+      if (unsubClosed) unsubClosed();
+      if (unsubError) unsubError();
     };
   }, []);
 
   const loadInterstitialAd = () => {
     try {
-      interstitial.load();
+      const ad = getInterstitialAd();
+      if (ad) {
+        ad.load();
+      }
     } catch (e) {
       console.log('Failed to call interstitial.load():', e);
     }
   };
 
   const showInterstitialIfAvailable = (onFinished: () => void): boolean => {
-    if (adLoaded && interstitial.loaded) {
+    const ad = getInterstitialAd();
+    if (adLoaded && ad && ad.loaded) {
       onAdClosedCallbackRef.current = onFinished;
       try {
-        interstitial.show();
+        ad.show();
         return true;
       } catch (e) {
         console.log('Failed to show interstitial:', e);

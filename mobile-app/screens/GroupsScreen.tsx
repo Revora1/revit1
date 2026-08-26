@@ -77,21 +77,26 @@ export default function GroupsScreen() {
   };
 
   const pickCoverImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert('Permission needed', 'Allow camera roll access to pick photos.');
-      return;
-    }
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to pick a group cover image. You can enable photo access in device Settings.');
+        return;
+      }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.4,
-    });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.4,
+      });
 
-    if (!result.canceled) {
-      setCoverImageUri(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setCoverImageUri(result.assets[0].uri);
+      }
+    } catch (err: any) {
+      console.log('Error picking cover image:', err);
+      Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
     }
   };
 

@@ -78,20 +78,25 @@ export default function MarketplaceScreen({ navigation }: any) {
       Alert.alert('Limit Reached', 'You can upload a maximum of 10 images.');
       return;
     }
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission needed', 'Allow camera roll access to pick photos.');
-      return;
-    }
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      selectionLimit: 10 - imageUris.length,
-      quality: 0.4,
-    });
-    if (!result.canceled) {
-      const selectedUris = result.assets.map(asset => asset.uri);
-      setImageUris(prev => [...prev, ...selectedUris].slice(0, 10));
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to upload marketplace listing photos. You can enable photo access in your device Settings.');
+        return;
+      }
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        selectionLimit: 10 - imageUris.length,
+        quality: 0.4,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedUris = result.assets.map(asset => asset.uri);
+        setImageUris(prev => [...prev, ...selectedUris].slice(0, 10));
+      }
+    } catch (err: any) {
+      console.log('Error picking image:', err);
+      Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
     }
   };
 

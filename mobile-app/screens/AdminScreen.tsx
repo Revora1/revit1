@@ -223,35 +223,45 @@ export default function AdminScreen({ navigation }: any) {
   };
 
   const pickVideo = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission needed', 'Allow camera roll access to pick videos.');
-      return;
-    }
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['videos'],
-      allowsEditing: true,
-      quality: 1,
-    });
-    if (!result.canceled) {
-      setNewVideoUrl(result.assets[0].uri);
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to pick videos. You can enable access in device Settings.');
+        return;
+      }
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: true,
+        quality: 1,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setNewVideoUrl(result.assets[0].uri);
+      }
+    } catch (err: any) {
+      console.log('Error picking video:', err);
+      Alert.alert('Error', 'Could not open media library: ' + (err.message || 'Permission denied'));
     }
   };
 
   const pickThumbnail = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission needed', 'Allow camera roll access to pick photos.');
-      return;
-    }
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: newVideoOrientation === 'portrait' ? [9, 16] : [16, 9],
-      quality: 0.5,
-    });
-    if (!result.canceled) {
-      setNewVideoThumbnail(result.assets[0].uri);
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to pick thumbnails. You can enable access in device Settings.');
+        return;
+      }
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: newVideoOrientation === 'portrait' ? [9, 16] : [16, 9],
+        quality: 0.5,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setNewVideoThumbnail(result.assets[0].uri);
+      }
+    } catch (err: any) {
+      console.log('Error picking thumbnail:', err);
+      Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
     }
   };
 

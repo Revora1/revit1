@@ -58,8 +58,8 @@ export default function FeedScreen({ navigation }: any) {
   const handleAddStory = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert('Permission needed', 'Allow camera roll access to post a story.');
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to post a story. You can enable photo access in device Settings.');
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -176,10 +176,10 @@ export default function FeedScreen({ navigation }: any) {
   useEffect(() => {
     let currentAd: NativeAd | null = null;
     const initAds = async () => {
-      await requestTrackingPermissionsAsync();
-      await mobileAds().initialize();
-      
       try {
+        await requestTrackingPermissionsAsync().catch(() => {});
+        await mobileAds().initialize().catch(() => {});
+
         currentAd = await NativeAd.createForAdRequest(adUnitId, {
           requestNonPersonalizedAdsOnly: true
         });
@@ -190,7 +190,7 @@ export default function FeedScreen({ navigation }: any) {
     };
     initAds();
     fetchPosts();
-    
+
     return () => { currentAd?.destroy(); }
   }, []);
 
@@ -383,11 +383,34 @@ export default function FeedScreen({ navigation }: any) {
           </View>
         );
       }
+      if (!nativeAd) {
+        return (
+          <View style={[styles.postContainer, { height: containerHeight, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={{ width: '90%', padding: 20, backgroundColor: '#111', borderRadius: 16, borderHeight: 1, borderColor: '#222' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="sparkles" size={20} color="#F5D547" />
+                </View>
+                <View>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>RevitUp Featured Partner</Text>
+                  <Text style={{ color: '#F5D547', fontSize: 10, fontWeight: '900' }}>SPONSORED</Text>
+                </View>
+              </View>
+              <Text style={{ color: '#aaa', fontSize: 14, lineHeight: 20, marginBottom: 16 }}>
+                Discover high-performance automotive tuning, parts, and local specialist services on RevitUp.
+              </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('ServiceBoard')} style={{ backgroundColor: '#F5D547', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
+                <Text style={{ color: '#000', fontSize: 14, fontWeight: 'bold', textTransform: 'uppercase' }}>EXPLORE SERVICES</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      }
       return (
         <View style={[styles.postContainer, { height: containerHeight, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }]}>
            <NativeAdView style={{ width: '100%', padding: 20 }} nativeAd={nativeAd}>
               <View style={styles.adTopRow}>
-                {nativeAd?.icon ? (
+                {nativeAd.icon ? (
                   <NativeAsset assetType={NativeAssetType.ICON}>
                     <Image source={{ uri: nativeAd.icon.url }} style={styles.advertiserLogo} />
                   </NativeAsset>
@@ -397,7 +420,7 @@ export default function FeedScreen({ navigation }: any) {
                 <View style={styles.advertiserTextCol}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                     <NativeAsset assetType={NativeAssetType.HEADLINE}>
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }} numberOfLines={1}>{nativeAd?.headline}</Text>
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }} numberOfLines={1}>{nativeAd.headline}</Text>
                     </NativeAsset>
                   </View>
                   <View style={{ alignSelf: 'flex-start', backgroundColor: '#F5D547', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
@@ -407,7 +430,7 @@ export default function FeedScreen({ navigation }: any) {
               </View>
               
               <NativeAsset assetType={NativeAssetType.IMAGE}>
-                  {nativeAd?.images && nativeAd.images.length > 0 ? (
+                  {nativeAd.images && nativeAd.images.length > 0 ? (
                       <Image source={{ uri: nativeAd.images[0].url }} style={{ width: '100%', height: 300, borderRadius: 12, marginBottom: 16, resizeMode: 'cover' }} />
                   ) : (
                       <View style={{ width: '100%', height: 300, borderRadius: 12, marginBottom: 16, backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center' }}>
@@ -417,12 +440,12 @@ export default function FeedScreen({ navigation }: any) {
               </NativeAsset>
 
               <NativeAsset assetType={NativeAssetType.BODY}>
-                  <Text style={{ color: '#fff', fontSize: 15, marginBottom: 20, lineHeight: 22 }}>{nativeAd?.body}</Text>
+                  <Text style={{ color: '#fff', fontSize: 15, marginBottom: 20, lineHeight: 22 }}>{nativeAd.body}</Text>
               </NativeAsset>
 
               <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
                 <TouchableOpacity style={{ backgroundColor: '#e53935', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase' }}>{nativeAd?.callToAction || 'LEARN MORE'}</Text>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase' }}>{nativeAd.callToAction || 'LEARN MORE'}</Text>
                 </TouchableOpacity>
               </NativeAsset>
            </NativeAdView>

@@ -57,20 +57,25 @@ export default function GarageScreen({ navigation }: any) {
   }, []);
 
   const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      import('react-native').then(rn => rn.Alert.alert('Permission needed', 'Allow camera roll access to pick photos.'));
-      return;
-    }
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.4,
-    });
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to upload vehicle photos. You can enable photo access in your device Settings.');
+        return;
+      }
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.4,
+      });
 
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImageUri(result.assets[0].uri);
+      }
+    } catch (err: any) {
+      console.log('Error picking image:', err);
+      Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
     }
   };
 

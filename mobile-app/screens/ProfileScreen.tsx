@@ -441,19 +441,24 @@ const handleOpenEditProfile = () => {
   };
 
   const pickAvatar = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission needed', 'Allow camera roll access to pick photos.');
-      return;
-    }
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.4,
-    });
-    if (!result.canceled) {
-      setEditAvatarUri(result.assets[0].uri);
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to update your profile avatar. You can enable photo access in device Settings.');
+        return;
+      }
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.4,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setEditAvatarUri(result.assets[0].uri);
+      }
+    } catch (err: any) {
+      console.log('Error picking avatar:', err);
+      Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
     }
   };
 

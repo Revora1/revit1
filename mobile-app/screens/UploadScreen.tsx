@@ -17,20 +17,25 @@ export default function UploadScreen({ navigation }: any) {
   const [duoPageChecked, setDuoPageChecked] = useState(false);
 
   const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      import('react-native').then(rn => rn.Alert.alert('Permission needed', 'Allow camera roll access to pick photos.'));
-      return;
-    }
-    let result = await ImagePicker.launchImageLibraryAsync({
-      allowsMultipleSelection: true,
-      selectionLimit: 10,
-      mediaTypes: ['images'],
-      aspect: [4, 3],
-      quality: 0.4,
-    });
-    if (!result.canceled) {
-      setImageUris([...imageUris, ...result.assets.map(a => a.uri)].slice(0, 10));
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to upload post photos. You can enable photo access in your device Settings.');
+        return;
+      }
+      let result = await ImagePicker.launchImageLibraryAsync({
+        allowsMultipleSelection: true,
+        selectionLimit: 10,
+        mediaTypes: ['images'],
+        aspect: [4, 3],
+        quality: 0.4,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImageUris([...imageUris, ...result.assets.map(a => a.uri)].slice(0, 10));
+      }
+    } catch (err: any) {
+      console.log('Error picking image:', err);
+      Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
     }
   };
 

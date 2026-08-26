@@ -37,8 +37,8 @@ export default function MechanicBoardScreen() {
   const pickBannerFromCameraRoll = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert('Permission required', 'Please grant photo library access to pick a photo from your camera roll.');
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to pick a shop banner photo. You can enable photo access in device Settings.');
         return;
       }
 

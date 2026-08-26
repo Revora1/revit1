@@ -60,23 +60,24 @@ export default function GroupFeedScreen({ route, navigation }: any) {
   }, [groupId]);
 
   const handleUpload = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission needed', 'Allow camera roll access to pick photos.');
-      return;
-    }
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to pick group post photos. You can enable photo access in device Settings.');
+        return;
+      }
 
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.4,
-    });
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.4,
+      });
 
-    if (!result.canceled) {
-      setUploading(true);
-      try {
-        const imageUri = result.assets[0].uri;
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setUploading(true);
+        try {
+          const imageUri = result.assets[0].uri;
         const blob: any = await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.onload = function() { resolve(xhr.response); };
@@ -108,6 +109,9 @@ export default function GroupFeedScreen({ route, navigation }: any) {
       } finally {
         setUploading(false);
       }
+    } catch (err: any) {
+      console.log('Error picking group post image:', err);
+      Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
     }
   };
 
