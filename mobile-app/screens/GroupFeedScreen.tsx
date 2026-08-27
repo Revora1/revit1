@@ -109,7 +109,8 @@ export default function GroupFeedScreen({ route, navigation }: any) {
       } finally {
         setUploading(false);
       }
-    } catch (err: any) {
+    }
+  } catch (err: any) {
       console.log('Error picking group post image:', err);
       Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
     }
