@@ -368,7 +368,7 @@ export default function FeedScreen({ navigation }: any) {
   for (let i = 0; i < visiblePostsBase.length; i++) {
     feedItems.push({ ...visiblePostsBase[i], type: 'post' });
     postCounter++;
-    if (postCounter % 3 === 0 && nativeAd) {
+    if (postCounter % 3 === 0) {
       feedItems.push({ id: `ad_${i}`, type: 'ad' });
     }
   }
@@ -379,14 +379,7 @@ export default function FeedScreen({ navigation }: any) {
       if (!nativeAd) {
         return (
           <View style={[styles.postContainer, { height: containerHeight, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }]}>
-            <ActivityIndicator color="#F5D547" />
-          </View>
-        );
-      }
-      if (!nativeAd) {
-        return (
-          <View style={[styles.postContainer, { height: containerHeight, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }]}>
-            <View style={{ width: '90%', padding: 20, backgroundColor: '#111', borderRadius: 16, borderHeight: 1, borderColor: '#222' }}>
+            <View style={{ width: '90%', padding: 20, backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: '#222' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="sparkles" size={20} color="#F5D547" />
@@ -429,15 +422,10 @@ export default function FeedScreen({ navigation }: any) {
                 </View>
               </View>
               
-              <NativeAsset assetType={NativeAssetType.IMAGE}>
-                  {nativeAd.images && nativeAd.images.length > 0 ? (
-                      <Image source={{ uri: nativeAd.images[0].url }} style={{ width: '100%', height: 300, borderRadius: 12, marginBottom: 16, resizeMode: 'cover' }} />
-                  ) : (
-                      <View style={{ width: '100%', height: 300, borderRadius: 12, marginBottom: 16, backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center' }}>
-                         <Ionicons name="image-outline" size={48} color="#333" />
-                      </View>
-                  )}
-              </NativeAsset>
+              <NativeMediaView 
+                style={{ width: '100%', height: 260, borderRadius: 12, marginBottom: 16, backgroundColor: '#151515' }} 
+                resizeMode="cover" 
+              />
 
               <NativeAsset assetType={NativeAssetType.BODY}>
                   <Text style={{ color: '#fff', fontSize: 15, marginBottom: 20, lineHeight: 22 }}>{nativeAd.body}</Text>
