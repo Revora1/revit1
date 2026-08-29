@@ -6,7 +6,7 @@ import mobileAds, { NativeAd, NativeAdView, NativeAsset, NativeAssetType, Native
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
-import { collection, deleteDoc, setDoc, where, query, orderBy, limit, getDocs, getDoc, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, deleteDoc, setDoc, where, query, orderBy, limit, getDocs, getDoc, doc, updateDoc, increment, addDoc, serverTimestamp, startAfter } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -92,67 +92,79 @@ function InlineNativeAd({ containerHeight, navigation }: { containerHeight: numb
   }
 
   return (
-    <View style={[styles.postContainer, { height: containerHeight, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
-       <NativeAdView style={{ width: '92%', backgroundColor: '#111', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#222' }} nativeAd={ad}>
-          <View style={styles.adTopRow}>
-            {ad.icon ? (
-              <NativeAsset assetType={NativeAssetType.ICON}>
-                <Image source={{ uri: ad.icon.url }} style={styles.advertiserLogo} />
-              </NativeAsset>
-            ) : (
-              <View style={styles.advertiserLogoPlaceholder}>
-                <Ionicons name="megaphone-outline" size={18} color="#F5D547" />
-              </View>
-            )}
-            <View style={styles.advertiserTextCol}>
-              <NativeAsset assetType={NativeAssetType.HEADLINE}>
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }} numberOfLines={1}>{ad.headline}</Text>
-              </NativeAsset>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                <View style={{ backgroundColor: '#F5D547', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                  <Text style={{ color: '#000', fontSize: 9, fontWeight: '900' }}>SPONSORED</Text>
+    <View style={[styles.postContainer, { height: containerHeight, backgroundColor: '#000' }]}>
+       <NativeAdView style={{ width: '100%', height: '100%', position: 'relative' }} nativeAd={ad}>
+          <NativeMediaView 
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000' }} 
+            resizeMode="cover" 
+          />
+          <View style={{ 
+            position: 'absolute', 
+            bottom: 0, 
+            left: 0, 
+            right: 0, 
+            paddingTop: 100, 
+            paddingBottom: 25, 
+            paddingHorizontal: 16, 
+            backgroundColor: 'rgba(0,0,0,0.6)' 
+          }}>
+            <View style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                {ad.icon ? (
+                  <NativeAsset assetType={NativeAssetType.ICON}>
+                    <Image source={{ uri: ad.icon.url }} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#333' }} />
+                  </NativeAsset>
+                ) : (
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="megaphone-outline" size={18} color="#F5D547" />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }} numberOfLines={1}>{ad.headline}</Text>
+                  </NativeAsset>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <View style={{ backgroundColor: '#F5D547', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                      <Text style={{ color: '#000', fontSize: 9, fontWeight: '900' }}>SPONSORED</Text>
+                    </View>
+                    {ad.advertiser ? (
+                      <NativeAsset assetType={NativeAssetType.ADVERTISER}>
+                        <Text style={{ color: '#ccc', fontSize: 12 }} numberOfLines={1}>{ad.advertiser}</Text>
+                      </NativeAsset>
+                    ) : null}
+                    {ad.store ? (
+                      <NativeAsset assetType={NativeAssetType.STORE}>
+                        <Text style={{ color: '#aaa', fontSize: 12 }}>• {ad.store}</Text>
+                      </NativeAsset>
+                    ) : null}
+                  </View>
                 </View>
-                {ad.advertiser ? (
-                  <NativeAsset assetType={NativeAssetType.ADVERTISER}>
-                    <Text style={{ color: '#888', fontSize: 12 }} numberOfLines={1}>{ad.advertiser}</Text>
-                  </NativeAsset>
-                ) : null}
-                {ad.store ? (
-                  <NativeAsset assetType={NativeAssetType.STORE}>
-                    <Text style={{ color: '#888', fontSize: 12 }}>• {ad.store}</Text>
-                  </NativeAsset>
-                ) : null}
               </View>
+
+              {ad.body ? (
+                <NativeAsset assetType={NativeAssetType.BODY}>
+                  <Text style={{ color: '#e0e0e0', fontSize: 14, marginBottom: 16, lineHeight: 20 }} numberOfLines={3}>{ad.body}</Text>
+                </NativeAsset>
+              ) : null}
+
+              <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
+                <Text style={{ 
+                  backgroundColor: '#e53935', 
+                  borderRadius: 10, 
+                  paddingVertical: 14, 
+                  color: '#fff', 
+                  fontSize: 16, 
+                  fontWeight: 'bold', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: 0.5,
+                  textAlign: 'center',
+                  overflow: 'hidden'
+                }}>
+                  {ad.callToAction || 'INSTALL'}
+                </Text>
+              </NativeAsset>
             </View>
           </View>
-          
-          <NativeMediaView 
-            style={{ width: '100%', height: 220, borderRadius: 10, marginBottom: 14, backgroundColor: '#0a0a0a' }} 
-            resizeMode="contain" 
-          />
-
-          {ad.body ? (
-            <NativeAsset assetType={NativeAssetType.BODY}>
-              <Text style={{ color: '#ccc', fontSize: 14, marginBottom: 16, lineHeight: 20 }}>{ad.body}</Text>
-            </NativeAsset>
-          ) : null}
-
-          <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-            <Text style={{ 
-              backgroundColor: '#e53935', 
-              borderRadius: 10, 
-              paddingVertical: 13, 
-              color: '#fff', 
-              fontSize: 15, 
-              fontWeight: 'bold', 
-              textTransform: 'uppercase', 
-              letterSpacing: 0.5,
-              textAlign: 'center',
-              overflow: 'hidden'
-            }}>
-              {ad.callToAction || 'INSTALL'}
-            </Text>
-          </NativeAsset>
        </NativeAdView>
     </View>
   );
@@ -161,6 +173,9 @@ function InlineNativeAd({ containerHeight, navigation }: { containerHeight: numb
 export default function FeedScreen({ navigation }: any) {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
   
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [activeStories, setActiveStories] = useState<any[]>([]);
@@ -261,7 +276,15 @@ export default function FeedScreen({ navigation }: any) {
     return unsubscribe;
   }, [navigation]);
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (isNextPage = false) => {
+    if (isNextPage && (isFetchingMore || !hasMorePosts)) return;
+
+    if (isNextPage) {
+      setIsFetchingMore(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const user: any = await new Promise((resolve) => {
         const unsubscribe = auth.onAuthStateChanged((u) => {
@@ -269,8 +292,43 @@ export default function FeedScreen({ navigation }: any) {
           unsubscribe();
         });
       });
-      const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(15));
+
+      let q = query(
+        collection(db, 'posts'), 
+        orderBy('createdAt', 'desc'), 
+        limit(20)
+      );
+
+      if (isNextPage && lastDoc) {
+        q = query(
+          collection(db, 'posts'), 
+          orderBy('createdAt', 'desc'), 
+          startAfter(lastDoc),
+          limit(20)
+        );
+      }
+
       const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        if (isNextPage) {
+          setHasMorePosts(false);
+        } else {
+          setPosts([]);
+        }
+        setIsFetchingMore(false);
+        setLoading(false);
+        return;
+      }
+
+      const lastVisible = snap.docs[snap.docs.length - 1];
+      setLastDoc(lastVisible);
+      if (snap.docs.length < 20) {
+        setHasMorePosts(false);
+      } else {
+        setHasMorePosts(true);
+      }
+
       const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       const currentUid = user?.uid || auth.currentUser?.uid;
@@ -308,11 +366,16 @@ export default function FeedScreen({ navigation }: any) {
         authorUsername: usersCache[post.authorId]?.username || post.authorUsername || `tuner_${post.authorId?.substring(0,6)}`
       }));
 
-      setPosts(mappedPosts);
+      if (isNextPage) {
+        setPosts(current => [...current, ...mappedPosts]);
+      } else {
+        setPosts(mappedPosts);
+      }
     } catch (err) {
       console.log('Error fetching posts:', err);
     } finally {
       setLoading(false);
+      setIsFetchingMore(false);
     }
   };
 
@@ -646,6 +709,8 @@ export default function FeedScreen({ navigation }: any) {
               const newIndex = Math.round(e.nativeEvent.contentOffset.y / containerHeight);
               setActiveIndex(newIndex);
             }}
+            onEndReached={() => fetchPosts(true)}
+            onEndReachedThreshold={0.5}
           />
         ) : containerHeight > 0 ? (
           <Text style={{color: '#666', textAlign: 'center', marginTop: '50%'}}>No posts found.</Text>

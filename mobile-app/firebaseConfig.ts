@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { initializeAuth, getReactNativePersistence, browserLocalPersistence } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,7 +18,9 @@ const app = initializeApp(firebaseConfig);
 
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-  localCache: memoryLocalCache()
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
 }, "ai-studio-94b91240-6a0e-4947-9a3e-944940cdc81d");
 
 export const auth = initializeAuth(app, {
