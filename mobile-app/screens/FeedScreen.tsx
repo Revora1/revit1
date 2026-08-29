@@ -400,41 +400,57 @@ export default function FeedScreen({ navigation }: any) {
         );
       }
       return (
-        <View style={[styles.postContainer, { height: containerHeight, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }]}>
-           <NativeAdView style={{ width: '100%', padding: 20 }} nativeAd={nativeAd}>
+        <View style={[styles.postContainer, { height: containerHeight, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+           <NativeAdView style={{ width: '92%', backgroundColor: '#111', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#222' }} nativeAd={nativeAd}>
               <View style={styles.adTopRow}>
                 {nativeAd.icon ? (
                   <NativeAsset assetType={NativeAssetType.ICON}>
                     <Image source={{ uri: nativeAd.icon.url }} style={styles.advertiserLogo} />
                   </NativeAsset>
                 ) : (
-                  <View style={styles.advertiserLogoPlaceholder} />
+                  <View style={styles.advertiserLogoPlaceholder}>
+                    <Ionicons name="megaphone-outline" size={18} color="#F5D547" />
+                  </View>
                 )}
                 <View style={styles.advertiserTextCol}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                    <NativeAsset assetType={NativeAssetType.HEADLINE}>
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }} numberOfLines={1}>{nativeAd.headline}</Text>
-                    </NativeAsset>
-                  </View>
-                  <View style={{ alignSelf: 'flex-start', backgroundColor: '#F5D547', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                    <Text style={{ color: '#000', fontSize: 10, fontWeight: '900' }}>SPONSORED</Text>
+                  <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }} numberOfLines={1}>{nativeAd.headline}</Text>
+                  </NativeAsset>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                    <View style={{ backgroundColor: '#F5D547', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                      <Text style={{ color: '#000', fontSize: 9, fontWeight: '900' }}>SPONSORED</Text>
+                    </View>
+                    {nativeAd.advertiser ? (
+                      <NativeAsset assetType={NativeAssetType.ADVERTISER}>
+                        <Text style={{ color: '#888', fontSize: 12 }} numberOfLines={1}>{nativeAd.advertiser}</Text>
+                      </NativeAsset>
+                    ) : null}
+                    {nativeAd.store ? (
+                      <NativeAsset assetType={NativeAssetType.STORE}>
+                        <Text style={{ color: '#888', fontSize: 12 }}>• {nativeAd.store}</Text>
+                      </NativeAsset>
+                    ) : null}
                   </View>
                 </View>
               </View>
               
               <NativeMediaView 
-                style={{ width: '100%', height: 260, borderRadius: 12, marginBottom: 16, backgroundColor: '#151515' }} 
-                resizeMode="cover" 
+                style={{ width: '100%', height: 220, borderRadius: 10, marginBottom: 14, backgroundColor: '#0a0a0a' }} 
+                resizeMode="contain" 
               />
 
-              <NativeAsset assetType={NativeAssetType.BODY}>
-                  <Text style={{ color: '#fff', fontSize: 15, marginBottom: 20, lineHeight: 22 }}>{nativeAd.body}</Text>
-              </NativeAsset>
+              {nativeAd.body ? (
+                <NativeAsset assetType={NativeAssetType.BODY}>
+                  <Text style={{ color: '#ccc', fontSize: 14, marginBottom: 16, lineHeight: 20 }}>{nativeAd.body}</Text>
+                </NativeAsset>
+              ) : null}
 
               <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-                <TouchableOpacity style={{ backgroundColor: '#e53935', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase' }}>{nativeAd.callToAction || 'LEARN MORE'}</Text>
-                </TouchableOpacity>
+                <View style={{ backgroundColor: '#e53935', borderRadius: 10, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {nativeAd.callToAction || 'INSTALL'}
+                  </Text>
+                </View>
               </NativeAsset>
            </NativeAdView>
         </View>
