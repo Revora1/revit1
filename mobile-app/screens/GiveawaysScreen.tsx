@@ -156,6 +156,8 @@ export default function GiveawaysScreen({ navigation }: any) {
     );
   }
 
+  const boostTickets = Math.min(15, userProfile?.boostTickets !== undefined ? userProfile.boostTickets : myReferrals);
+
   const prevTarget =
     activeMilestoneIndex === 0
       ? 0
@@ -434,13 +436,12 @@ export default function GiveawaysScreen({ navigation }: any) {
           </Text>
 
           <View style={styles.boostsCountBox}>
-            <Text style={styles.boostsCount}>{myReferrals}</Text>
-            <Text style={styles.boostsCountLabel}>CONFIRMED REFERRALS</Text>
+            <Text style={styles.boostsCount}>{boostTickets} / 15</Text>
+            <Text style={styles.boostsCountLabel}>EXTRA BOOST TICKETS (MAX 15)</Text>
           </View>
 
           <Text style={styles.boostsDesc}>
-            For every friend that joins RevItUp using your link, you get an
-            extra entry into the unlocked prize draws!
+            When a new user signs up using your share link, you receive +1 extra boost ticket for the active giveaway draw (up to a maximum of 15 extra boost tickets). Existing users logging in do not count.
           </Text>
 
           <TouchableOpacity style={styles.inviteBtn} onPress={handleShare}>
@@ -499,7 +500,7 @@ export default function GiveawaysScreen({ navigation }: any) {
                 The RevItUp Giveaway is open to all registered users of the
                 RevItUp application. No purchase is necessary. Users must have a
                 verified account, at least 1 car in their garage, 1 build update
-                posted, and at least 10 referred signups to qualify for an entry
+                posted, and at least 10 referred new signups to qualify for an entry
                 ticket.
               </Text>
 
@@ -509,12 +510,14 @@ export default function GiveawaysScreen({ navigation }: any) {
                 involved in any way with, this giveaway or sweepstakes.
               </Text>
 
-              <Text style={styles.modalSectionTitle}>3. How to Enter</Text>
+              <Text style={styles.modalSectionTitle}>3. How to Enter & Boost Tickets (Max 15)</Text>
               <Text style={styles.modalSectionText}>
                 Users automatically receive an entry upon meeting the
-                eligibility requirements. Additional entries ("referral
-                bonuses") can be earned by referring new users who successfully
-                register using the referring user's unique link.
+                eligibility requirements. Additional boost tickets (up to a
+                maximum of 15 extra tickets per user) can only be earned when
+                a new user registers a new RevItUp account through your unique
+                share/referral link. Existing users who are already registered do
+                not generate extra tickets.
               </Text>
 
               <Text style={styles.modalSectionTitle}>4. Winner Selection</Text>

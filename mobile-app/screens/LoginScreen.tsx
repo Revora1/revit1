@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, increment, getDoc, getDocs, collection, query, where, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
@@ -11,6 +11,32 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [referredBy, setReferredBy] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check initial url for referral code
+    const parseUrlForReferral = (url: string | null) => {
+      if (!url) return;
+      try {
+        const queryPart = url.includes('?') ? url.split('?')[1] : '';
+        const params = new URLSearchParams(queryPart);
+        const ref = params.get('ref') || params.get('u');
+        if (ref) {
+          setReferredBy(ref);
+        }
+      } catch (e) {
+        console.log('Error parsing referral link:', e);
+      }
+    };
+
+    Linking.getInitialURL().then(parseUrlForReferral);
+
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      parseUrlForReferral(url);
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -27,8 +53,42 @@ export default function LoginScreen() {
         await setDoc(doc(db, 'users', user.uid), {
           email: user.email,
           username: 'tuner_' + user.uid.substring(0, 6),
+          referredBy: referredBy || null,
           createdAt: serverTimestamp(),
         });
+
+        // If user was referred by someone, increment the referrer's referral count for giveaways (NEW signups only, max 15 boost tickets)
+        if (referredBy && referredBy !== user.uid) {
+          try {
+            let targetRef = doc(db, 'users', referredBy);
+            let targetSnap = await getDoc(targetRef);
+
+            if (!targetSnap.exists()) {
+              // Try finding by username
+              const q = query(collection(db, 'users'), where('username', '==', referredBy));
+              const querySnap = await getDocs(q);
+              if (!querySnap.empty) {
+                targetRef = querySnap.docs[0].ref;
+                targetSnap = querySnap.docs[0];
+              }
+            }
+
+            if (targetSnap.exists()) {
+              const currentData = targetSnap.data();
+              const existingReferrals = currentData?.referralsCount || 0;
+              const newReferralsCount = existingReferrals + 1;
+              const newBoostTickets = Math.min(15, newReferralsCount);
+
+              await updateDoc(targetRef, {
+                referralsCount: newReferralsCount,
+                boostTickets: newBoostTickets,
+                referredUsers: arrayUnion(user.uid),
+              });
+            }
+          } catch (refErr) {
+            console.log('Error updating referrer points:', refErr);
+          }
+        }
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }

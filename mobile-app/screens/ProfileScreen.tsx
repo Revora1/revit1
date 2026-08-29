@@ -740,6 +740,20 @@ const handleOpenEditProfile = () => {
     ]);
   };
 
+  const handleShareProfile = async () => {
+    try {
+      const shareUsername = profile?.username || username || "tuner";
+      const profileUrl = `https://revitup.today/?u=${targetUserId}${auth.currentUser?.uid ? `&ref=${auth.currentUser.uid}` : ''}`;
+      await Share.share({
+        message: `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨 ${profileUrl}`,
+        url: profileUrl,
+        title: `@${shareUsername} on RevitUp`,
+      });
+    } catch (error: any) {
+      console.log('Error sharing profile:', error);
+    }
+  };
+
   const handleInvite = async () => {
     try {
       const username = profile?.username || auth.currentUser?.uid || "tuner";
@@ -1618,14 +1632,24 @@ const handleOpenEditProfile = () => {
           )}
           <Text style={styles.headerText}>{isCurrentUser ? "Profile" : (profile?.username || "Tuner")}</Text>
         </View>
-        {isCurrentUser && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <TouchableOpacity
-            onPress={() => setShowSettings(true)}
+            onPress={handleShareProfile}
             style={{ padding: 4 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Share Profile"
           >
-            <Ionicons name="settings-outline" size={26} color="#fff" />
+            <Ionicons name="share-outline" size={24} color="#fff" />
           </TouchableOpacity>
-        )}
+          {isCurrentUser && (
+            <TouchableOpacity
+              onPress={() => setShowSettings(true)}
+              style={{ padding: 4 }}
+            >
+              <Ionicons name="settings-outline" size={26} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {loading ? (
@@ -1706,18 +1730,29 @@ const handleOpenEditProfile = () => {
 
               {isCurrentUser ? (
                 <TouchableOpacity style={styles.editButton} onPress={handleOpenEditProfile}>
+                  <Ionicons name="pencil-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
                   <Text style={styles.editButtonText}>Edit Profile</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={[styles.editButton, isFollowing && { backgroundColor: '#222', borderWidth: 1, borderColor: '#444' }]}
-                  onPress={handleFollowToggle}
-                  disabled={checkingFollow}
-                >
-                  <Text style={[styles.editButtonText, isFollowing && { color: '#fff' }]}>
-                    {checkingFollow ? 'Updating...' : isFollowing ? 'Following' : 'Follow'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.actionButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.editButton, { flex: 1, width: 'auto' }, isFollowing && { backgroundColor: '#222', borderWidth: 1, borderColor: '#444' }]}
+                    onPress={handleFollowToggle}
+                    disabled={checkingFollow}
+                  >
+                    <Ionicons name={isFollowing ? "checkmark-outline" : "person-add-outline"} size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={[styles.editButtonText, isFollowing && { color: '#fff' }]}>
+                      {checkingFollow ? 'Updating...' : isFollowing ? 'Following' : 'Follow'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.messageButton}
+                    onPress={() => navigation.navigate('Chat', { otherUser: { id: targetUserId, username: profile?.username || username, profilePic: profile?.profilePic } })}
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.editButtonText}>Message</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
 
@@ -2625,23 +2660,45 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // Edit Profile
+  // Actions
+  actionButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+    gap: 10,
+  },
   editButton: {
     backgroundColor: "#1a1a1a",
     paddingVertical: 10,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#333",
     width: "80%",
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
   },
   editButtonText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "bold",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 0.5,
+  },
+  messageButton: {
+    flex: 1,
+    backgroundColor: "#1a1a1a",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#333",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
   },
 
   // Tabs
