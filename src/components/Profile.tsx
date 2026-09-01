@@ -15,6 +15,7 @@ import { Capacitor } from '@capacitor/core';
 
 import { FollowListModal } from './FollowListModal';
 import { copyToClipboard, getBaseUrl, shareContent } from '../lib/utils';
+import { buildProfileSEO, updateSEO, resetDefaultSEO } from '../lib/seo';
 
 function UserPosts({ userId }: { userId: string }) {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -503,6 +504,15 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     };
     fetchPartner();
   }, [targetProfile?.partnerId, refreshKey]);
+
+  useEffect(() => {
+    if (targetProfile) {
+      updateSEO(buildProfileSEO(targetProfile, repData.carsCount));
+    }
+    return () => {
+      resetDefaultSEO();
+    };
+  }, [targetProfile, repData.carsCount]);
 
   useEffect(() => {
     if (!effectiveUserId || effectiveUserId === 'not_found') return;

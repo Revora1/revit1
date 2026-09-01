@@ -17,6 +17,8 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
   const { user, profile } = useAuth();
   const [totalUsers, setTotalUsers] = useState(0);
   const [myReferrals, setMyReferrals] = useState(0);
+  const [scrolledFeedCount, setScrolledFeedCount] = useState(0);
+  const [isLifetimeQualified, setIsLifetimeQualified] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasCar, setHasCar] = useState(false);
@@ -48,20 +50,38 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
         }
         
         if (user) {
+          let hasLifetime = false;
+          let userReferrals = 0;
+          let userScrolled = 0;
           const uDoc = await getDoc(doc(db, 'users', user.uid));
           if (uDoc.exists()) {
             const data = uDoc.data();
-            setMyReferrals(data.referralsCount || 0);
+            userReferrals = data.referralsCount || 0;
+            userScrolled = data.scrolledFeedCount || data.feedViewsCount || 0;
+            setMyReferrals(userReferrals);
             setEnteredGiveaways(data.enteredGiveaways || []);
+            setScrolledFeedCount(userScrolled);
+            if (data.giveawayQualified || (data.enteredGiveaways && data.enteredGiveaways.length > 0)) {
+              hasLifetime = true;
+              setIsLifetimeQualified(true);
+            }
           }
           
           const qGarage = query(collection(db, 'garage'), where('ownerId', '==', user.uid));
           const snapGarage = await getCountFromServer(qGarage);
-          setHasCar(snapGarage.data().count > 0);
+          const carExists = snapGarage.data().count > 0;
+          setHasCar(carExists);
 
           const qPost = query(collection(db, 'posts'), where('authorId', '==', user.uid));
           const snapPost = await getCountFromServer(qPost);
-          setHasPost(snapPost.data().count > 0);
+          const postExists = snapPost.data().count > 0;
+          setHasPost(postExists);
+
+          // If requirements are completed for the first time, save lifetime qualification permanently
+          if (!hasLifetime && carExists && postExists && userReferrals >= 10 && userScrolled >= 50) {
+            setIsLifetimeQualified(true);
+            updateDoc(doc(db, 'users', user.uid), { giveawayQualified: true }).catch(() => {});
+          }
         }
       } catch (e) {
         console.error("Error loading giveaways:", e);
@@ -79,18 +99,22 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
   const currentMilestoneIndex = milestones.findIndex(m => totalUsers < m.target);
   const activeMilestoneIndex = currentMilestoneIndex === -1 ? milestones.length - 1 : currentMilestoneIndex;
   const activeMilestone = milestones[activeMilestoneIndex];
+  const boostTickets = Math.min(15, (profile as any)?.boostTickets !== undefined ? (profile as any).boostTickets : myReferrals);
+  const currentReqsMet = (user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10 && scrolledFeedCount >= 50;
+  const isEligible = isLifetimeQualified || currentReqsMet;
 
   const handleEnterGiveaway = async (target: number) => {
     if (!user) return;
-    const isEligible = (user.emailVerified || true) && hasCar && hasPost && myReferrals >= 10; // We assume true if logged in since we check 'user' below for simplicity or match the existing UI
     if (!isEligible) return;
 
     try {
       setEnteringGiveaway(target);
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        enteredGiveaways: arrayUnion(target)
+        enteredGiveaways: arrayUnion(target),
+        giveawayQualified: true
       });
+      setIsLifetimeQualified(true);
       setEnteredGiveaways(prev => [...prev, target]);
     } catch (e) {
       console.error(e);
@@ -303,9 +327,9 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                       ) : (
                         <button
                           onClick={() => handleEnterGiveaway(m.target)}
-                          disabled={isLocked || isPassed || enteringGiveaway === m.target || !((user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10)}
+                          disabled={isLocked || isPassed || enteringGiveaway === m.target || !isEligible}
                           className={`w-full py-3 rounded-xl font-bold uppercase tracking-wider text-sm flex items-center justify-center gap-2 transition-transform ${
-                            !isLocked && !isPassed && ((user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10)
+                            !isLocked && !isPassed && isEligible
                               ? 'bg-amber-500 text-black active:scale-95 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
                               : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                           }`}
@@ -326,33 +350,53 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-2xl space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <ShieldCheck size={20} className="text-amber-500" />
-              <h3 className="font-black text-xl italic uppercase">Entry Status</h3>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={20} className="text-amber-500" />
+                <h3 className="font-black text-xl italic uppercase">Entry Status</h3>
+              </div>
+              {isLifetimeQualified && (
+                <span className="px-2.5 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] font-black text-green-400 uppercase tracking-widest">
+                  Lifetime Unlocked
+                </span>
+              )}
             </div>
-            <p className="text-zinc-400 text-xs mb-4">Complete these steps to unlock your raffle ticket.</p>
+            <p className="text-zinc-400 text-xs mb-4">
+              {isLifetimeQualified
+                ? 'You have completed all entry requirements and are permanently qualified for all current & future giveaways!'
+                : 'New user requirements: Complete these 1-time steps to unlock your raffle tickets forever.'}
+            </p>
             
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                {user?.emailVerified || user ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
-                <span className={`text-sm font-bold uppercase tracking-wide ${user?.emailVerified || user ? 'text-white' : 'text-zinc-500'}`}>Account Verified</span>
+                {isLifetimeQualified || user?.emailVerified || user ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
+                <span className={`text-sm font-bold uppercase tracking-wide ${isLifetimeQualified || user?.emailVerified || user ? 'text-white' : 'text-zinc-500'}`}>Account Verified</span>
               </div>
               <div className="flex items-center gap-3">
-                {hasCar ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
-                <span className={`text-sm font-bold uppercase tracking-wide ${hasCar ? 'text-white' : 'text-zinc-500'}`}>Add 1+ Car to Garage</span>
+                {isLifetimeQualified || hasCar ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
+                <span className={`text-sm font-bold uppercase tracking-wide ${isLifetimeQualified || hasCar ? 'text-white' : 'text-zinc-500'}`}>Add 1+ Car to Garage</span>
               </div>
               <div className="flex items-center gap-3">
-                {hasPost ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
-                <span className={`text-sm font-bold uppercase tracking-wide ${hasPost ? 'text-white' : 'text-zinc-500'}`}>Post a Build Update</span>
+                {isLifetimeQualified || hasPost ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
+                <span className={`text-sm font-bold uppercase tracking-wide ${isLifetimeQualified || hasPost ? 'text-white' : 'text-zinc-500'}`}>Post a Build Update</span>
               </div>
               <div className="flex items-center gap-3">
-                {myReferrals >= 10 ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
-                <span className={`text-sm font-bold uppercase tracking-wide ${myReferrals >= 10 ? 'text-white' : 'text-zinc-500'}`}>Invite 10 Friends</span>
+                {isLifetimeQualified || myReferrals >= 10 ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
+                <span className={`text-sm font-bold uppercase tracking-wide ${isLifetimeQualified || myReferrals >= 10 ? 'text-white' : 'text-zinc-500'}`}>Invite 10 Friends</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {isLifetimeQualified || scrolledFeedCount >= 50 ? <CheckCircle2 size={20} className="text-green-500" /> : <div className="w-5 h-5 rounded-full border-2 border-zinc-700" />}
+                  <span className={`text-sm font-bold uppercase tracking-wide ${isLifetimeQualified || scrolledFeedCount >= 50 ? 'text-white' : 'text-zinc-500'}`}>Scroll 50 Feed Images</span>
+                </div>
+                <span className={`text-xs font-mono font-bold ${isLifetimeQualified || scrolledFeedCount >= 50 ? 'text-green-400' : 'text-zinc-400'}`}>
+                  {isLifetimeQualified ? '50/50' : `${Math.min(50, scrolledFeedCount)}/50`}
+                </span>
               </div>
             </div>
             
-            <div className={`mt-4 pt-4 border-t border-zinc-800 text-center font-black italic uppercase tracking-widest ${(user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10 ? 'text-green-500' : 'text-zinc-500'}`}>
-              {(user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10 ? 'TICKET UNLOCKED' : 'TICKET LOCKED'}
+            <div className={`mt-4 pt-4 border-t border-zinc-800 text-center font-black italic uppercase tracking-widest ${isEligible ? 'text-green-500' : 'text-zinc-500'}`}>
+              {isLifetimeQualified ? 'LIFETIME QUALIFIED (TICKETS UNLOCKED)' : isEligible ? 'TICKET UNLOCKED' : 'TICKET LOCKED'}
             </div>
           </div>
 
@@ -366,11 +410,11 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
             </div>
             
             <div className="py-4 border-y border-zinc-800">
-              <div className="text-4xl font-black text-amber-500">{myReferrals}</div>
-              <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Confirmed Referrals</div>
+              <div className="text-4xl font-black text-amber-500">{boostTickets} / 15</div>
+              <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Extra Boost Tickets (Max 15)</div>
             </div>
             <p className="text-xs text-zinc-500 max-w-xs mx-auto">
-              For every friend that joins RevItUp using your link, you get an extra entry into the unlocked prize draws!
+              When a new user signs up using your share link, you receive +1 extra boost ticket for the active giveaway draw (up to a maximum of 15 extra boost tickets). Existing users logging in do not count.
             </p>
             <button
               onClick={handleShare}
@@ -418,16 +462,15 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                   <p>
                     <strong className="text-white block mb-1">1. Eligibility</strong>
                     The RevItUp Giveaway is open to all registered users of the RevItUp application. No purchase is necessary. 
-                    Users must have a verified account, at least 1 car in their garage, 1 build update posted, and at least 10 referred signups to qualify for an entry ticket.
+                    Users must have a verified account, at least 1 car in their garage, 1 build update posted, at least 10 referred new signups, and have scrolled through at least 50 feed images to qualify for an entry ticket.
                   </p>
                   <p>
                     <strong className="text-white block mb-1">2. Non-Affiliation</strong>
                     Apple Inc. and Google LLC are NOT sponsors of, nor are they involved in any way with, this giveaway or sweepstakes.
                   </p>
                   <p>
-                    <strong className="text-white block mb-1">3. How to Enter</strong>
-                    Users automatically receive an entry upon meeting the eligibility requirements. Additional entries ("referral bonuses") 
-                    can be earned by referring new users who successfully register using the referring user's unique link.
+                    <strong className="text-white block mb-1">3. How to Enter & Boost Tickets (Max 15)</strong>
+                    Users automatically receive an entry ticket upon meeting the eligibility requirements. Additional boost tickets (up to a maximum limit of 15 extra tickets per user) can only be earned when a new user registers a new account on RevItUp using your unique share/referral link. Existing users who are already registered do not grant extra boost tickets.
                   </p>
                   <p>
                     <strong className="text-white block mb-1">4. Winner Selection</strong>

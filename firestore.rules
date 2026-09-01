@@ -17,7 +17,7 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         request.auth.uid == userId ||
-        (resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount', 'followersCount', 'followingCount', 'updatedAt', 'reputationBonus'])) ||
+        (resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount', 'followersCount', 'followingCount', 'updatedAt', 'reputationBonus', 'scrolledFeedCount', 'feedViewsCount', 'giveawayQualified'])) ||
         isAdmin()
       );
       allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == userId);

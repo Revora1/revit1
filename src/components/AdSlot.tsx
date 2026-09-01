@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ADSENSE_CLIENT_ID, ADSENSE_SLOT_ID, ADSENSE_LAYOUT_KEY } from '../constants';
 import { Sparkles } from 'lucide-react';
 
@@ -13,6 +13,9 @@ declare global {
 }
 
 export function AdSlot({ className }: AdSlotProps) {
+  const adRef = useRef<HTMLModElement | null>(null);
+  const pushedRef = useRef<boolean>(false);
+
   useEffect(() => {
     const consent = localStorage.getItem('gdpr-consent');
 
@@ -26,23 +29,43 @@ export function AdSlot({ className }: AdSlotProps) {
       document.head.appendChild(script);
     }
 
-    // 2. Initialize Ad
-    try {
-      if (typeof window !== 'undefined' && window.adsbygoogle) {
-        // GDPR: If user has not explicitly accepted, request non-personalized ads
-        if (consent !== 'accepted') {
-          (window as any).adsbygoogle = window.adsbygoogle || [];
-          (window as any).adsbygoogle.requestNonPersonalizedAds = 1;
-        } else {
-          (window as any).adsbygoogle = window.adsbygoogle || [];
-          (window as any).adsbygoogle.requestNonPersonalizedAds = 0;
-        }
+    // 2. Initialize Ad only if not already pushed and the DOM element is unpopulated
+    if (pushedRef.current) return;
 
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
+    const timer = setTimeout(() => {
+      try {
+        if (typeof window !== 'undefined' && adRef.current) {
+          // Check if this specific <ins> element already has an ad or data-adsbygoogle-status
+          const alreadyFilled =
+            adRef.current.getAttribute('data-adsbygoogle-status') ||
+            adRef.current.getAttribute('data-ad-status') ||
+            adRef.current.innerHTML.trim().length > 0;
+
+          if (!alreadyFilled && !pushedRef.current) {
+            window.adsbygoogle = window.adsbygoogle || [];
+            
+            // GDPR: If user has not explicitly accepted, request non-personalized ads
+            if (consent !== 'accepted') {
+              (window.adsbygoogle as any).requestNonPersonalizedAds = 1;
+            } else {
+              (window.adsbygoogle as any).requestNonPersonalizedAds = 0;
+            }
+
+            window.adsbygoogle.push({});
+            pushedRef.current = true;
+          }
+        }
+      } catch (e: any) {
+        // Silently catch benign already-filled errors
+        if (!e?.message?.includes('already have ads')) {
+          console.error('AdSense initialization:', e);
+        }
       }
-    } catch (e) {
-      console.error('AdSense error:', e);
-    }
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, []);
 
   return (
@@ -54,6 +77,7 @@ export function AdSlot({ className }: AdSlotProps) {
         <Sparkles size={8} className="fill-black" />
       </div>
       <ins
+        ref={adRef}
         className="adsbygoogle"
         style={{ display: 'block' }}
         data-ad-format="fluid"

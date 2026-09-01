@@ -238,11 +238,24 @@ export default function FeedScreen({ navigation }: any) {
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24);
         
+        let currentUsername = 'tuner';
+        let profilePicUrl = auth.currentUser.photoURL || null;
+        try {
+          const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+          if (uSnap.exists()) {
+            const uData = uSnap.data();
+            if (uData.username) currentUsername = uData.username;
+            if (uData.profilePic) profilePicUrl = uData.profilePic;
+          }
+        } catch (e) {
+          console.log('Error fetching user for story:', e);
+        }
+
         await addDoc(collection(db, 'stories'), {
           userId: auth.currentUser.uid,
           authorId: auth.currentUser.uid,
-          username: 'User_' + auth.currentUser.uid.substring(0, 5),
-          profilePic: auth.currentUser.photoURL || null,
+          username: currentUsername,
+          profilePic: profilePicUrl,
           mediaUrl: url,
           mediaType: 'image',
           createdAt: serverTimestamp(),
@@ -265,6 +278,20 @@ export default function FeedScreen({ navigation }: any) {
   const [containerHeight, setContainerHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<any>(null);
+  const viewedPostsRef = useRef<Set<string>>(new Set());
+
+  const trackFeedItemView = (postId: string) => {
+    if (!postId || viewedPostsRef.current.has(postId)) return;
+    viewedPostsRef.current.add(postId);
+    if (auth.currentUser) {
+      updateDoc(doc(db, 'users', auth.currentUser.uid), {
+        scrolledFeedCount: increment(1),
+        feedViewsCount: increment(1)
+      }).catch((err) => {
+        console.log('Error updating feed view count:', err);
+      });
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', (e: any) => {
@@ -514,11 +541,25 @@ export default function FeedScreen({ navigation }: any) {
 
   const submitComment = async () => {
     if (!newComment.trim() || !selectedPost) return;
+    let currentUsername = 'tuner';
+    try {
+      if (auth.currentUser?.uid) {
+        const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        if (uSnap.exists() && uSnap.data()?.username) {
+          currentUsername = uSnap.data().username;
+        } else if (auth.currentUser.email) {
+          currentUsername = auth.currentUser.email.split('@')[0];
+        }
+      }
+    } catch (e) {
+      console.log('Error fetching user for comment:', e);
+    }
+
     try {
       await addDoc(collection(db, 'posts', selectedPost.id, 'comments'), {
         text: newComment.trim(),
         authorId: auth.currentUser?.uid,
-        authorUsername: 'tuner_' + auth.currentUser?.uid.substring(0,4),
+        authorUsername: currentUsername,
         createdAt: serverTimestamp()
       });
       await updateDoc(doc(db, 'posts', selectedPost.id), { commentsCount: increment(1) });
@@ -561,6 +602,14 @@ export default function FeedScreen({ navigation }: any) {
       feedItems.push({ id: `ad_${i}`, type: 'ad' });
     }
   }
+
+  useEffect(() => {
+    if (!feedItems.length) return;
+    const current = feedItems[activeIndex];
+    if (current && current.type === 'post') {
+      trackFeedItemView(current.id);
+    }
+  }, [activeIndex, feedItems.length]);
 
   
   const renderPost = ({ item, index }: { item: any, index: number }) => {
@@ -708,6 +757,10 @@ export default function FeedScreen({ navigation }: any) {
             onMomentumScrollEnd={(e) => {
               const newIndex = Math.round(e.nativeEvent.contentOffset.y / containerHeight);
               setActiveIndex(newIndex);
+              const current = feedItems[newIndex];
+              if (current && current.type === 'post') {
+                trackFeedItemView(current.id);
+              }
             }}
             onEndReached={() => fetchPosts(true)}
             onEndReachedThreshold={0.5}

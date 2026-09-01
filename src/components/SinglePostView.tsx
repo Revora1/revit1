@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
 import { copyToClipboard, getBaseUrl, shareContent } from '../lib/utils';
+import { buildPostSEO, updateSEO, resetDefaultSEO } from '../lib/seo';
 
 export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: string, onBack: () => void, autoOpenComments?: boolean }) {
   const { blockedUserIds, user, profile } = useAuth();
@@ -20,7 +21,9 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
       try {
         const docSnap = await getDoc(doc(db, 'posts', postId));
         if (docSnap.exists()) {
-          setPost({ id: docSnap.id, ...docSnap.data() } as Post);
+          const postData = { id: docSnap.id, ...docSnap.data() } as Post;
+          setPost(postData);
+          updateSEO(buildPostSEO(postData));
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, 'posts');
@@ -29,6 +32,10 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
       }
     };
     fetchPost();
+
+    return () => {
+      resetDefaultSEO();
+    };
   }, [postId]);
 
   const handleSharePost = async () => {

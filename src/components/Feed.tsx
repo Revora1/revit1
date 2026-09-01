@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, where, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Post } from '../types';
 import { PostCard } from './PostCard';
@@ -16,12 +16,13 @@ import { useAuth } from '../context/AuthContext';
 import { admobService } from '../lib/admobService';
 
 export function Feed() {
-  const { blockedUserIds } = useAuth();
+  const { user, blockedUserIds } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedStoryUserId, setSelectedStoryUserId] = useState<string | null>(null);
+  const viewedPostsRef = useRef<Set<string>>(new Set());
 
   // Pull to refresh states
   const [refreshKey, setRefreshKey] = useState(0);
@@ -148,6 +149,22 @@ export function Feed() {
       feedItems.push({ type: 'ad', id: `ad-${index}` });
     }
   });
+
+  useEffect(() => {
+    if (!feedItems.length) return;
+    const currentItem = feedItems[activeIndex];
+    if (currentItem && currentItem.type === 'post' && !viewedPostsRef.current.has(currentItem.id)) {
+      viewedPostsRef.current.add(currentItem.id);
+      if (user?.uid) {
+        updateDoc(doc(db, 'users', user.uid), {
+          scrolledFeedCount: increment(1),
+          feedViewsCount: increment(1)
+        }).catch((err) => {
+          console.log('Error updating scrolledFeedCount:', err);
+        });
+      }
+    }
+  }, [activeIndex, feedItems.length, user?.uid]);
 
   if (loading) {
     return (

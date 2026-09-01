@@ -21,7 +21,7 @@
       }
     },
     "android": {
-      "package": "today.revitup.app",
+      "package": "com.revitup.network",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
@@ -54,6 +54,19 @@
         "expo-tracking-transparency",
         {
           "userTrackingPermission": "This identifier will be used to deliver personalized ads to you."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraGradleProperties": {
+              "org.gradle.jvmargs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
+            },
+            "kotlinCompilerArgs": [
+              "-Xskip-metadata-version-check"
+            ]
+          }
         }
       ]
     ],

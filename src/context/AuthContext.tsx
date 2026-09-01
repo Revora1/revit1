@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
@@ -186,8 +186,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     if (referrerDocRef && referrerDocRef.id !== user.uid) {
                       const referrerSnap = await getDoc(referrerDocRef);
                       if (referrerSnap.exists()) {
-                        const currentCount = (referrerSnap.data() as any)?.referralsCount || 0;
-                        await updateDoc(referrerDocRef, { referralsCount: currentCount + 1 });
+                        const currentData = referrerSnap.data() as any;
+                        const currentCount = currentData?.referralsCount || 0;
+                        const newCount = currentCount + 1;
+                        const newBoostTickets = Math.min(15, newCount);
+                        await updateDoc(referrerDocRef, {
+                          referralsCount: newCount,
+                          boostTickets: newBoostTickets,
+                          referredUsers: arrayUnion(user.uid),
+                        });
                       }
                     }
                   }

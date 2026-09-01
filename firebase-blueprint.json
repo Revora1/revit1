@@ -12,6 +12,9 @@
         "profilePic": { "type": "string" },
         "followersCount": { "type": "integer" },
         "followingCount": { "type": "integer" },
+        "scrolledFeedCount": { "type": "integer" },
+        "feedViewsCount": { "type": "integer" },
+        "giveawayQualified": { "type": "boolean" },
         "garage": { "type": "array", "items": { "type": "string" } },
         "partnerId": { "type": "string" },
         "fcmTokens": { "type": "array", "items": { "type": "string" } }

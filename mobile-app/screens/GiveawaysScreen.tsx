@@ -28,6 +28,8 @@ import { db, auth } from "../firebaseConfig";
 export default function GiveawaysScreen({ navigation }: any) {
   const [totalUsers, setTotalUsers] = useState(0);
   const [myReferrals, setMyReferrals] = useState(0);
+  const [scrolledFeedCount, setScrolledFeedCount] = useState(0);
+  const [isLifetimeQualified, setIsLifetimeQualified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasCar, setHasCar] = useState(false);
   const [hasPost, setHasPost] = useState(false);
@@ -64,12 +66,22 @@ export default function GiveawaysScreen({ navigation }: any) {
 
         if (auth.currentUser) {
           const uid = auth.currentUser.uid;
+          let hasLifetime = false;
+          let userReferrals = 0;
+          let userScrolled = 0;
           const uDoc = await getDoc(doc(db, "users", uid));
           if (uDoc.exists()) {
             const data = uDoc.data();
             setUserProfile(data);
-            setMyReferrals(data.referralsCount || 0);
+            userReferrals = data.referralsCount || 0;
+            userScrolled = data.scrolledFeedCount || data.feedViewsCount || 0;
+            setMyReferrals(userReferrals);
             setEnteredGiveaways(data.enteredGiveaways || []);
+            setScrolledFeedCount(userScrolled);
+            if (data.giveawayQualified || (data.enteredGiveaways && data.enteredGiveaways.length > 0)) {
+              hasLifetime = true;
+              setIsLifetimeQualified(true);
+            }
           }
 
           const qGarage = query(
@@ -77,14 +89,21 @@ export default function GiveawaysScreen({ navigation }: any) {
             where("ownerId", "==", uid),
           );
           const snapGarage = await getCountFromServer(qGarage);
-          setHasCar(snapGarage.data().count > 0);
+          const carExists = snapGarage.data().count > 0;
+          setHasCar(carExists);
 
           const qPost = query(
             collection(db, "posts"),
             where("authorId", "==", uid),
           );
           const snapPost = await getCountFromServer(qPost);
-          setHasPost(snapPost.data().count > 0);
+          const postExists = snapPost.data().count > 0;
+          setHasPost(postExists);
+
+          if (!hasLifetime && carExists && postExists && userReferrals >= 10 && userScrolled >= 50) {
+            setIsLifetimeQualified(true);
+            updateDoc(doc(db, "users", uid), { giveawayQualified: true }).catch(() => {});
+          }
         }
       } catch (e) {
         console.error("Error loading giveaways:", e);
@@ -104,10 +123,12 @@ export default function GiveawaysScreen({ navigation }: any) {
       : currentMilestoneIndex;
   const activeMilestone = milestones[activeMilestoneIndex];
 
+  const currentReqsMet = hasCar && hasPost && myReferrals >= 10 && scrolledFeedCount >= 50;
+  const isEligibleForTicket = isLifetimeQualified || currentReqsMet;
+
   const handleEnterGiveaway = async (target: number) => {
     if (!auth.currentUser) return;
-    const isEligible = hasCar && hasPost && myReferrals >= 10;
-    if (!isEligible) {
+    if (!isEligibleForTicket) {
       Alert.alert(
         "Ticket Locked",
         "Complete the entry status steps to unlock your ticket.",
@@ -119,7 +140,9 @@ export default function GiveawaysScreen({ navigation }: any) {
       const userRef = doc(db, "users", auth.currentUser.uid);
       await updateDoc(userRef, {
         enteredGiveaways: arrayUnion(target),
+        giveawayQualified: true,
       });
+      setIsLifetimeQualified(true);
       setEnteredGiveaways((prev) => [...prev, target]);
       Alert.alert("Success", "You have entered the giveaway!");
     } catch (e) {
@@ -170,7 +193,7 @@ export default function GiveawaysScreen({ navigation }: any) {
     ),
   );
 
-  const isEligibleForTicket = hasCar && hasPost && myReferrals >= 10;
+  const isEligibleForTicket = hasCar && hasPost && myReferrals >= 10 && scrolledFeedCount >= 50;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -338,21 +361,48 @@ export default function GiveawaysScreen({ navigation }: any) {
 
         {/* Entry Status Card */}
         <View style={styles.statusCard}>
-          <View style={styles.statusHeader}>
-            <MaterialCommunityIcons
-              name="shield-check-outline"
-              size={20}
-              color="#f59e0b"
-            />
-            <Text style={styles.statusTitle}>ENTRY STATUS</Text>
+          <View style={[styles.statusHeader, { justifyContent: "space-between" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <MaterialCommunityIcons
+                name="shield-check-outline"
+                size={20}
+                color="#f59e0b"
+              />
+              <Text style={[styles.statusTitle, { marginLeft: 8 }]}>ENTRY STATUS</Text>
+            </View>
+            {isLifetimeQualified && (
+              <View
+                style={{
+                  backgroundColor: "rgba(34, 197, 94, 0.15)",
+                  borderColor: "rgba(34, 197, 94, 0.4)",
+                  borderWidth: 1,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#4ade80",
+                    fontSize: 10,
+                    fontWeight: "900",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  LIFETIME UNLOCKED
+                </Text>
+              </View>
+            )}
           </View>
           <Text style={styles.statusSubtitle}>
-            Complete these steps to unlock your raffle ticket.
+            {isLifetimeQualified
+              ? "You have completed all entry requirements and are permanently qualified for all current & future giveaways!"
+              : "New user requirements: Complete these 1-time steps to unlock your raffle tickets forever."}
           </Text>
 
           <View style={styles.statusList}>
             <View style={styles.statusItem}>
-              {auth.currentUser ? (
+              {isLifetimeQualified || auth.currentUser ? (
                 <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
               ) : (
                 <View style={styles.statusCircle} />
@@ -360,14 +410,14 @@ export default function GiveawaysScreen({ navigation }: any) {
               <Text
                 style={[
                   styles.statusItemText,
-                  auth.currentUser && styles.statusItemTextActive,
+                  (isLifetimeQualified || auth.currentUser) && styles.statusItemTextActive,
                 ]}
               >
                 ACCOUNT VERIFIED
               </Text>
             </View>
             <View style={styles.statusItem}>
-              {hasCar ? (
+              {isLifetimeQualified || hasCar ? (
                 <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
               ) : (
                 <View style={styles.statusCircle} />
@@ -375,14 +425,14 @@ export default function GiveawaysScreen({ navigation }: any) {
               <Text
                 style={[
                   styles.statusItemText,
-                  hasCar && styles.statusItemTextActive,
+                  (isLifetimeQualified || hasCar) && styles.statusItemTextActive,
                 ]}
               >
                 ADD 1+ CAR TO GARAGE
               </Text>
             </View>
             <View style={styles.statusItem}>
-              {hasPost ? (
+              {isLifetimeQualified || hasPost ? (
                 <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
               ) : (
                 <View style={styles.statusCircle} />
@@ -390,14 +440,14 @@ export default function GiveawaysScreen({ navigation }: any) {
               <Text
                 style={[
                   styles.statusItemText,
-                  hasPost && styles.statusItemTextActive,
+                  (isLifetimeQualified || hasPost) && styles.statusItemTextActive,
                 ]}
               >
                 POST A BUILD UPDATE
               </Text>
             </View>
             <View style={styles.statusItem}>
-              {myReferrals >= 10 ? (
+              {isLifetimeQualified || myReferrals >= 10 ? (
                 <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
               ) : (
                 <View style={styles.statusCircle} />
@@ -405,10 +455,36 @@ export default function GiveawaysScreen({ navigation }: any) {
               <Text
                 style={[
                   styles.statusItemText,
-                  myReferrals >= 10 && styles.statusItemTextActive,
+                  (isLifetimeQualified || myReferrals >= 10) && styles.statusItemTextActive,
                 ]}
               >
                 INVITE 10 FRIENDS
+              </Text>
+            </View>
+            <View style={[styles.statusItem, { justifyContent: "space-between" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {isLifetimeQualified || scrolledFeedCount >= 50 ? (
+                  <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+                ) : (
+                  <View style={styles.statusCircle} />
+                )}
+                <Text
+                  style={[
+                    styles.statusItemText,
+                    (isLifetimeQualified || scrolledFeedCount >= 50) && styles.statusItemTextActive,
+                  ]}
+                >
+                  SCROLL 50 FEED IMAGES
+                </Text>
+              </View>
+              <Text
+                style={{
+                  color: isLifetimeQualified || scrolledFeedCount >= 50 ? "#22c55e" : "#71717a",
+                  fontSize: 12,
+                  fontWeight: "bold",
+                }}
+              >
+                {isLifetimeQualified ? "50/50" : `${Math.min(50, scrolledFeedCount)}/50`}
               </Text>
             </View>
           </View>
@@ -420,7 +496,11 @@ export default function GiveawaysScreen({ navigation }: any) {
                 isEligibleForTicket && styles.statusFooterTextActive,
               ]}
             >
-              {isEligibleForTicket ? "TICKET UNLOCKED" : "TICKET LOCKED"}
+              {isLifetimeQualified
+                ? "LIFETIME QUALIFIED (TICKETS UNLOCKED)"
+                : isEligibleForTicket
+                  ? "TICKET UNLOCKED"
+                  : "TICKET LOCKED"}
             </Text>
           </View>
         </View>
@@ -500,8 +580,8 @@ export default function GiveawaysScreen({ navigation }: any) {
                 The RevItUp Giveaway is open to all registered users of the
                 RevItUp application. No purchase is necessary. Users must have a
                 verified account, at least 1 car in their garage, 1 build update
-                posted, and at least 10 referred new signups to qualify for an entry
-                ticket.
+                posted, at least 10 referred new signups, and have scrolled through
+                at least 50 feed images to qualify for an entry ticket.
               </Text>
 
               <Text style={styles.modalSectionTitle}>2. Non-Affiliation</Text>

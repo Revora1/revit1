@@ -66,9 +66,23 @@ export default function UploadScreen({ navigation }: any) {
           })
         );
       }
+      let currentUsername = 'tuner';
+      try {
+        if (auth.currentUser?.uid) {
+          const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+          if (uSnap.exists() && uSnap.data()?.username) {
+            currentUsername = uSnap.data().username;
+          } else if (auth.currentUser.email) {
+            currentUsername = auth.currentUser.email.split('@')[0];
+          }
+        }
+      } catch (e) {
+        console.log('Error fetching user username for post:', e);
+      }
+
       await addDoc(collection(db, 'posts'), {
         authorId: auth.currentUser?.uid,
-        authorUsername: (await getDoc(doc(db, 'users', auth.currentUser?.uid as string))).data()?.username || 'tuner_' + Math.floor(Math.random() * 1000), 
+        authorUsername: currentUsername, 
         caption,
         mediaUrl: downloadUrls.length > 0 ? downloadUrls[0] : null,
         mediaUrls: downloadUrls,

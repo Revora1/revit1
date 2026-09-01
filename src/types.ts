@@ -19,6 +19,9 @@ export interface UserProfile {
   reputationBonus?: number;
   friendsOnlyInteractions?: boolean;
   referralsCount?: number; // Reputation points rewarded via AdMob
+  scrolledFeedCount?: number; // Count of feed images scrolled/viewed
+  feedViewsCount?: number;
+  giveawayQualified?: boolean; // True once user completes all giveaway requirements once (lifetime qualified)
   badges?: string[]; // Array of badge identifiers (e.g. 'cotm_winner_2026_08')
 }
 

@@ -35,6 +35,7 @@ import { ATTPrompt } from './components/ATTPrompt';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Apple, X } from 'lucide-react';
+import { updateSEO, resetDefaultSEO } from './lib/seo';
 
 export default function App() {
   const [isPrivacyRoute, setIsPrivacyRoute] = useState(false);
@@ -323,6 +324,55 @@ function InnerAppContent() {
   React.useEffect(() => {
     if (activeView !== 'post') {
       prevViewRef.current = activeView;
+    }
+
+    if (activeView === 'feed') {
+      resetDefaultSEO();
+    } else if (activeView === 'dyno') {
+      updateSEO({
+        title: 'Dyno Tuning Leaderboard & Horsepower Runs | RevItUp',
+        description: 'Explore top horsepower dyno runs, verified torque figures, and dyno pull sheets from tuners across the community.',
+        keywords: ['dyno sheet', 'horsepower runs', 'quarter mile', 'dyno tuning', 'car specs']
+      });
+    } else if (activeView === 'garage') {
+      updateSEO({
+        title: 'Community Garage - Custom Vehicle Builds & Projects | RevItUp',
+        description: 'Browse virtual garages, modified project cars, build timelines, and aftermarket parts setups on RevItUp.',
+        keywords: ['virtual garage', 'car modifications', 'project builds', 'automotive community']
+      });
+    } else if (activeView === 'tuners') {
+      updateSEO({
+        title: 'Top Tuners & Master Builders Leaderboard | RevItUp',
+        description: 'Discover top-ranked automotive tuners, master mechanics, and community build leaders on RevItUp.',
+        keywords: ['car tuners', 'master mechanic', 'top builders', 'reputation leaderboard']
+      });
+    } else if (activeView === 'marketplace') {
+      updateSEO({
+        title: 'Automotive Marketplace - Performance Parts & Wheels | RevItUp',
+        description: 'Buy and sell aftermarket performance parts, turbos, exhaust systems, coilovers, and wheels from fellow enthusiasts.',
+        keywords: ['car parts', 'aftermarket performance', 'turbos', 'wheels', 'used car parts']
+      });
+    } else if (activeView === 'mechanic_board') {
+      updateSEO({
+        title: 'Verified Mechanics & Dyno Tuning Shops | RevItUp',
+        description: 'Find certified automotive mechanics, custom fabrication specialists, and dyno tuning shops near you.',
+        keywords: ['mechanics near me', 'dyno shop', 'tuning shop', 'car repairs', 'custom fabrication']
+      });
+    } else if (activeView === 'search') {
+      updateSEO({
+        title: 'Search Car Builds, Profiles & Parts | RevItUp',
+        description: 'Search thousands of custom vehicle builds, automotive tuners, groups, and performance parts on RevItUp.'
+      });
+    } else if (activeView === 'groups') {
+      updateSEO({
+        title: 'Car Clubs & Regional Enthusiast Groups | RevItUp',
+        description: 'Join local automotive clubs, track day teams, brand-specific car enthusiast communities, and garage groups.'
+      });
+    } else if (activeView === 'tv') {
+      updateSEO({
+        title: 'RevItUp TV - Car Meets, Dyno Pulls & Track Day Videos | RevItUp',
+        description: 'Watch community automotive videos, dyno pulls, exhaust sound clips, track runs, and project walk-arounds.'
+      });
     }
   }, [activeView]);
 
