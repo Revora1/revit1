@@ -193,8 +193,6 @@ export default function GiveawaysScreen({ navigation }: any) {
     ),
   );
 
-  const isEligibleForTicket = hasCar && hasPost && myReferrals >= 10 && scrolledFeedCount >= 50;
-
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
