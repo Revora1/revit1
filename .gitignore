@@ -1,4 +1,5 @@
 node_modules/
+.expo/
 build/
 coverage/
 .DS_Store

@@ -168,19 +168,42 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
-  const targetUserId = route?.params?.userId || auth.currentUser?.uid;
+  const rawUserParam = route?.params?.userId || route?.params?.username || route?.params?.ref || route?.params?.u || auth.currentUser?.uid;
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const targetUserId = resolvedUserId || rawUserParam;
   const isCurrentUser = targetUserId === auth.currentUser?.uid;
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!targetUserId) return;
+      if (!rawUserParam) return;
 
       try {
-        const docRef = doc(db, "users", targetUserId);
-        const docSnap = await getDoc(docRef);
+        let activeUid = rawUserParam;
         let profileData = null;
+        let userDocRef = doc(db, "users", activeUid);
+        let docSnap = await getDoc(userDocRef);
+
         if (docSnap.exists()) {
           profileData = docSnap.data();
+          setResolvedUserId(activeUid);
+        } else {
+          // If not found directly by UID, attempt lookup by username
+          const uQuery = query(
+            collection(db, "users"),
+            where("username", "==", rawUserParam),
+            limit(1)
+          );
+          const uSnap = await getDocs(uQuery);
+          if (!uSnap.empty) {
+            const foundDoc = uSnap.docs[0];
+            activeUid = foundDoc.id;
+            profileData = foundDoc.data();
+            userDocRef = doc(db, "users", activeUid);
+            setResolvedUserId(activeUid);
+          }
+        }
+
+        if (profileData) {
           setProfile(profileData);
           if (profileData.partnerId) {
             const partnerRef = doc(db, "users", profileData.partnerId);
@@ -193,7 +216,7 @@ export default function ProfileScreen({ route, navigation }: any) {
 
         const gQuery = query(
           collection(db, "garage"),
-          where("ownerId", "==", targetUserId),
+          where("ownerId", "==", activeUid),
           orderBy("createdAt", "desc"),
         );
         const gSnap = await getDocs(gQuery);
@@ -201,7 +224,7 @@ export default function ProfileScreen({ route, navigation }: any) {
 
         const pQuery = query(
           collection(db, "posts"),
-          where("authorId", "==", targetUserId),
+          where("authorId", "==", activeUid),
           orderBy("createdAt", "desc"),
         );
         const pSnap = await getDocs(pQuery);
@@ -234,7 +257,7 @@ export default function ProfileScreen({ route, navigation }: any) {
 
         const lQuery = query(
           collection(db, "marketplace"),
-          where("sellerId", "==", targetUserId),
+          where("sellerId", "==", activeUid),
           orderBy("createdAt", "desc")
         );
         const lSnap = await getDocs(lQuery);
@@ -262,11 +285,11 @@ export default function ProfileScreen({ route, navigation }: any) {
         // Fetch dynamic counts
         const followersQ = query(
           collection(db, "follows"),
-          where("followingId", "==", targetUserId),
+          where("followingId", "==", activeUid),
         );
         const followingQ = query(
           collection(db, "follows"),
-          where("followerId", "==", targetUserId),
+          where("followerId", "==", activeUid),
         );
         const [followersSnap, followingSnap] = await Promise.all([
           getCountFromServer(followersQ),
@@ -279,16 +302,16 @@ export default function ProfileScreen({ route, navigation }: any) {
         setDynamicFollowersCount(actualFollowers);
         setDynamicFollowingCount(actualFollowing);
 
-        if (auth.currentUser && !isCurrentUser) {
+        if (auth.currentUser && activeUid !== auth.currentUser?.uid) {
           try {
-            const followSnap = await getDoc(doc(db, "follows", `${auth.currentUser.uid}_${targetUserId}`));
+            const followSnap = await getDoc(doc(db, "follows", `${auth.currentUser.uid}_${activeUid}`));
             setIsFollowing(followSnap.exists());
           } catch (e) {
             console.error("Error checking follow status:", e);
           }
         }
 
-        if (isCurrentUser && auth.currentUser?.email === "tonyang11552883@gmail.com") {
+        if (activeUid === auth.currentUser?.uid && auth.currentUser?.email === "tonyang11552883@gmail.com") {
           try {
             const usersCountQ = await getCountFromServer(collection(db, "users"));
             const garagesCountQ = await getCountFromServer(collection(db, "garage"));
@@ -308,7 +331,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           (profileData.followersCount !== actualFollowers ||
             profileData.followingCount !== actualFollowing)
         ) {
-          await setDoc(docRef, {
+          await setDoc(userDocRef, {
             followersCount: actualFollowers,
             followingCount: actualFollowing,
           }, { merge: true });
@@ -321,7 +344,7 @@ export default function ProfileScreen({ route, navigation }: any) {
     };
 
     fetchData();
-  }, [targetUserId]);
+  }, [rawUserParam]);
 
   const handleFollowToggle = async () => {
     if (!auth.currentUser) {
@@ -618,10 +641,20 @@ const handleOpenEditProfile = () => {
 
   const handleFeedShare = async (post: any) => {
     try {
-      const shareUrl = `https://revitup.today/?p=${post.id}${auth.currentUser?.uid ? `&ref=${auth.currentUser.uid}` : ''}`;
-      await Share.share({
-        message: `Check out this post by @${post.authorUsername || username} on RevitUp! ${shareUrl}`,
-      });
+      const authorName = post.authorUsername || username || 'tuner';
+      const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
+      await Share.share(
+        Platform.OS === 'ios'
+          ? {
+              message: `Check out this post by @${authorName} on RevitUp! 🏎️💨`,
+              url: shareUrl,
+              title: `Post by @${authorName} on RevitUp`,
+            }
+          : {
+              message: `Check out this post by @${authorName} on RevitUp! 🏎️💨 ${shareUrl}`,
+              title: `Post by @${authorName} on RevitUp`,
+            }
+      );
     } catch (error: any) {
       console.log('Error sharing', error);
     }
@@ -743,12 +776,19 @@ const handleOpenEditProfile = () => {
   const handleShareProfile = async () => {
     try {
       const shareUsername = profile?.username || username || "tuner";
-      const profileUrl = `https://revitup.today/?u=${targetUserId}${auth.currentUser?.uid ? `&ref=${auth.currentUser.uid}` : ''}`;
-      await Share.share({
-        message: `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨 ${profileUrl}`,
-        url: profileUrl,
-        title: `@${shareUsername} on RevitUp`,
-      });
+      const profileUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
+      await Share.share(
+        Platform.OS === 'ios'
+          ? {
+              message: `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨`,
+              url: profileUrl,
+              title: `@${shareUsername} on RevitUp`,
+            }
+          : {
+              message: `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨 ${profileUrl}`,
+              title: `@${shareUsername} on RevitUp`,
+            }
+      );
     } catch (error: any) {
       console.log('Error sharing profile:', error);
     }
@@ -756,10 +796,20 @@ const handleOpenEditProfile = () => {
 
   const handleInvite = async () => {
     try {
-      const username = profile?.username || auth.currentUser?.uid || "tuner";
-      await Share.share({
-        message: `Join me on RevitUp! The ultimate car community platform. Download now: https://revitup.today/?ref=${username}`,
-      });
+      const inviteUsername = profile?.username || username || "tuner";
+      const inviteUrl = `https://revitup.today/?ref=${encodeURIComponent(inviteUsername)}`;
+      await Share.share(
+        Platform.OS === 'ios'
+          ? {
+              message: `Join me on RevitUp! The ultimate car community platform.`,
+              url: inviteUrl,
+              title: 'Join me on RevitUp',
+            }
+          : {
+              message: `Join me on RevitUp! The ultimate car community platform. Download now: ${inviteUrl}`,
+              title: 'Join me on RevitUp',
+            }
+      );
     } catch (error) {}
   };
 

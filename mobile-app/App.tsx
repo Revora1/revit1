@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Component, ReactNode } from 'react';
 import { TouchableOpacity, Platform, View, Text } from 'react-native';
-import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, getStateFromPath } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -9,6 +9,101 @@ import { auth } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { registerForPushNotificationsAsync } from './lib/notifications';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
+
+const linking: any = {
+  prefixes: [
+    'revitup://',
+    'https://revitup.today',
+    'http://revitup.today',
+  ],
+  config: {
+    screens: {
+      MainTabs: {
+        screens: {
+          Home: 'feed',
+          Search: 'search',
+          Post: 'create',
+          Activities: 'activities',
+          Profile: 'me',
+        },
+      },
+      UserProfile: 'user/:username',
+      BuildTimeline: 'car/:carId',
+      Giveaways: 'giveaways',
+      Videos: 'videos',
+      Marketplace: 'marketplace',
+      Groups: 'groups',
+      Battles: 'battles',
+      DynoBoard: 'dyno',
+      TopTuners: 'toptuners',
+      ServiceBoard: 'mechanics',
+      Inbox: 'inbox',
+      Notifications: 'notifications',
+    },
+  },
+  getStateFromPath: (path: string, options: any) => {
+    try {
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      const url = new URL(`https://revitup.today${normalizedPath}`);
+      const searchParams = url.searchParams;
+
+      const username = searchParams.get('ref') || searchParams.get('u') || searchParams.get('username');
+      const carId = searchParams.get('car') || searchParams.get('carId') || searchParams.get('c');
+      const postId = searchParams.get('p') || searchParams.get('postId');
+      const giveaways = searchParams.get('giveaways');
+
+      if (username) {
+        return {
+          routes: [
+            {
+              name: 'UserProfile',
+              params: { username, userId: username },
+            },
+          ],
+        };
+      }
+      if (carId) {
+        return {
+          routes: [
+            {
+              name: 'BuildTimeline',
+              params: { carId },
+            },
+          ],
+        };
+      }
+      if (postId) {
+        return {
+          routes: [
+            {
+              name: 'MainTabs',
+              state: {
+                routes: [
+                  {
+                    name: 'Home',
+                    params: { targetPostId: postId },
+                  },
+                ],
+              },
+            },
+          ],
+        };
+      }
+      if (giveaways) {
+        return {
+          routes: [
+            {
+              name: 'Giveaways',
+            },
+          ],
+        };
+      }
+    } catch (e) {
+      // fallback
+    }
+    return getStateFromPath(path, options);
+  },
+};
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -163,7 +258,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <StatusBar style="light" />
-      <NavigationContainer theme={DarkTheme}>
+      <NavigationContainer theme={DarkTheme} linking={linking}>
         <Stack.Navigator screenOptions={{ 
           headerStyle: { backgroundColor: '#111' }, 
           headerTintColor: '#fff',

@@ -40,7 +40,8 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
 
   const handleSharePost = async () => {
     if (!post) return;
-    const shareUrl = `https://revitup.today/?p=${post.id}${profile?.username || user?.uid ? `&ref=${profile?.username || user?.uid}` : ''}`;
+    const authorUsername = profile?.username || 'tuner';
+    const shareUrl = `https://revitup.today/?p=${post.id}&ref=${encodeURIComponent(authorUsername)}`;
     const success = await shareContent({
       title: 'RevItUp Post',
       text: '',

@@ -125,7 +125,8 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
 
   const handleShare = async () => {
     if (!user) return;
-    const shareUrl = `https://revitup.today/?ref=${profile?.username || user.uid}`;
+    const shareUsername = profile?.username || 'tuner';
+    const shareUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
     
     if (Capacitor.isNativePlatform()) {
       try {

@@ -37,6 +37,53 @@ try {
 
 app.use(express.json());
 
+// Apple App Site Association (AASA) for iOS Universal Links
+const appleAppSiteAssociation = {
+  applinks: {
+    apps: [],
+    details: [
+      {
+        appID: "ZLHX8SG89D.today.revitup.app",
+        paths: ["*"],
+        components: [
+          { "/": "/*" }
+        ]
+      }
+    ]
+  },
+  webcredentials: {
+    apps: ["ZLHX8SG89D.today.revitup.app"]
+  },
+  appclips: {
+    apps: []
+  }
+};
+
+app.get(['/.well-known/apple-app-site-association', '/apple-app-site-association'], (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.status(200).send(JSON.stringify(appleAppSiteAssociation, null, 2));
+});
+
+// Android Digital Asset Links for Android App Links
+const androidAssetLinks = [
+  {
+    relation: ["delegate_permission/common.handle_all_urls"],
+    target: {
+      namespace: "android_app",
+      package_name: "com.revitup.network",
+      sha256_cert_fingerprints: [
+        "14:6D:E9:7D:63:F1:C0:CA:63:93:17:F6:1F:B1:01:ED:A8:12:D5:78:E5:22:98:83:FE:1F:59:75:5D:80:FF:16",
+        "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
+      ]
+    }
+  }
+];
+
+app.get(['/.well-known/assetlinks.json', '/assetlinks.json'], (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.status(200).send(JSON.stringify(androidAssetLinks, null, 2));
+});
+
 
 app.post('/api/send-push', async (req, res) => {
   try {

@@ -469,10 +469,20 @@ export default function FeedScreen({ navigation }: any) {
 
   const handleShare = async (post: any) => {
     try {
-      const shareUrl = `https://revitup.today/?p=${post.id}${auth.currentUser?.uid ? `&ref=${auth.currentUser.uid}` : ''}`;
-      await Share.share({
-        message: `Check out this post by @${post.authorUsername || 'tuner'} on RevitUp! ${shareUrl}`,
-      });
+      const authorName = post.authorUsername || 'tuner';
+      const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
+      await Share.share(
+        Platform.OS === 'ios'
+          ? {
+              message: `Check out this post by @${authorName} on RevitUp! 🏎️💨`,
+              url: shareUrl,
+              title: `Post by @${authorName} on RevitUp`,
+            }
+          : {
+              message: `Check out this post by @${authorName} on RevitUp! 🏎️💨 ${shareUrl}`,
+              title: `Post by @${authorName} on RevitUp`,
+            }
+      );
     } catch (error: any) {
       console.log('Error sharing', error);
     }

@@ -856,7 +856,8 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
             onClick={async () => {
               if (isSharing) return;
               setIsSharing(true);
-              const shareUrl = `https://revitup.today/?p=${post.id}${profile?.username || user?.uid ? `&ref=${profile?.username || user?.uid}` : ''}`;
+              const authorUsername = author?.username || profile?.username || 'tuner';
+              const shareUrl = `https://revitup.today/?p=${post.id}&ref=${encodeURIComponent(authorUsername)}`;
               try {
                 // Increment share count
                 if (user) {
