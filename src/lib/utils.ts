@@ -112,16 +112,24 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 
 export async function shareContent(shareData: { title: string; text: string; url: string }): Promise<boolean> {
   try {
+    const formattedText = shareData.text 
+      ? (shareData.text.includes(shareData.url) ? shareData.text : `${shareData.text}\n\n${shareData.url}`) 
+      : shareData.url;
+
     if (Capacitor.isNativePlatform()) {
       await Share.share({
         title: shareData.title,
-        text: shareData.text,
+        text: formattedText,
         url: shareData.url,
         dialogTitle: 'Share',
       });
       return true;
     } else if (navigator.share) {
-      await navigator.share(shareData);
+      await navigator.share({
+        title: shareData.title,
+        text: shareData.text || undefined,
+        url: shareData.url,
+      });
       return true;
     }
   } catch (error: any) {

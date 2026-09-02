@@ -157,19 +157,13 @@ export default function GiveawaysScreen({ navigation }: any) {
     if (!auth.currentUser) return;
     const shareUsername = userProfile?.username || 'tuner';
     const shareUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
+    const messageText = `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.\n\n${shareUrl}`;
     try {
-      await Share.share(
-        Platform.OS === 'ios'
-          ? {
-              message: `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.`,
-              url: shareUrl,
-              title: "Join me on RevItUp",
-            }
-          : {
-              message: `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.\n\n${shareUrl}`,
-              title: "Join me on RevItUp",
-            }
-      );
+      await Share.share({
+        message: messageText,
+        url: shareUrl,
+        title: "Join me on RevItUp",
+      });
     } catch (err) {
       console.error("Error sharing:", err);
     }

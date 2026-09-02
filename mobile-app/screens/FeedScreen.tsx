@@ -471,18 +471,12 @@ export default function FeedScreen({ navigation }: any) {
     try {
       const authorName = post.authorUsername || 'tuner';
       const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
-      await Share.share(
-        Platform.OS === 'ios'
-          ? {
-              message: `Check out this post by @${authorName} on RevitUp! 🏎️💨`,
-              url: shareUrl,
-              title: `Post by @${authorName} on RevitUp`,
-            }
-          : {
-              message: `Check out this post by @${authorName} on RevitUp! 🏎️💨 ${shareUrl}`,
-              title: `Post by @${authorName} on RevitUp`,
-            }
-      );
+      const messageText = `Check out this post by @${authorName} on RevitUp! 🏎️💨\n\n${shareUrl}`;
+      await Share.share({
+        message: messageText,
+        url: shareUrl,
+        title: `Post by @${authorName} on RevitUp`,
+      });
     } catch (error: any) {
       console.log('Error sharing', error);
     }
