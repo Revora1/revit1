@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [referredBy, setReferredBy] = useState<string | null>(null);
@@ -39,6 +40,22 @@ export default function LoginScreen() {
   }, []);
 
   const handleAuth = async () => {
+    if (isSignUp) {
+      const cleanUsername = usernameInput.trim();
+      if (!cleanUsername) {
+        Alert.alert('Username Required', 'Please choose a username for your account.');
+        return;
+      }
+      if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+        Alert.alert('Invalid Username', 'Username must be between 3 and 20 characters.');
+        return;
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+        Alert.alert('Invalid Username', 'Username can only contain letters, numbers, and underscores.');
+        return;
+      }
+    }
+
     if (!email || !password) {
       Alert.alert('Error', 'Please enter both email and password');
       return;
@@ -47,14 +64,40 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       if (isSignUp) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        let initialUsername = usernameInput.trim();
+        if (email.toLowerCase() === 'tonyang11552883@gmail.com' && (initialUsername === 'tonyang11552883' || initialUsername === 'tonyang1155')) {
+          initialUsername = 'tony';
+        }
+
+        // Check if username is already taken before creating the user
+        const qLower = query(
+          collection(db, 'users'),
+          where('usernameLower', '==', initialUsername.toLowerCase())
+        );
+        const existingSnap = await getDocs(qLower);
+        if (!existingSnap.empty) {
+          Alert.alert('Username Taken', `The username '@${initialUsername}' is already taken. Please choose another username.`);
+          setLoading(false);
+          return;
+        }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
         const user = userCredential.user;
         // Create user profile
         await setDoc(doc(db, 'users', user.uid), {
           email: user.email,
-          username: 'tuner_' + user.uid.substring(0, 6),
+          username: initialUsername,
+          usernameLower: initialUsername.toLowerCase(),
+          followersCount: 0,
+          followingCount: 0,
+          garage: [],
           referredBy: referredBy || null,
           createdAt: serverTimestamp(),
+        });
+
+        // Create private info document
+        await setDoc(doc(db, 'users', user.uid, 'private', 'info'), {
+          email: user.email,
         });
 
         // If user was referred by someone, increment the referrer's referral count for giveaways (NEW signups only, max 15 boost tickets)
@@ -90,7 +133,7 @@ export default function LoginScreen() {
           }
         }
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
       }
     } catch (err: any) {
       Alert.alert('Authentication Failed', err.message);
@@ -123,6 +166,22 @@ export default function LoginScreen() {
           </View>
           
           <View style={styles.formContainer}>
+            {isSignUp && (
+              <View style={{ marginBottom: 16 }}>
+                <TextInput
+                  style={[styles.input, { marginBottom: 4 }]}
+                  placeholder="Choose Username (e.g. Tony, BoostedGT)"
+                  placeholderTextColor="#666"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={usernameInput}
+                  onChangeText={(val) => setUsernameInput(val.replace(/\s+/g, ''))}
+                />
+                <Text style={{ color: '#888', fontSize: 11, marginLeft: 4 }}>
+                  Your permanent username across RevItUp.
+                </Text>
+              </View>
+            )}
             <TextInput
               style={styles.input}
               placeholder="Email Address"

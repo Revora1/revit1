@@ -36,9 +36,16 @@ export default function GroupFeedScreen({ route, navigation }: any) {
         });
       }
 
+      const formatMemberName = (name?: string) => {
+        if (!name) return 'Member';
+        if (name === 'tonyang11552883' || name === 'tonyang1155') return 'tony';
+        if (name.includes('@')) return name.split('@')[0];
+        return name;
+      };
+
       const mappedPosts = fetchedPosts.map(post => ({
         ...post,
-        authorUsername: usersCache[post.authorId]?.username || post.authorUsername || `Member`
+        authorUsername: formatMemberName(usersCache[post.authorId]?.username || post.authorUsername || `Member`)
       }));
 
       setPosts(mappedPosts);
@@ -92,10 +99,27 @@ export default function GroupFeedScreen({ route, navigation }: any) {
         await uploadBytes(storageRef, blob);
         const downloadUrl = await getDownloadURL(storageRef);
 
+        let authorName = 'Member';
+        if (auth.currentUser) {
+          if (auth.currentUser.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
+            authorName = 'tony';
+          } else {
+            try {
+              const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+              if (uSnap.exists() && uSnap.data()?.username) {
+                const u = uSnap.data().username;
+                authorName = (u === 'tonyang11552883' || u === 'tonyang1155') ? 'tony' : u;
+              } else {
+                authorName = `tuner_${auth.currentUser.uid.substring(0, 6)}`;
+              }
+            } catch (e) {}
+          }
+        }
+
         await addDoc(collection(db, 'posts'), {
           groupId,
           authorId: auth.currentUser?.uid,
-          authorUsername: auth.currentUser?.email?.split('@')[0] || 'Member', 
+          authorUsername: authorName, 
           mediaUrl: downloadUrl,
           mediaUrls: [downloadUrl],
           likesCount: 0,

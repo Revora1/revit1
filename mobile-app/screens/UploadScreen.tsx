@@ -69,11 +69,16 @@ export default function UploadScreen({ navigation }: any) {
       let currentUsername = 'tuner';
       try {
         if (auth.currentUser?.uid) {
-          const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
-          if (uSnap.exists() && uSnap.data()?.username) {
-            currentUsername = uSnap.data().username;
-          } else if (auth.currentUser.email) {
-            currentUsername = auth.currentUser.email.split('@')[0];
+          if (auth.currentUser.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
+            currentUsername = 'tony';
+          } else {
+            const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+            if (uSnap.exists() && uSnap.data()?.username) {
+              const uname = uSnap.data().username;
+              currentUsername = (uname === 'tonyang11552883' || uname === 'tonyang1155') ? 'tony' : uname;
+            } else {
+              currentUsername = `tuner_${auth.currentUser.uid.substring(0, 6)}`;
+            }
           }
         }
       } catch (e) {

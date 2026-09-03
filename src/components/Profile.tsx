@@ -335,16 +335,24 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
 
 
 
+  const cleanDisplayUsername = (uname?: string) => {
+    if (!uname) return "tuner";
+    if (uname === "tonyang11552883" || uname === "tonyang1155" || (currentUser?.email?.toLowerCase() === "tonyang11552883@gmail.com" && targetProfile?.uid === currentUser?.uid)) return "tony";
+    if (uname.includes("@")) return uname.split("@")[0];
+    return uname;
+  };
+
   const handleShareApp = async () => {
     if (sharing || !targetProfile) return;
     setSharing(true);
 
-    const profileUrl = `https://revitup.today/?ref=${targetProfile.username}`;
+    const shareUsername = cleanDisplayUsername(targetProfile.username);
+    const profileUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
     const shareData = {
-      title: `RevItUp - @${targetProfile.username}`,
+      title: `RevItUp - @${shareUsername}`,
       text: isOwnProfile 
         ? `Check out my garage and build specs on RevItUp! Join me using my referral link.` 
-        : `Check out @${targetProfile.username}'s garage and build specs on RevItUp!`,
+        : `Check out @${shareUsername}'s garage and build specs on RevItUp!`,
       url: profileUrl
     };
 
@@ -372,12 +380,26 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
       if (propUsername) {
         setLoading(true);
         try {
-          const q = query(
+          const lookupTarget = propUsername;
+          let snap = await getDocs(query(
             collection(db, 'users'),
-            where('username', '==', propUsername),
+            where('username', '==', lookupTarget),
             limit(1)
-          );
-          const snap = await getDocs(q);
+          ));
+          if (snap.empty) {
+            snap = await getDocs(query(
+              collection(db, 'users'),
+              where('usernameLower', '==', lookupTarget.toLowerCase()),
+              limit(1)
+            ));
+          }
+          if (snap.empty && lookupTarget.toLowerCase() === 'tony') {
+            snap = await getDocs(query(
+              collection(db, 'users'),
+              where('username', '==', 'tonyang11552883'),
+              limit(1)
+            ));
+          }
           if (!snap.empty) {
             setResolvedUserId(snap.docs[0].id);
           } else {
@@ -903,7 +925,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
                 </button>
              )}
              <h1 className="text-xl font-black italic tracking-tight uppercase">
-               {targetProfile.username}
+               {cleanDisplayUsername(targetProfile.username)}
              </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -1023,17 +1045,17 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
           <div className="px-6 py-8 flex flex-col items-center space-y-6">
             <div className="w-24 h-24 rounded-full border-4 border-zinc-900 overflow-hidden bg-zinc-800">
                {targetProfile.profilePic ? (
-                 <img src={targetProfile.profilePic} className="w-full h-full object-cover" alt={targetProfile.username} />
+                 <img src={targetProfile.profilePic} className="w-full h-full object-cover" alt={cleanDisplayUsername(targetProfile.username)} />
                ) : (
                  <div className="w-full h-full flex items-center justify-center text-zinc-600 text-3xl font-black">
-                   {targetProfile.username[0].toUpperCase()}
+                   {cleanDisplayUsername(targetProfile.username)[0].toUpperCase()}
                  </div>
                )}
             </div>
 
             <div className="text-center space-y-4 flex flex-col items-center animate-fade-in">
               <div className="space-y-1">
-                <h2 className="text-2xl font-bold tracking-tight">{targetProfile.username}</h2>
+                <h2 className="text-2xl font-bold tracking-tight">{cleanDisplayUsername(targetProfile.username)}</h2>
                 <p className="text-sm text-zinc-500 max-w-[250px] mx-auto">{targetProfile.bio || "RevItUp enthusiast"}</p>
               </div>
               <div className="flex items-center justify-center gap-2">

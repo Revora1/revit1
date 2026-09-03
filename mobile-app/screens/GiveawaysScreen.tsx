@@ -155,7 +155,16 @@ export default function GiveawaysScreen({ navigation }: any) {
 
   const handleShare = async () => {
     if (!auth.currentUser) return;
-    const shareUsername = userProfile?.username || 'tuner';
+    let shareUsername = userProfile?.username || 'tuner';
+    if (
+      shareUsername === 'tonyang11552883' ||
+      shareUsername === 'tonyang1155' ||
+      (auth.currentUser.email?.toLowerCase() === 'tonyang11552883@gmail.com' && shareUsername.startsWith('tonyang'))
+    ) {
+      shareUsername = 'tony';
+    } else if (shareUsername.includes('@')) {
+      shareUsername = shareUsername.split('@')[0];
+    }
     const shareUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
     try {
       if (Platform.OS === 'ios') {

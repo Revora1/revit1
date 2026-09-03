@@ -124,13 +124,14 @@ const ViewerRow: React.FC<ViewerRowProps> = ({ profile, currentUser, onNavigateP
           if (targetUserSnap.exists()) {
             const token = (targetUserSnap.data() as any).fcmToken;
             if (token) {
+              const followerName = currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com' ? 'tony' : (currentUser?.displayName || 'Someone');
               await fetch('/api/send-push', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   token,
                   title: 'New Follower',
-                  body: `${currentUser.displayName || currentUser.email?.split('@')[0] || 'Someone'} started following you.`
+                  body: `${followerName} started following you.`
                 })
               });
             }
@@ -578,13 +579,14 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
             if (targetUserSnap.exists()) {
               const token = (targetUserSnap.data() as any).fcmToken;
               if (token) {
+                const likerName = profile?.username || (user.email?.toLowerCase() === 'tonyang11552883@gmail.com' ? 'tony' : (user.displayName || 'Someone'));
                 await fetch('/api/send-push', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     token,
                     title: 'New Like',
-                    body: `${user.displayName || user.email?.split('@')[0] || 'Someone'} liked your post.`
+                    body: `${likerName} liked your post.`
                   })
                 });
               }
@@ -652,13 +654,14 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           if (targetUserSnap.exists()) {
             const token = (targetUserSnap.data() as any).fcmToken;
             if (token) {
+              const followerName = profile?.username || (user.email?.toLowerCase() === 'tonyang11552883@gmail.com' ? 'tony' : (user.displayName || 'Someone'));
               await fetch('/api/send-push', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   token,
                   title: 'New Follower',
-                  body: `${user.displayName || user.email?.split('@')[0] || 'Someone'} started following you.`
+                  body: `${followerName} started following you.`
                 })
               });
             }

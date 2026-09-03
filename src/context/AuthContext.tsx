@@ -12,7 +12,7 @@ interface AuthContextType {
   error: string | null;
   isIOS: boolean;
   signInWithEmail: (e: string, p: string) => Promise<void>;
-  signUpWithEmail: (e: string, p: string) => Promise<void>;
+  signUpWithEmail: (e: string, p: string, username?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfileSettings: (settings: Partial<UserProfile>) => Promise<void>;
@@ -111,6 +111,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 console.warn("Failed to fetch private email profile info:", privateErr);
               }
 
+              // Auto-heal developer username from email handle (tonyang11552883) to 'tony'
+              if (user.email?.toLowerCase() === 'tonyang11552883@gmail.com' && (data.username === 'tonyang11552883' || data.username === 'tonyang1155' || !data.username)) {
+                data.username = 'tony';
+                data.usernameLower = 'tony';
+                await setDoc(profileRef, { username: 'tony', usernameLower: 'tony' }, { merge: true });
+              }
+
               if (data.username && !data.usernameLower) {
                 const updatedProfile = { ...data, usernameLower: data.username.toLowerCase() };
                 const { email, ...publicProfile } = updatedProfile;
@@ -120,8 +127,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setProfile(data);
               }
             } else {
-              // Logic for new user profile creation
-              let baseUsername = user.email?.split('@')[0] || 'User';
+              // Logic for new user profile creation - never use raw email addresses
+              let baseUsername = 'tuner';
+              if (user.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
+                baseUsername = 'tony';
+              } else if (user.displayName) {
+                baseUsername = user.displayName.replace(/[^a-zA-Z0-9_]/g, '');
+              } else {
+                baseUsername = `tuner_${Math.floor(1000 + Math.random() * 9000)}`;
+              }
               let newUsername = baseUsername;
               let isUnique = false;
               let counter = 1;
@@ -287,13 +301,99 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUpWithEmail = async (e: string, p: string) => {
+  const signUpWithEmail = async (e: string, p: string, username?: string) => {
     setError(null);
     const sanitizedEmail = e.trim().toLowerCase();
+    const cleanUsername = (username || '').trim();
+
+    if (!cleanUsername) {
+      setError('Please choose a username for your account.');
+      return;
+    }
+    if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+      setError('Username must be between 3 and 20 characters.');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+      setError('Username can only contain letters, numbers, and underscores.');
+      return;
+    }
+
     try {
+      // Ensure chosen username is not already registered
+      const usersRef = collection(db, 'users');
+      const qLower = query(usersRef, where('usernameLower', '==', cleanUsername.toLowerCase()));
+      const snap = await getDocs(qLower);
+      if (!snap.empty) {
+        setError(`The username '@${cleanUsername}' is already taken. Please choose another.`);
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, sanitizedEmail, p);
-      if (userCredential.user) {
-        try { await sendEmailVerification(userCredential.user); } catch (e) {}
+      const newUser = userCredential.user;
+      if (newUser) {
+        let finalUsername = cleanUsername;
+        if (sanitizedEmail === 'tonyang11552883@gmail.com' && (cleanUsername === 'tonyang11552883' || cleanUsername === 'tonyang1155')) {
+          finalUsername = 'tony';
+        }
+
+        const newProfile: UserProfile = {
+          uid: newUser.uid,
+          username: finalUsername,
+          usernameLower: finalUsername.toLowerCase(),
+          followersCount: 0,
+          followingCount: 0,
+          garage: [],
+        };
+        const profileRef = doc(db, 'users', newUser.uid);
+        await setDoc(profileRef, newProfile);
+
+        const privateInfoRef = doc(db, 'users', newUser.uid, 'private', 'info');
+        await setDoc(privateInfoRef, { email: newUser.email || sanitizedEmail });
+
+        // Handle referral link if present
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const refUsername = urlParams.get('ref') || sessionStorage.getItem('referralCode');
+          if (refUsername && refUsername.toLowerCase() !== finalUsername.toLowerCase()) {
+            const qRef = query(collection(db, 'users'), where('usernameLower', '==', refUsername.toLowerCase()));
+            const querySnapshot = await getDocs(qRef);
+            let referrerDocRef = null;
+            if (!querySnapshot.empty) {
+              referrerDocRef = doc(db, 'users', querySnapshot.docs[0].id);
+            } else {
+              const fallbackRef = doc(db, 'users', refUsername);
+              const fallbackSnap = await getDoc(fallbackRef);
+              if (fallbackSnap.exists()) {
+                referrerDocRef = fallbackRef;
+              }
+            }
+
+            if (referrerDocRef && referrerDocRef.id !== newUser.uid) {
+              await setDoc(profileRef, { referredBy: referrerDocRef.id }, { merge: true });
+              const refSnap = await getDoc(referrerDocRef);
+              if (refSnap.exists()) {
+                const currData = refSnap.data() as any;
+                const existingReferrals = currData?.referralsCount || 0;
+                const newReferralsCount = existingReferrals + 1;
+                const newBoostTickets = Math.min(15, newReferralsCount);
+                await updateDoc(referrerDocRef, {
+                  referralsCount: newReferralsCount,
+                  boostTickets: newBoostTickets,
+                  boostEntries: arrayUnion({
+                    type: 'referral',
+                    date: new Date().toISOString(),
+                    source: `Referred @${finalUsername}`
+                  })
+                });
+              }
+            }
+          }
+        } catch (refErr) {
+          console.warn('Failed to process referral code during signup:', refErr);
+        }
+
+        try { await sendEmailVerification(newUser); } catch (e) {}
         await signOut(auth);
         setError('Account created! Please check your email to verify your account before logging in.');
       }

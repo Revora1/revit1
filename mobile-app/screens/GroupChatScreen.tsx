@@ -18,7 +18,24 @@ export default function GroupChatScreen({ route, navigation }: any) {
   const { groupId, groupName } = route.params;
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
+  const [senderName, setSenderName] = useState('User');
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    if (auth.currentUser.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
+      setSenderName('tony');
+      return;
+    }
+    getDoc(doc(db, 'users', auth.currentUser.uid)).then(snap => {
+      if (snap.exists() && snap.data()?.username) {
+        const u = snap.data().username;
+        setSenderName((u === 'tonyang11552883' || u === 'tonyang1155') ? 'tony' : u);
+      } else {
+        setSenderName(`tuner_${auth.currentUser!.uid.substring(0, 6)}`);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!auth.currentUser || !groupId) return;
@@ -42,6 +59,13 @@ export default function GroupChatScreen({ route, navigation }: any) {
     return () => unsubscribe();
   }, [groupId]);
 
+  const formatSenderName = (name?: string) => {
+    if (!name) return 'User';
+    if (name === 'tonyang11552883' || name === 'tonyang1155') return 'tony';
+    if (name.includes('@')) return name.split('@')[0];
+    return name;
+  };
+
   const sendMessage = async () => {
     if (!inputText.trim() || !auth.currentUser) return;
     const text = inputText.trim();
@@ -50,7 +74,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
       await addDoc(collection(db, 'groupMessages'), {
         groupId,
         senderId: auth.currentUser.uid,
-        senderUsername: auth.currentUser.email?.split('@')[0] || 'User',
+        senderUsername: senderName,
         text,
         createdAt: serverTimestamp()
       });
@@ -63,7 +87,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
     const isMe = item.senderId === auth.currentUser?.uid;
     return (
       <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}>
-        {!isMe && <Text style={styles.senderName}>{item.senderUsername}</Text>}
+        {!isMe && <Text style={styles.senderName}>{formatSenderName(item.senderUsername)}</Text>}
         <View style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleOther]}>
           <Text style={styles.messageText}>{item.text}</Text>
         </View>

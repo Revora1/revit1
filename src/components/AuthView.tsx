@@ -6,9 +6,11 @@ import { Capacitor } from '@capacitor/core';
 
 export function AuthView() {
   const { signInWithEmail, signUpWithEmail, error } = useAuth();
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -18,11 +20,29 @@ export function AuthView() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationError(null);
+
+    if (isSignUp) {
+      const cleanUsername = username.trim();
+      if (!cleanUsername) {
+        setValidationError('Please choose a username for your account.');
+        return;
+      }
+      if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+        setValidationError('Username must be between 3 and 20 characters.');
+        return;
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+        setValidationError('Username can only contain letters, numbers, and underscores.');
+        return;
+      }
+    }
+
     if (email && password) {
       setIsSubmitting(true);
       try {
         if (isSignUp) {
-          await signUpWithEmail(email, password);
+          await signUpWithEmail(email, password, username);
         } else {
           await signInWithEmail(email, password);
         }
@@ -33,6 +53,8 @@ export function AuthView() {
       }
     }
   };
+
+  const activeError = validationError || error;
 
   return (
     <div className="h-full flex flex-col items-center justify-center p-6 bg-black text-white relative overflow-hidden">
@@ -50,13 +72,13 @@ export function AuthView() {
         </div>
 
         <div className="space-y-4">
-          {error && (
+          {activeError && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium"
             >
-              {error}
+              {activeError}
             </motion.div>
           )}
 
@@ -66,6 +88,37 @@ export function AuthView() {
             onSubmit={handleAuth} 
             className="space-y-3 animate-fade-in"
           >
+            <AnimatePresence initial={false}>
+              {isSignUp && (
+                <motion.div
+                  key="username-field"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-1 overflow-hidden"
+                >
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    placeholder="Choose Username (e.g. Tony, BoostedGT)"
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value.replace(/\s+/g, ''));
+                      if (validationError) setValidationError(null);
+                    }}
+                    disabled={isSubmitting}
+                    className="w-full h-14 bg-zinc-900 border border-zinc-800 text-white rounded-xl px-4 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
+                    required={isSignUp}
+                  />
+                  <p className="text-[11px] text-zinc-500 text-left px-1">
+                    Your permanent username across RevItUp.
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <input
               id="email"
               name="email"
@@ -115,7 +168,10 @@ export function AuthView() {
           <div className="flex flex-col items-center gap-4 pt-4 border-t border-zinc-800">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setValidationError(null);
+              }}
               className="text-sm font-bold text-white hover:text-zinc-300 transition-colors flex items-center gap-2"
             >
               {isSignUp ? (

@@ -169,7 +169,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
   const [suggestedUsers, setSuggestedUsers] = useState<UserProfile[]>([]);
   const [reportTargetId, setReportTargetId] = useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const { user, blockedUserIds } = useAuth();
+  const { user, profile, blockedUserIds } = useAuth();
 
   const commentsContainerRef = React.useRef<HTMLDivElement>(null);
   const touchStartY = React.useRef(0);
@@ -308,7 +308,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
                    body: JSON.stringify({
                      token,
                      title: 'New Comment',
-                     body: `${user.displayName || user.email?.split('@')[0] || 'Someone'} commented on your post.`
+                     body: `${profile?.username || (user.email?.toLowerCase() === 'tonyang11552883@gmail.com' ? 'tony' : (user.displayName || 'Someone'))} commented on your post.`
                    })
                  });
                }
@@ -355,7 +355,7 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
                         body: JSON.stringify({
                           token,
                           title: 'You were tagged',
-                          body: `${user.displayName || user.email?.split('@')[0] || 'Someone'} tagged you in a comment.`
+                          body: `${profile?.username || (user.email?.toLowerCase() === 'tonyang11552883@gmail.com' ? 'tony' : (user.displayName || 'Someone'))} tagged you in a comment.`
                         })
                       });
                     }

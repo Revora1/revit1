@@ -467,9 +467,23 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
+  const formatCleanUsername = (rawName?: string) => {
+    if (!rawName) return "tuner";
+    if (rawName === "tonyang11552883" || rawName === "tonyang1155") return "tony";
+    if (rawName.includes("@")) return rawName.split("@")[0];
+    return rawName;
+  };
+
   const handleShare = async (post: any) => {
     try {
-      const authorName = post.authorUsername || 'tuner';
+      let authorName = formatCleanUsername(post.authorUsername || 'tuner');
+      if (
+        authorName === 'tonyang11552883' ||
+        authorName === 'tonyang1155' ||
+        (post.authorId === auth.currentUser?.uid && auth.currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com' && authorName.startsWith('tonyang'))
+      ) {
+        authorName = 'tony';
+      }
       const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
       if (Platform.OS === 'ios') {
         await Share.share({
@@ -554,11 +568,15 @@ export default function FeedScreen({ navigation }: any) {
     let currentUsername = 'tuner';
     try {
       if (auth.currentUser?.uid) {
-        const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
-        if (uSnap.exists() && uSnap.data()?.username) {
-          currentUsername = uSnap.data().username;
-        } else if (auth.currentUser.email) {
-          currentUsername = auth.currentUser.email.split('@')[0];
+        if (auth.currentUser.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
+          currentUsername = 'tony';
+        } else {
+          const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+          if (uSnap.exists() && uSnap.data()?.username) {
+            currentUsername = formatCleanUsername(uSnap.data().username);
+          } else {
+            currentUsername = `tuner_${auth.currentUser.uid.substring(0, 6)}`;
+          }
         }
       }
     } catch (e) {
@@ -661,7 +679,7 @@ export default function FeedScreen({ navigation }: any) {
           <View style={styles.bottomContent}>
             <View style={styles.postInfo}>
               <TouchableOpacity onPress={() => navigation.navigate("UserProfile", { userId: item.authorId })}>
-                <Text style={styles.postUsername}>@{item.authorUsername || `user_${item.authorId?.substring(0,6) || 'unknown'}`}</Text>
+                <Text style={styles.postUsername}>@{formatCleanUsername(item.authorUsername) || `user_${item.authorId?.substring(0,6) || 'unknown'}`}</Text>
               </TouchableOpacity>
               {item.caption ? <Text style={styles.postCaption}>{item.caption}</Text> : null}
               <View style={styles.musicTicker}>
@@ -791,7 +809,7 @@ export default function FeedScreen({ navigation }: any) {
           <ScrollView style={styles.commentsList}>
             {comments.map(c => (
               <View key={c.id} style={styles.commentItem}>
-                <Text style={styles.commentUser}>@{c.authorUsername}</Text>
+                <Text style={styles.commentUser}>@{formatCleanUsername(c.authorUsername)}</Text>
                 <Text style={styles.commentText}>{c.text}</Text>
               </View>
             ))}

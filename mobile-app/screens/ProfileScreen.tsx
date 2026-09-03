@@ -188,12 +188,29 @@ export default function ProfileScreen({ route, navigation }: any) {
           setResolvedUserId(activeUid);
         } else {
           // If not found directly by UID, attempt lookup by username
+          const lookupTarget = rawUserParam;
           const uQuery = query(
             collection(db, "users"),
-            where("username", "==", rawUserParam),
+            where("username", "==", lookupTarget),
             limit(1)
           );
-          const uSnap = await getDocs(uQuery);
+          let uSnap = await getDocs(uQuery);
+          if (uSnap.empty) {
+            uSnap = await getDocs(query(
+              collection(db, "users"),
+              where("usernameLower", "==", lookupTarget.toLowerCase()),
+              limit(1)
+            ));
+          }
+          // If looking for tony and not found yet, also check legacy tonyang11552883
+          if (uSnap.empty && lookupTarget.toLowerCase() === "tony") {
+            uSnap = await getDocs(query(
+              collection(db, "users"),
+              where("username", "==", "tonyang11552883"),
+              limit(1)
+            ));
+          }
+
           if (!uSnap.empty) {
             const foundDoc = uSnap.docs[0];
             activeUid = foundDoc.id;
@@ -204,6 +221,17 @@ export default function ProfileScreen({ route, navigation }: any) {
         }
 
         if (profileData) {
+          // Auto-heal developer profile from email prefix (tonyang11552883) to clean username 'tony'
+          if (
+            (auth.currentUser?.email?.toLowerCase() === "tonyang11552883@gmail.com" && activeUid === auth.currentUser?.uid) ||
+            profileData.email?.toLowerCase() === "tonyang11552883@gmail.com"
+          ) {
+            if (profileData.username === "tonyang11552883" || profileData.username === "tonyang1155" || !profileData.username) {
+              profileData.username = "tony";
+              profileData.usernameLower = "tony";
+              updateDoc(userDocRef, { username: "tony", usernameLower: "tony" }).catch(console.error);
+            }
+          }
           setProfile(profileData);
           if (profileData.partnerId) {
             const partnerRef = doc(db, "users", profileData.partnerId);
@@ -428,16 +456,39 @@ export default function ProfileScreen({ route, navigation }: any) {
     }
   };
 
-const handleOpenEditProfile = () => {
-    setEditUsername(profile?.username || "");
+  const handleOpenEditProfile = () => {
+    const initialName = (profile?.username === "tonyang11552883" || profile?.username === "tonyang1155" || (auth.currentUser?.email?.toLowerCase() === "tonyang11552883@gmail.com" && (!profile?.username || profile?.username.startsWith("tonyang"))))
+      ? "tony"
+      : (profile?.username || "");
+    setEditUsername(initialName);
     setEditBio(profile?.bio || "");
     setShowEditModal(true);
   };
 
   const handleSaveProfile = async () => {
     if (!auth.currentUser) return;
+    const cleanName = editUsername.trim();
+    if (!cleanName) {
+      Alert.alert("Error", "Username cannot be empty");
+      return;
+    }
     setSavingProfile(true);
     try {
+      // Check if username is already taken if changed
+      if (cleanName.toLowerCase() !== profile?.username?.toLowerCase()) {
+        const uLowerQuery = query(
+          collection(db, "users"),
+          where("usernameLower", "==", cleanName.toLowerCase()),
+          limit(1)
+        );
+        const snap = await getDocs(uLowerQuery);
+        if (!snap.empty && snap.docs[0].id !== auth.currentUser.uid) {
+          Alert.alert("Username Taken", "This username is already in use. Please choose a different one.");
+          setSavingProfile(false);
+          return;
+        }
+      }
+
       let downloadUrl = profile.profilePic || null;
       if (editAvatarUri && editAvatarUri !== profile.profilePic) {
         const compressedUri = await compressImage(editAvatarUri);
@@ -450,11 +501,18 @@ const handleOpenEditProfile = () => {
       }
 
       await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        username: editUsername,
+        username: cleanName,
+        usernameLower: cleanName.toLowerCase(),
         bio: editBio,
         ...(downloadUrl ? { profilePic: downloadUrl } : {})
       });
-      setProfile((prev: any) => ({ ...prev, username: editUsername, bio: editBio, profilePic: downloadUrl || prev.profilePic }));
+      setProfile((prev: any) => ({
+        ...prev,
+        username: cleanName,
+        usernameLower: cleanName.toLowerCase(),
+        bio: editBio,
+        profilePic: downloadUrl || prev.profilePic
+      }));
       setShowEditModal(false);
     } catch (err: any) {
       Alert.alert("Error", "Failed to update profile: " + err.message);
@@ -639,9 +697,31 @@ const handleOpenEditProfile = () => {
     }
   };
 
+  const formatCleanUsername = (rawName?: string) => {
+    if (!rawName) return "tuner";
+    if (
+      rawName === "tonyang11552883" ||
+      rawName === "tonyang1155" ||
+      (auth.currentUser?.email?.toLowerCase() === "tonyang11552883@gmail.com" && rawName.startsWith("tonyang"))
+    ) {
+      return "tony";
+    }
+    // Never display raw email prefixes with @ or trailing random numbers if matching email
+    if (rawName.includes("@")) {
+      return rawName.split("@")[0];
+    }
+    return rawName;
+  };
+
+  const username = formatCleanUsername(
+    profile?.username ||
+    `tuner_${auth.currentUser?.uid?.substring(0, 6)}` ||
+    "tuner"
+  );
+
   const handleFeedShare = async (post: any) => {
     try {
-      const authorName = post.authorUsername || username || 'tuner';
+      const authorName = formatCleanUsername(post.authorUsername || username || 'tuner');
       const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
       if (Platform.OS === 'ios') {
         await Share.share({
@@ -662,18 +742,16 @@ const handleOpenEditProfile = () => {
 
   const handleFeedPostOptions = (post: any) => {
     const isOwner = post.authorId === auth.currentUser?.uid;
-    const options: any[] = [];
-    if (isOwner) {
-      options.push({ text: 'Delete Post', onPress: () => handleDeletePostFromFeed(post), style: 'destructive' });
-    } else {
-      options.push({ 
-        text: 'Report Post', 
-        onPress: () => Alert.alert('Reported', 'Thank you. Our team will review this post.'), 
-        style: 'destructive' 
-      });
-    }
-    options.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert('Post Options', '', options);
+    if (!isOwner) return; // Only allow deletion if owner
+
+    Alert.alert(
+      'Post Options',
+      '',
+      [
+        { text: 'Delete Post', onPress: () => handleDeletePostFromFeed(post), style: 'destructive' },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
   };
 
   const handleDeletePostFromFeed = async (post: any) => {
@@ -721,7 +799,7 @@ const handleOpenEditProfile = () => {
   const submitFeedComment = async () => {
     if (!newFeedComment.trim() || !selectedFeedPost) return;
     try {
-      const currentUserName = profile?.username || auth.currentUser?.displayName || `tuner_${auth.currentUser?.uid?.substring(0, 4)}`;
+      const currentUserName = formatCleanUsername(profile?.username || auth.currentUser?.displayName || `tuner_${auth.currentUser?.uid?.substring(0, 4)}`);
       await addDoc(collection(db, 'posts', selectedFeedPost.id, 'comments'), {
         text: newFeedComment.trim(),
         authorId: auth.currentUser?.uid,
@@ -775,7 +853,7 @@ const handleOpenEditProfile = () => {
 
   const handleShareProfile = async () => {
     try {
-      const shareUsername = profile?.username || username || "tuner";
+      const shareUsername = formatCleanUsername(profile?.username || username || "tuner");
       const profileUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
       if (Platform.OS === 'ios') {
         await Share.share({
@@ -796,7 +874,7 @@ const handleOpenEditProfile = () => {
 
   const handleInvite = async () => {
     try {
-      const inviteUsername = profile?.username || username || "tuner";
+      const inviteUsername = formatCleanUsername(profile?.username || username || "tuner");
       const inviteUrl = `https://revitup.today/?ref=${encodeURIComponent(inviteUsername)}`;
       if (Platform.OS === 'ios') {
         await Share.share({
@@ -812,11 +890,6 @@ const handleOpenEditProfile = () => {
       }
     } catch (error) {}
   };
-
-  const username =
-    profile?.username ||
-    `tuner_${auth.currentUser?.uid?.substring(0, 6)}` ||
-    "tuner";
 
   const renderSubViewContent = () => {
     switch (activeSubView) {
