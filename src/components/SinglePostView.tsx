@@ -43,7 +43,7 @@ export function SinglePostView({ postId, onBack, autoOpenComments }: { postId: s
     const authorUsername = profile?.username || 'tuner';
     const shareUrl = `https://revitup.today/?p=${post.id}&ref=${encodeURIComponent(authorUsername)}`;
     const success = await shareContent({
-      title: 'RevItUp Post',
+      title: 'RevItUp',
       text: '',
       url: shareUrl,
     });

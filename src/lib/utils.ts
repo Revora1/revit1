@@ -110,33 +110,30 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   return false;
 }
 
-export async function shareContent(shareData: { title: string; text: string; url: string }): Promise<boolean> {
+export async function shareContent(shareData: { title?: string; text?: string; url: string }): Promise<boolean> {
+  const shareUrl = shareData.url;
+
   try {
     if (Capacitor.isNativePlatform()) {
       await Share.share({
-        title: shareData.title,
-        text: shareData.text,
-        url: shareData.url,
+        url: shareUrl,
         dialogTitle: 'Share',
       });
       return true;
-    } else if (navigator.share) {
+    } else if (typeof navigator !== 'undefined' && navigator.share) {
       await navigator.share({
-        title: shareData.title,
-        text: shareData.text || undefined,
-        url: shareData.url,
+        url: shareUrl,
       });
       return true;
     }
   } catch (error: any) {
-    if (error.name !== 'AbortError') {
-      console.warn('Share failed, trying copy fallback...', error);
-    } else {
+    if (error.name === 'AbortError') {
       return false; // User cancelled
     }
+    console.warn('Share failed, trying copy fallback...', error);
   }
   
-  // Fallback to clipboard
-  return await copyToClipboard(shareData.url);
+  // Fallback to clipboard: copy ONLY the clean link URL
+  return await copyToClipboard(shareUrl);
 }
 

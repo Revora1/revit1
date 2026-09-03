@@ -73,8 +73,6 @@ export const NativeAd: React.FC<NativeAdProps> = () => {
 
   const handleShare = () => {
     shareContent({
-      title: `Check out ${sponsor.brandName} on RevitUp!`,
-      text: `Discover premium automotive parts and tuning on RevitUp.`,
       url: window.location.origin
     });
   };

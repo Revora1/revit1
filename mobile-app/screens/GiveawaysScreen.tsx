@@ -169,14 +169,11 @@ export default function GiveawaysScreen({ navigation }: any) {
     try {
       if (Platform.OS === 'ios') {
         await Share.share({
-          message: `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.`,
           url: shareUrl,
-          title: "Join me on RevItUp",
         });
       } else {
         await Share.share({
-          message: `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.\n\n${shareUrl}`,
-          title: "Join me on RevItUp",
+          message: shareUrl,
         });
       }
     } catch (err) {

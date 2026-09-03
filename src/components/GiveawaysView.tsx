@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Share } from '@capacitor/share';
-import { getBaseUrl } from '../lib/utils';
+import { getBaseUrl, shareContent } from '../lib/utils';
 
 interface GiveawaysViewProps {
   onBack: () => void;
@@ -128,30 +128,12 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
     const shareUsername = profile?.username || 'tuner';
     const shareUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
     
-    if (Capacitor.isNativePlatform()) {
-      try {
-        await Share.share({
-          title: 'Join me on RevItUp',
-          text: "I'm on RevItUp! Join me and let's unlock the community milestone giveaways.",
-          url: shareUrl,
-          dialogTitle: 'Share with buddies',
-        });
-      } catch (err) {
-        console.error("Error sharing via Capacitor:", err);
-      }
-    } else if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Join me on RevItUp',
-          text: "I'm on RevItUp! Join me and let's unlock the community milestone giveaways.",
-          url: shareUrl
-        });
-      } catch (err) {
-        // User cancelled
-      }
-    } else {
-      const shareText = `I'm on RevItUp! Join me and let's unlock the community milestone giveaways.\n\n${shareUrl}`;
-      navigator.clipboard.writeText(shareText);
+    const success = await shareContent({
+      title: 'RevItUp',
+      text: '',
+      url: shareUrl,
+    });
+    if (success && !Capacitor.isNativePlatform() && !navigator.share) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

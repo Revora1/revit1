@@ -107,10 +107,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (sharing) return;
     setSharing(true);
 
+    const shareUrl = `https://revitup.today/?ref=${profile?.username || user?.uid}`;
     const shareData = {
-      title: 'RevitUp',
-      text: 'Join me on RevitUp - The Social Garage for Car Enthusiasts!',
-      url: `https://revitup.today/?ref=${profile?.username || user?.uid}`
+      title: 'RevItUp',
+      text: '',
+      url: shareUrl
     };
 
     try {

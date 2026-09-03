@@ -349,10 +349,8 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
     const shareUsername = cleanDisplayUsername(targetProfile.username);
     const profileUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
     const shareData = {
-      title: `RevItUp - @${shareUsername}`,
-      text: isOwnProfile 
-        ? `Check out my garage and build specs on RevItUp! Join me using my referral link.` 
-        : `Check out @${shareUsername}'s garage and build specs on RevItUp!`,
+      title: 'RevItUp',
+      text: '',
       url: profileUrl
     };
 

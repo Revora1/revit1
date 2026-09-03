@@ -869,7 +869,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
                 }
 
                 const success = await shareContent({
-                  title: 'RevItUp Post',
+                  title: 'RevItUp',
                   text: '',
                   url: shareUrl,
                 });

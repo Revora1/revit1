@@ -487,14 +487,11 @@ export default function FeedScreen({ navigation }: any) {
       const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
       if (Platform.OS === 'ios') {
         await Share.share({
-          message: `Check out this post by @${authorName} on RevitUp! 🏎️💨`,
           url: shareUrl,
-          title: `Post by @${authorName} on RevitUp`,
         });
       } else {
         await Share.share({
-          message: `Check out this post by @${authorName} on RevitUp! 🏎️💨\n\n${shareUrl}`,
-          title: `Post by @${authorName} on RevitUp`,
+          message: shareUrl,
         });
       }
     } catch (error: any) {

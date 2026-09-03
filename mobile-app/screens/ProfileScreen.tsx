@@ -725,14 +725,11 @@ export default function ProfileScreen({ route, navigation }: any) {
       const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
       if (Platform.OS === 'ios') {
         await Share.share({
-          message: `Check out this post by @${authorName} on RevitUp! 🏎️💨`,
           url: shareUrl,
-          title: `Post by @${authorName} on RevitUp`,
         });
       } else {
         await Share.share({
-          message: `Check out this post by @${authorName} on RevitUp! 🏎️💨\n\n${shareUrl}`,
-          title: `Post by @${authorName} on RevitUp`,
+          message: shareUrl,
         });
       }
     } catch (error: any) {
@@ -857,14 +854,11 @@ export default function ProfileScreen({ route, navigation }: any) {
       const profileUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
       if (Platform.OS === 'ios') {
         await Share.share({
-          message: `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨`,
           url: profileUrl,
-          title: `@${shareUsername} on RevitUp`,
         });
       } else {
         await Share.share({
-          message: `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨\n\n${profileUrl}`,
-          title: `@${shareUsername} on RevitUp`,
+          message: profileUrl,
         });
       }
     } catch (error: any) {
@@ -878,14 +872,11 @@ export default function ProfileScreen({ route, navigation }: any) {
       const inviteUrl = `https://revitup.today/?ref=${encodeURIComponent(inviteUsername)}`;
       if (Platform.OS === 'ios') {
         await Share.share({
-          message: `Join me on RevitUp! The ultimate car community platform.`,
           url: inviteUrl,
-          title: 'Join me on RevitUp',
         });
       } else {
         await Share.share({
-          message: `Join me on RevitUp! The ultimate car community platform.\n\n${inviteUrl}`,
-          title: 'Join me on RevitUp',
+          message: inviteUrl,
         });
       }
     } catch (error) {}
