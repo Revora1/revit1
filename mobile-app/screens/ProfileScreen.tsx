@@ -643,12 +643,18 @@ const handleOpenEditProfile = () => {
     try {
       const authorName = post.authorUsername || username || 'tuner';
       const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
-      const messageText = `Check out this post by @${authorName} on RevitUp! 🏎️💨\n\n${shareUrl}`;
-      await Share.share({
-        message: messageText,
-        url: shareUrl,
-        title: `Post by @${authorName} on RevitUp`,
-      });
+      if (Platform.OS === 'ios') {
+        await Share.share({
+          message: `Check out this post by @${authorName} on RevitUp! 🏎️💨`,
+          url: shareUrl,
+          title: `Post by @${authorName} on RevitUp`,
+        });
+      } else {
+        await Share.share({
+          message: `Check out this post by @${authorName} on RevitUp! 🏎️💨\n\n${shareUrl}`,
+          title: `Post by @${authorName} on RevitUp`,
+        });
+      }
     } catch (error: any) {
       console.log('Error sharing', error);
     }
@@ -771,12 +777,18 @@ const handleOpenEditProfile = () => {
     try {
       const shareUsername = profile?.username || username || "tuner";
       const profileUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
-      const messageText = `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨\n\n${profileUrl}`;
-      await Share.share({
-        message: messageText,
-        url: profileUrl,
-        title: `@${shareUsername} on RevitUp`,
-      });
+      if (Platform.OS === 'ios') {
+        await Share.share({
+          message: `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨`,
+          url: profileUrl,
+          title: `@${shareUsername} on RevitUp`,
+        });
+      } else {
+        await Share.share({
+          message: `Check out @${shareUsername}'s profile and garage on RevitUp! 🏎️💨\n\n${profileUrl}`,
+          title: `@${shareUsername} on RevitUp`,
+        });
+      }
     } catch (error: any) {
       console.log('Error sharing profile:', error);
     }
@@ -786,12 +798,18 @@ const handleOpenEditProfile = () => {
     try {
       const inviteUsername = profile?.username || username || "tuner";
       const inviteUrl = `https://revitup.today/?ref=${encodeURIComponent(inviteUsername)}`;
-      const messageText = `Join me on RevitUp! The ultimate car community platform.\n\n${inviteUrl}`;
-      await Share.share({
-        message: messageText,
-        url: inviteUrl,
-        title: 'Join me on RevitUp',
-      });
+      if (Platform.OS === 'ios') {
+        await Share.share({
+          message: `Join me on RevitUp! The ultimate car community platform.`,
+          url: inviteUrl,
+          title: 'Join me on RevitUp',
+        });
+      } else {
+        await Share.share({
+          message: `Join me on RevitUp! The ultimate car community platform.\n\n${inviteUrl}`,
+          title: 'Join me on RevitUp',
+        });
+      }
     } catch (error) {}
   };
 

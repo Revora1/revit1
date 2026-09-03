@@ -112,14 +112,10 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 
 export async function shareContent(shareData: { title: string; text: string; url: string }): Promise<boolean> {
   try {
-    const formattedText = shareData.text 
-      ? (shareData.text.includes(shareData.url) ? shareData.text : `${shareData.text}\n\n${shareData.url}`) 
-      : shareData.url;
-
     if (Capacitor.isNativePlatform()) {
       await Share.share({
         title: shareData.title,
-        text: formattedText,
+        text: shareData.text,
         url: shareData.url,
         dialogTitle: 'Share',
       });
