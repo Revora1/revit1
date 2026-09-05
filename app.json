@@ -1,8 +1,12 @@
 {
   "ios": {
-    "bundleIdentifier": "com.anonymous.revit"
+    "bundleIdentifier": "today.revitup.app"
   },
   "expo": {
     "scheme": "revitup"
+  },
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-2103649447635694~2975257474",
+    "ios_app_id": "ca-app-pub-2103649447635694~2975257474"
   }
 }

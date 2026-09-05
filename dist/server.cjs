@@ -49,6 +49,118 @@ try {
     console.warn("Firestore Admin initialization skipped:", err);
   }
 }
+var appFirebaseConfig = null;
+try {
+  const configPath = import_path.default.join(process.cwd(), "firebase-applet-config.json");
+  if (import_fs.default.existsSync(configPath)) {
+    appFirebaseConfig = JSON.parse(import_fs.default.readFileSync(configPath, "utf-8"));
+  }
+} catch (e) {
+  console.warn("Could not read firebase-applet-config.json:", e);
+}
+function parseFirestoreFields(fields) {
+  if (!fields) return {};
+  const result = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v.stringValue !== void 0) result[k] = v.stringValue;
+    else if (v.integerValue !== void 0) result[k] = Number(v.integerValue);
+    else if (v.doubleValue !== void 0) result[k] = Number(v.doubleValue);
+    else if (v.booleanValue !== void 0) result[k] = v.booleanValue;
+    else if (v.timestampValue !== void 0) result[k] = v.timestampValue;
+    else if (v.arrayValue !== void 0) {
+      result[k] = (v.arrayValue.values || []).map((item) => {
+        if (item.stringValue !== void 0) return item.stringValue;
+        if (item.mapValue !== void 0) return parseFirestoreFields(item.mapValue.fields);
+        return item;
+      });
+    } else if (v.mapValue !== void 0) {
+      result[k] = parseFirestoreFields(v.mapValue.fields);
+    }
+  }
+  return result;
+}
+function parseFirestoreDoc(doc) {
+  if (!doc) return null;
+  const id = doc.name ? doc.name.split("/").pop() : "";
+  const parsed = parseFirestoreFields(doc.fields);
+  return { id, ...parsed };
+}
+async function getFirestoreDocById(collection, docId) {
+  if (firestoreDb) {
+    try {
+      const snap = await firestoreDb.collection(collection).doc(docId).get();
+      if (snap.exists) return { id: snap.id, ...snap.data() };
+    } catch {
+    }
+  }
+  if (appFirebaseConfig && appFirebaseConfig.projectId && appFirebaseConfig.apiKey) {
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${appFirebaseConfig.projectId}/databases/(default)/documents/${collection}/${docId}?key=${appFirebaseConfig.apiKey}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        return parseFirestoreDoc(data);
+      }
+    } catch (err) {
+      console.warn(`REST error fetching ${collection}/${docId}:`, err);
+    }
+  }
+  return null;
+}
+async function getFirestoreUserByUsername(username) {
+  const clean = username.toLowerCase().trim();
+  const candidates = [clean];
+  if (clean === "tony") {
+    candidates.push("tonyang11552883", "tonyang1155");
+  }
+  if (firestoreDb) {
+    for (const c of candidates) {
+      try {
+        const snap = await firestoreDb.collection("users").where("usernameLower", "==", c).limit(1).get();
+        if (!snap.empty) {
+          return { id: snap.docs[0].id, ...snap.docs[0].data() };
+        }
+      } catch {
+      }
+    }
+  }
+  if (appFirebaseConfig && appFirebaseConfig.projectId && appFirebaseConfig.apiKey) {
+    for (const c of candidates) {
+      try {
+        const url = `https://firestore.googleapis.com/v1/projects/${appFirebaseConfig.projectId}/databases/(default)/documents:runQuery?key=${appFirebaseConfig.apiKey}`;
+        const body = {
+          structuredQuery: {
+            from: [{ collectionId: "users" }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: "usernameLower" },
+                op: "EQUAL",
+                value: { stringValue: c }
+              }
+            },
+            limit: 1
+          }
+        };
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (res.ok) {
+          const list = await res.json();
+          for (const item of list) {
+            if (item.document) {
+              return parseFirestoreDoc(item.document);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("REST error querying user:", err);
+      }
+    }
+  }
+  return null;
+}
 app.use(import_express.default.json());
 var appleAppSiteAssociation = {
   applinks: {
@@ -503,11 +615,10 @@ async function generateDynamicHtml(reqUrl, rawHtml) {
         <p style="font-size:12px;color:#71717a;">\xA9 2026 RevItUp. All rights reserved. <a href="/privacy-policy" style="color:#a1a1aa;">Privacy Policy</a> | <a href="/delete-account" style="color:#a1a1aa;">Account Deletion</a></p>
       </div>
     `;
-    if (postId && firestoreDb) {
+    if (postId) {
       try {
-        const docSnap = await firestoreDb.collection("posts").doc(postId).get();
-        if (docSnap.exists) {
-          const post = docSnap.data();
+        const post = await getFirestoreDocById("posts", postId);
+        if (post) {
           const author = post.authorUsername || "Tuner";
           const cleanCaption = post.caption ? String(post.caption).replace(/(\r\n|\n|\r)/gm, " ").trim() : "Project Build Update";
           const previewText = cleanCaption.length > 80 ? cleanCaption.slice(0, 77) + "..." : cleanCaption;
@@ -549,37 +660,38 @@ async function generateDynamicHtml(reqUrl, rawHtml) {
       } catch (err) {
         console.warn("Error fetching post for SEO:", err);
       }
-    } else if (username && firestoreDb) {
+    } else if (username) {
       try {
-        const userQuery = await firestoreDb.collection("users").where("usernameLower", "==", username.toLowerCase()).limit(1).get();
-        if (!userQuery.empty) {
-          const user = userQuery.docs[0].data();
-          const displayName = user.displayName || `@${user.username}`;
-          const bio = user.bio ? String(user.bio).replace(/(\r\n|\n|\r)/gm, " ").trim() : `Check out @${user.username}'s virtual garage and project builds on RevItUp.`;
-          title = `${displayName} (@${user.username}) - Virtual Garage & Car Builds | RevItUp`;
-          description = `${bio} - Explore @${user.username}'s modified project cars, dyno pull sheets, and track times on RevItUp.`;
+        const user = await getFirestoreUserByUsername(username);
+        if (user) {
+          const rawName = user.displayName || user.username || username;
+          const cleanDisplayName = rawName === "tonyang11552883" || rawName === "tonyang1155" ? "Tony" : rawName;
+          const cleanUsername = user.username === "tonyang11552883" || user.username === "tonyang1155" ? "tony" : user.username || username;
+          const bio = user.bio ? String(user.bio).replace(/(\r\n|\n|\r)/gm, " ").trim() : `@${cleanUsername} on RevItUp: Automotive builds, virtual garage, dyno numbers & car community.`;
+          title = `${cleanDisplayName} on RevItUp`;
+          description = bio;
           image = user.profilePic || user.photoURL || image;
           ogType = "profile";
-          keywords = `${user.username}, ${displayName}, virtual garage, tuner profile, project car builds, RevItUp`;
+          keywords = `${cleanUsername}, ${cleanDisplayName}, virtual garage, tuner profile, project car builds, RevItUp`;
           jsonLd = {
             "@context": "https://schema.org",
             "@type": "ProfilePage",
             mainEntity: {
               "@type": "Person",
-              name: displayName,
-              alternateName: user.username,
+              name: cleanDisplayName,
+              alternateName: cleanUsername,
               description: bio,
               image,
-              url: `https://revitup.today/?ref=${user.username}`
+              url: `https://revitup.today/?ref=${cleanUsername}`
             }
           };
           noscriptContent = `
             <div style="background:#000;color:#fff;padding:32px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:700px;margin:0 auto;">
               <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
-                ${image ? `<img src="${image}" alt="${displayName}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid #27272a;" />` : ""}
+                ${image ? `<img src="${image}" alt="${cleanDisplayName}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid #27272a;" />` : ""}
                 <div>
-                  <h1 style="font-size:24px;font-weight:bold;color:#fff;margin:0 0 4px 0;">${displayName}</h1>
-                  <p style="font-size:14px;color:#a1a1aa;margin:0;">@${user.username}</p>
+                  <h1 style="font-size:24px;font-weight:bold;color:#fff;margin:0 0 4px 0;">${cleanDisplayName}</h1>
+                  <p style="font-size:14px;color:#a1a1aa;margin:0;">@${cleanUsername}</p>
                 </div>
               </div>
               <p style="font-size:15px;color:#e4e4e7;line-height:1.6;margin-bottom:24px;">${bio}</p>
@@ -587,18 +699,17 @@ async function generateDynamicHtml(reqUrl, rawHtml) {
                 <h2 style="font-size:16px;color:#fff;margin:0 0 8px 0;">Virtual Garage Specs</h2>
                 <p style="font-size:13px;color:#a1a1aa;margin:0;">Vehicles logged: ${user.garage && user.garage.length || 0} \u2022 Followers: ${user.followersCount || 0}</p>
               </div>
-              <p style="font-size:13px;color:#71717a;"><a href="https://revitup.today/?ref=${user.username}" style="color:#ef4444;font-weight:bold;text-decoration:none;">View complete garage & build timeline on RevItUp \u2192</a></p>
+              <p style="font-size:13px;color:#71717a;"><a href="https://revitup.today/?ref=${cleanUsername}" style="color:#ef4444;font-weight:bold;text-decoration:none;">View complete garage & build timeline on RevItUp \u2192</a></p>
             </div>
           `;
         }
       } catch (err) {
         console.warn("Error fetching user for SEO:", err);
       }
-    } else if (carId && firestoreDb) {
+    } else if (carId) {
       try {
-        const carSnap = await firestoreDb.collection("cars").doc(carId).get();
-        if (carSnap.exists) {
-          const car = carSnap.data();
+        const car = await getFirestoreDocById("cars", carId);
+        if (car) {
           const carName = `${car.year || ""} ${car.make || ""} ${car.model || ""}`.trim() || "Custom Project Car";
           const stage = car.stage || "Custom Build";
           const powerInfo = car.power ? `(${car.power} HP)` : "";
