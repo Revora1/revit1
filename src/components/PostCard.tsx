@@ -436,6 +436,32 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
     }
   };
 
+  const handleShare = async () => {
+    if (isSharing) return;
+    setIsSharing(true);
+    const authorUsername = author?.username || profile?.username || 'tuner';
+    const shareUrl = `https://revitup.today/?p=${post.id}&ref=${encodeURIComponent(authorUsername)}`;
+    try {
+      if (user) {
+        const postRef = doc(db, 'posts', post.id);
+        updateDoc(postRef, { sharesCount: increment(1) }).catch(e => console.error(e));
+      }
+
+      const success = await shareContent({
+        title: 'RevItUp',
+        text: '',
+        url: shareUrl,
+      });
+      
+      if (success && !Capacitor.isNativePlatform() && !navigator.share) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const hasIncrementedView = useRef(false);
 
   useEffect(() => {
@@ -856,32 +882,7 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           </AnimatePresence>
           <button 
             disabled={isSharing}
-            onClick={async () => {
-              if (isSharing) return;
-              setIsSharing(true);
-              const authorUsername = author?.username || profile?.username || 'tuner';
-              const shareUrl = `https://revitup.today/?p=${post.id}&ref=${encodeURIComponent(authorUsername)}`;
-              try {
-                // Increment share count
-                if (user) {
-                  const postRef = doc(db, 'posts', post.id);
-                  updateDoc(postRef, { sharesCount: increment(1) }).catch(e => console.error(e));
-                }
-
-                const success = await shareContent({
-                  title: 'RevItUp',
-                  text: '',
-                  url: shareUrl,
-                });
-                
-                if (success && !Capacitor.isNativePlatform() && !navigator.share) {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2500);
-                }
-              } finally {
-                setIsSharing(false);
-              }
-            }}
+            onClick={handleShare}
             className="w-10 h-10 bg-black/25 backdrop-blur-md rounded-full flex items-center justify-center active:scale-95 transition-all group-hover:bg-black/40 border border-white/10 shadow-lg disabled:opacity-50"
           >
             {copied ? <Check size={20} className="text-green-500" /> : <Share2 size={20} className="text-white" />}
@@ -913,53 +914,103 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
           </button>
         )}
 
-        {user && user.uid !== post.authorId && (
-          <div className="relative flex-shrink-0">
-            <button 
-              onClick={() => setShowSafetyMenu(!showSafetyMenu)}
-              className={`w-10 h-10 backdrop-blur-md rounded-full flex items-center justify-center active:scale-95 transition-all border shadow-lg ${
-                showSafetyMenu ? 'bg-red-600 border-red-500 text-white' : 'bg-black/25 text-white border-white/10 hover:bg-zinc-800'
-              }`}
-            >
-              <MoreVertical size={20} />
-            </button>
-            
-            <AnimatePresence>
-              {showSafetyMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowSafetyMenu(false)} />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                    className="absolute right-0 bottom-12 w-44 bg-zinc-950 border border-zinc-850 rounded-2xl shadow-2xl overflow-hidden z-50 p-1.5"
+        {/* Post Options Menu (Three Dots) */}
+        <div className="relative flex-shrink-0">
+          <button 
+            id={`post-options-${post.id}`}
+            onClick={() => setShowSafetyMenu(!showSafetyMenu)}
+            aria-label="Post Options"
+            className={`w-10 h-10 backdrop-blur-md rounded-full flex items-center justify-center active:scale-95 transition-all border shadow-lg ${
+              showSafetyMenu ? 'bg-zinc-700 border-zinc-500 text-white' : 'bg-black/25 text-white border-white/10 hover:bg-zinc-800'
+            }`}
+          >
+            <MoreVertical size={20} />
+          </button>
+          
+          <AnimatePresence>
+            {showSafetyMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowSafetyMenu(false)} />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  className="absolute right-0 bottom-12 w-48 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50 p-1.5"
+                >
+                  {(user?.uid === post.authorId || isGroupAdmin || user?.email?.toLowerCase() === 'tonyang11552883@gmail.com') && (
+                    <button
+                      onClick={() => {
+                        setShowSafetyMenu(false);
+                        handleDelete();
+                      }}
+                      className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors rounded-xl"
+                    >
+                      <Trash2 size={14} className="text-red-400" />
+                      Delete Post
+                    </button>
+                  )}
+
+                  {user?.email?.toLowerCase() === 'tonyang11552883@gmail.com' && (
+                    <button
+                      onClick={() => {
+                        setShowSafetyMenu(false);
+                        handlePin();
+                      }}
+                      className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors rounded-xl"
+                    >
+                      {post.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                      {post.isPinned ? 'Unpin Post' : 'Pin to Top'}
+                    </button>
+                  )}
+
+                  {(!user || user.uid !== post.authorId) && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowSafetyMenu(false);
+                          if (!user) {
+                            alert('Please sign in to report this post.');
+                            return;
+                          }
+                          setShowReportModal(true);
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
+                      >
+                        <Flag size={14} className="text-zinc-500" />
+                        Report Post
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowSafetyMenu(false);
+                          if (!user) {
+                            alert('Please sign in to block this user.');
+                            return;
+                          }
+                          setShowBlockConfirm(true);
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
+                      >
+                        <UserX size={14} className="text-zinc-500" />
+                        Block User
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setShowSafetyMenu(false);
+                      handleShare();
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
                   >
-                    <button
-                      onClick={() => {
-                        setShowSafetyMenu(false);
-                        setShowReportModal(true);
-                      }}
-                      className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
-                    >
-                      <Flag size={14} className="text-zinc-500" />
-                      Report Post
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowSafetyMenu(false);
-                        setShowBlockConfirm(true);
-                      }}
-                      className="flex items-center gap-2.5 w-full px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors rounded-xl"
-                    >
-                      <UserX size={14} className="text-zinc-500" />
-                      Block User
-                    </button>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
+                    <Share2 size={14} className="text-zinc-500" />
+                    Share / Copy Link
+                  </button>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* User Profile Hook */}
         <div className="relative w-10 h-12 flex flex-col items-center flex-shrink-0 mb-2 mt-1">

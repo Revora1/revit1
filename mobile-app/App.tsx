@@ -1,6 +1,12 @@
 import React, { useState, useEffect, Component, ReactNode } from 'react';
-import { TouchableOpacity, Platform, View, Text } from 'react-native';
+import { TouchableOpacity, Platform, View, Text, LogBox } from 'react-native';
 import { NavigationContainer, DarkTheme, getStateFromPath } from '@react-navigation/native';
+
+// Ignore benign Firestore WebChannel stream recycling warnings (e.g. 60-min server keepalive recycle)
+LogBox.ignoreLogs([
+  "WebChannelConnection RPC 'Listen' stream",
+  "@firebase/firestore",
+]);
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons, Feather } from '@expo/vector-icons';

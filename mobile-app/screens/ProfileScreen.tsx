@@ -751,18 +751,53 @@ export default function ProfileScreen({ route, navigation }: any) {
     }
   };
 
-  const handleFeedPostOptions = (post: any) => {
-    const isOwner = post.authorId === auth.currentUser?.uid;
-    if (!isOwner) return; // Only allow deletion if owner
+  const handleReportPost = async (post: any) => {
+    if (!auth.currentUser) {
+      Alert.alert('Sign In', 'Please sign in to report a post.');
+      return;
+    }
+    try {
+      await addDoc(collection(db, 'reports'), {
+        postId: post.id,
+        reportedBy: auth.currentUser.uid,
+        createdAt: Date.now()
+      });
+      Alert.alert('Reported', 'Thank you. Our team will review this post.');
+    } catch (e) {
+      console.error('Error reporting post:', e);
+      Alert.alert('Error', 'Failed to report post.');
+    }
+  };
 
-    Alert.alert(
-      'Post Options',
-      '',
-      [
-        { text: 'Delete Post', onPress: () => handleDeletePostFromFeed(post), style: 'destructive' },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+  const handleBlockUser = async (userId: string) => {
+    if (!auth.currentUser) {
+      Alert.alert('Sign In', 'Please sign in to block a user.');
+      return;
+    }
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'blockedUsers', userId), {
+        blockedAt: Date.now()
+      });
+      Alert.alert('Blocked', 'You will no longer see content from this user.');
+    } catch (e) {
+      console.error('Error blocking user:', e);
+      Alert.alert('Blocked', 'User has been blocked.');
+    }
+  };
+
+  const handleFeedPostOptions = (post: any) => {
+    const isOwner = post.authorId === auth.currentUser?.uid || auth.currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com';
+    const options: any[] = [];
+    if (isOwner) {
+      options.push({ text: 'Delete Post', onPress: () => handleDeletePostFromFeed(post), style: 'destructive' });
+    } else {
+      options.push({ text: 'Report Post', onPress: () => handleReportPost(post), style: 'destructive' });
+      options.push({ text: 'Block User', onPress: () => handleBlockUser(post.authorId), style: 'destructive' });
+    }
+    options.push({ text: 'Share Post', onPress: () => handleFeedShare(post) });
+    options.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert('Post Options', '', options);
   };
 
   const handleDeletePostFromFeed = async (post: any) => {
@@ -799,9 +834,15 @@ export default function ProfileScreen({ route, navigation }: any) {
       updateDoc(doc(db, 'posts', post.id), { viewsCount: increment(1) }).catch(console.error);
     }
     try {
-      const q = query(collection(db, 'posts', post.id, 'comments'), orderBy('createdAt', 'asc'));
+      const q = query(collection(db, 'comments'), where('postId', '==', post.id));
       const snap = await getDocs(q);
-      setFeedComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      fetched.sort((a: any, b: any) => {
+        const aTime = typeof a.createdAt === 'number' ? a.createdAt : (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0);
+        const bTime = typeof b.createdAt === 'number' ? b.createdAt : (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0);
+        return aTime - bTime;
+      });
+      setFeedComments(fetched);
     } catch (e) {
       console.log('Error loading comments:', e);
     }
@@ -809,15 +850,35 @@ export default function ProfileScreen({ route, navigation }: any) {
 
   const submitFeedComment = async () => {
     if (!newFeedComment.trim() || !selectedFeedPost) return;
+    if (!auth.currentUser) {
+      Alert.alert('Sign In', 'Please sign in to comment.');
+      return;
+    }
+    const currentUid = auth.currentUser.uid;
+    const textToSubmit = newFeedComment.trim();
+    const commentId = `${Date.now()}_${currentUid}`;
+    setNewFeedComment('');
+
     try {
-      const currentUserName = formatCleanUsername(profile?.username || auth.currentUser?.displayName || `tuner_${auth.currentUser?.uid?.substring(0, 4)}`);
-      await addDoc(collection(db, 'posts', selectedFeedPost.id, 'comments'), {
-        text: newFeedComment.trim(),
-        authorId: auth.currentUser?.uid,
+      const currentUserName = formatCleanUsername(profile?.username || auth.currentUser?.displayName || `tuner_${currentUid.substring(0, 4)}`);
+      
+      await setDoc(doc(db, 'comments', commentId), {
+        postId: selectedFeedPost.id,
+        authorId: currentUid,
         authorUsername: currentUserName,
-        createdAt: serverTimestamp()
+        text: textToSubmit,
+        createdAt: Date.now()
       });
-      await updateDoc(doc(db, 'posts', selectedFeedPost.id), { commentsCount: increment(1) });
+
+      await setDoc(doc(db, 'posts', selectedFeedPost.id, 'comments', commentId), {
+        postId: selectedFeedPost.id,
+        authorId: currentUid,
+        authorUsername: currentUserName,
+        text: textToSubmit,
+        createdAt: Date.now()
+      }).catch(() => {});
+
+      await updateDoc(doc(db, 'posts', selectedFeedPost.id), { commentsCount: increment(1) }).catch(() => {});
       
       setPosts(current => current.map(p => 
         p.id === selectedFeedPost.id ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p
@@ -825,25 +886,26 @@ export default function ProfileScreen({ route, navigation }: any) {
       setFeedViewerPosts(current => current.map(p => 
         p.id === selectedFeedPost.id ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p
       ));
-      setFeedComments(prev => [...prev, { id: Date.now().toString(), text: newFeedComment.trim(), authorUsername: currentUserName }]);
-      setNewFeedComment('');
+      setFeedComments(prev => [...prev, { id: commentId, text: textToSubmit, authorUsername: currentUserName, createdAt: Date.now() }]);
     } catch (e) {
       console.error('Error submitting comment:', e);
+      Alert.alert('Error', 'Failed to submit comment.');
     }
   };
 
   const handlePostOptions = (post: any) => {
-    const isOwner = post.authorId === auth.currentUser?.uid;
-    if (!isOwner) return; // Only allow deletion if owner
+    const isOwner = post.authorId === auth.currentUser?.uid || auth.currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com';
+    const options: any[] = [];
+    if (isOwner) {
+      options.push({ text: 'Delete Post', onPress: () => handleDeletePost(post), style: 'destructive' });
+    } else {
+      options.push({ text: 'Report Post', onPress: () => handleReportPost(post), style: 'destructive' });
+      options.push({ text: 'Block User', onPress: () => handleBlockUser(post.authorId), style: 'destructive' });
+    }
+    options.push({ text: 'Share Post', onPress: () => handleFeedShare(post) });
+    options.push({ text: 'Cancel', style: 'cancel' });
 
-    Alert.alert(
-      'Post Options',
-      '',
-      [
-        { text: 'Delete Post', onPress: () => handleDeletePost(post), style: 'destructive' },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    Alert.alert('Post Options', '', options);
   };
 
   const handleDeletePost = async (post: any) => {
@@ -1875,7 +1937,24 @@ export default function ProfileScreen({ route, navigation }: any) {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.messageButton}
-                    onPress={() => navigation.navigate('Chat', { otherUser: { id: targetUserId, username: profile?.username || username, profilePic: profile?.profilePic } })}
+                    onPress={() => {
+                      if (!auth.currentUser) {
+                        Alert.alert('Sign In', 'Please sign in to message this user.');
+                        return;
+                      }
+                      const myId = auth.currentUser.uid;
+                      const otherId = targetUserId;
+                      const chatId = myId < otherId ? `${myId}_${otherId}` : `${otherId}_${myId}`;
+                      navigation.navigate('Chat', { 
+                        chatId,
+                        otherUser: { 
+                          id: otherId, 
+                          uid: otherId, 
+                          username: profile?.username || username || 'User', 
+                          profilePic: profile?.profilePic || null 
+                        } 
+                      });
+                    }}
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
                     <Text style={styles.editButtonText}>Message</Text>

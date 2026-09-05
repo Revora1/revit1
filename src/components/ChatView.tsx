@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, Send, Search, Trash2 } from 'lucide-react';
+import { ChevronLeft, Send, Search, Trash2, Check, CheckCheck } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot, getDoc, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -18,7 +18,21 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState(otherUser?.initialMessage || '');
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      const handleResize = () => {
+        if (window.visualViewport) {
+          setViewportHeight(window.visualViewport.height);
+        }
+      };
+      setViewportHeight(window.visualViewport.height);
+      window.visualViewport.addEventListener('resize', handleResize);
+      return () => window.visualViewport?.removeEventListener('resize', handleResize);
+    }
+  }, []);
 
   useEffect(() => {
     if (otherUser?.initialMessage) {
@@ -32,8 +46,7 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
     const messagesRef = collection(db, 'messages');
     const q = query(
       messagesRef,
-      where('chatId', '==', chatId),
-      orderBy('createdAt', 'asc')
+      where('chatId', '==', chatId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -41,10 +54,38 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
         id: doc.id,
         ...doc.data()
       })) as ChatMessage[];
+      // Sort in-memory by createdAt ascending
+      msgs.sort((a, b) => {
+        const aRaw = (a as any).createdAt;
+        const bRaw = (b as any).createdAt;
+        const aTime = typeof aRaw === 'number' ? aRaw : (aRaw?.toMillis ? aRaw.toMillis() : 0);
+        const bTime = typeof bRaw === 'number' ? bRaw : (bRaw?.toMillis ? bRaw.toMillis() : 0);
+        return aTime - bTime;
+      });
       setMessages(msgs);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+      // Auto mark incoming unread messages as read
+      let hasIncomingUnread = false;
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.senderId && data.senderId !== user.uid && !data.read) {
+          hasIncomingUnread = true;
+          updateDoc(doc(db, 'messages', docSnap.id), {
+            read: true,
+            readAt: Date.now()
+          }).catch(console.error);
+        }
+      });
+
+      if (hasIncomingUnread) {
+        updateDoc(doc(db, 'chats', chatId), {
+          lastMessageRead: true,
+          [`readBy.${user.uid}`]: Date.now()
+        }).catch(console.error);
+      }
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'messages');
+      console.error('Error listening to messages:', error);
     });
 
     return unsubscribe;
@@ -84,14 +125,17 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
         chatId,
         senderId: user.uid,
         text,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        read: false,
+        readAt: null
       });
 
       await setDoc(doc(db, 'chats', chatId), {
         participantIds: Array.from(new Set([user.uid, otherUser?.uid || otherUser?.id || ''])).filter(Boolean),
         lastMessage: text,
         lastMessageAt: Date.now(),
-        lastSenderId: user.uid
+        lastSenderId: user.uid,
+        lastMessageRead: false
       }, { merge: true });
 
       const targetRecipientId = otherUser?.uid || otherUser?.id;
@@ -124,7 +168,8 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed inset-0 z-[100] bg-black flex flex-col"
+      style={viewportHeight ? { height: `${viewportHeight}px` } : undefined}
+      className="fixed inset-0 z-[100] bg-black flex flex-col h-[100dvh]"
     >
       <div className="flex-none flex items-center gap-4 p-4 border-b border-zinc-900 bg-black z-40 w-full pt-[calc(env(safe-area-inset-top,0px)+1rem)] shadow-md">
         <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-full transition-colors active:scale-95">
@@ -144,11 +189,14 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-20 overflow-x-hidden">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-4 overflow-x-hidden">
         <AnimatePresence initial={false}>
           {messages.map((msg, idx) => {
             const isMe = msg.senderId === user?.uid;
             const showAvatar = !isMe && (idx === 0 || messages[idx - 1].senderId !== msg.senderId);
+            const timeFormatted = msg.createdAt 
+              ? new Date(typeof msg.createdAt === 'number' ? msg.createdAt : (msg.createdAt as any)?.toMillis?.() || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : '';
             
             return (
               <motion.div 
@@ -188,7 +236,7 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
                         )}
                       </div>
                     )}
-                    <div className={`flex flex-col max-w-[75%] gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex flex-col max-w-[78%] gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
                       <div className={`px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm ${
                         isMe 
                           ? 'bg-white text-black rounded-br-sm' 
@@ -196,9 +244,32 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
                       }`}>
                         {msg.text}
                       </div>
-                      <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-tighter px-1">
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      
+                      {isMe ? (
+                        <div className="flex items-center gap-1.5 self-end px-1">
+                          <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-tighter">
+                            {timeFormatted}
+                          </span>
+                          {msg.read ? (
+                            <span 
+                              className="flex items-center gap-1 text-[10px] font-bold text-sky-400" 
+                              title={msg.readAt ? `Read at ${new Date(msg.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Read'}
+                            >
+                              <CheckCheck size={13} className="text-sky-400 stroke-[2.5]" />
+                              <span>Read</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-500" title="Delivered">
+                              <Check size={12} className="text-zinc-500 stroke-[2]" />
+                              <span>Delivered</span>
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-zinc-600 uppercase tracking-tighter px-1">
+                          {timeFormatted}
+                        </span>
+                      )}
                     </div>
                   </motion.div>
               </motion.div>
@@ -208,19 +279,22 @@ export function ChatView({ chatId, otherUser, onBack }: ChatViewProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-zinc-950/80 backdrop-blur border-t border-zinc-900 pb-[calc(1rem+env(safe-area-inset-bottom,16px))]">
+      <div className="p-3 bg-zinc-950/90 backdrop-blur border-t border-zinc-900 pb-[calc(0.75rem+env(safe-area-inset-bottom,12px))]">
         <form onSubmit={handleSend} className="flex items-center gap-2">
           <input
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
+            onFocus={() => {
+              setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 200);
+            }}
             placeholder="Message..."
-            className="flex-1 bg-zinc-900 rounded-full px-4 py-3 outline-none text-sm placeholder:text-zinc-500 focus:ring-2 focus:ring-zinc-700"
+            className="flex-1 bg-zinc-900 text-white rounded-full px-4 py-3 outline-none text-sm placeholder:text-zinc-500 focus:ring-2 focus:ring-zinc-700 border border-zinc-800"
           />
           <button 
             type="submit"
             disabled={!inputText.trim()}
-            className="p-3 bg-white text-black rounded-full hover:bg-zinc-200 disabled:opacity-50 disabled:bg-zinc-800 disabled:text-zinc-500 transition-colors"
+            className="p-3 bg-white text-black rounded-full hover:bg-zinc-200 disabled:opacity-40 disabled:bg-zinc-800 disabled:text-zinc-500 transition-colors active:scale-95"
           >
             <Send size={18} className="translate-x-0.5" />
           </button>

@@ -201,10 +201,10 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
   useEffect(() => {
     if (!isOpen) return;
     
+    // Query comments by postId without composite index requirement
     const q = query(
       collection(db, 'comments'),
-      where('postId', '==', postId),
-      orderBy('createdAt', 'desc')
+      where('postId', '==', postId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -212,10 +212,19 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
         id: doc.id,
         ...doc.data()
       })) as Comment[];
+      // Sort in-memory by createdAt descending
+      fetchedComments.sort((a, b) => {
+        const aRaw = (a as any).createdAt;
+        const bRaw = (b as any).createdAt;
+        const aTime = typeof aRaw === 'number' ? aRaw : (aRaw?.toMillis ? aRaw.toMillis() : 0);
+        const bTime = typeof bRaw === 'number' ? bRaw : (bRaw?.toMillis ? bRaw.toMillis() : 0);
+        return bTime - aTime;
+      });
       setComments(fetchedComments);
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'comments');
+      console.error('Error fetching comments:', error);
+      setLoading(false);
     });
 
     return unsubscribe;
@@ -282,6 +291,12 @@ export function CommentsSheet({ postId, isOpen, onClose }: CommentsSheetProps) {
         text: commentText,
         createdAt: Date.now()
       });
+      await setDoc(doc(db, 'posts', postId, 'comments', commentId), {
+        authorId: user.uid,
+        postId: postId,
+        text: commentText,
+        createdAt: Date.now()
+      }).catch(() => {});
       await updateDoc(doc(db, 'posts', postId), { commentsCount: increment(1) });
       
       if (postSnap.exists()) {

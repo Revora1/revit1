@@ -6,7 +6,7 @@ import mobileAds, { NativeAd, NativeAdView, NativeAsset, NativeAssetType, Native
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
-import { collection, deleteDoc, setDoc, where, query, orderBy, limit, getDocs, getDoc, doc, updateDoc, increment, addDoc, serverTimestamp, startAfter } from 'firebase/firestore';
+import { collection, deleteDoc, setDoc, where, query, orderBy, limit, getDocs, getDoc, doc, updateDoc, increment, addDoc, serverTimestamp, startAfter, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -274,6 +274,9 @@ export default function FeedScreen({ navigation }: any) {
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [postOptionsVisible, setPostOptionsVisible] = useState(false);
+  const [selectedPostForOptions, setSelectedPostForOptions] = useState<any>(null);
+  const commentUnsubRef = useRef<(() => void) | null>(null);
   
   const [containerHeight, setContainerHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -500,17 +503,8 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handlePostOptions = (post: any) => {
-    const isOwner = post.authorId === auth.currentUser?.uid;
-    const options: any[] = [];
-    if (isOwner) {
-      options.push({ text: 'Delete Post', onPress: () => handleDeletePost(post), style: 'destructive' });
-    } else {
-      options.push({ text: 'Report Post', onPress: () => handleReport(post), style: 'destructive' });
-      options.push({ text: 'Block User', onPress: () => handleBlock(post.authorId), style: 'destructive' });
-    }
-    options.push({ text: 'Cancel', style: 'cancel' });
-
-    Alert.alert('Post Options', '', options);
+    setSelectedPostForOptions(post);
+    setPostOptionsVisible(true);
   };
 
   const handleDeletePost = async (post: any) => {
@@ -530,15 +524,20 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handleReport = async (post: any) => {
+    if (!auth.currentUser) {
+      Alert.alert('Sign In', 'Please sign in to report a post.');
+      return;
+    }
     try {
       await addDoc(collection(db, 'reports'), {
         postId: post.id,
-        reportedBy: auth.currentUser?.uid,
-        createdAt: serverTimestamp()
+        reportedBy: auth.currentUser.uid,
+        createdAt: Date.now()
       });
       Alert.alert('Reported', 'Thank you. Our team will review this post.');
     } catch (err) {
       console.error(err);
+      Alert.alert('Error', 'Failed to submit report.');
     }
   };
 
@@ -551,69 +550,105 @@ export default function FeedScreen({ navigation }: any) {
     setSelectedPost(post);
     setShowCommentModal(true);
     if (post.id) {
-      updateDoc(doc(db, 'posts', post.id), { viewsCount: increment(1) }).catch(console.error);
+      updateDoc(doc(db, 'posts', post.id), { viewsCount: increment(1), viewCount: increment(1) }).catch(console.error);
       setPosts(current => current.map(p => p.id === post.id ? { ...p, viewsCount: (p.viewsCount || 0) + 1 } : p));
     }
     
-    const q = query(collection(db, 'posts', post.id, 'comments'), orderBy('createdAt', 'asc'));
-    const snap = await getDocs(q);
-    setComments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    if (commentUnsubRef.current) {
+      commentUnsubRef.current();
+      commentUnsubRef.current = null;
+    }
+
+    const q = query(collection(db, 'comments'), where('postId', '==', post.id));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const liveComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      liveComments.sort((a: any, b: any) => {
+        const aTime = typeof a.createdAt === 'number' ? a.createdAt : (a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0));
+        const bTime = typeof b.createdAt === 'number' ? b.createdAt : (b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0));
+        return aTime - bTime;
+      });
+      setComments(liveComments);
+    }, (err) => {
+      console.error('Error listening to comments:', err);
+    });
+
+    commentUnsubRef.current = unsub;
+  };
+
+  const closeComments = () => {
+    setShowCommentModal(false);
+    if (commentUnsubRef.current) {
+      commentUnsubRef.current();
+      commentUnsubRef.current = null;
+    }
   };
 
   const submitComment = async () => {
     if (!newComment.trim() || !selectedPost) return;
+    if (!auth.currentUser) {
+      Alert.alert('Sign In', 'Please sign in to comment.');
+      return;
+    }
+
+    const currentUid = auth.currentUser.uid;
     let currentUsername = 'tuner';
     try {
-      if (auth.currentUser?.uid) {
-        if (auth.currentUser.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
-          currentUsername = 'tony';
+      if (auth.currentUser.email?.toLowerCase() === 'tonyang11552883@gmail.com') {
+        currentUsername = 'tony';
+      } else {
+        const uSnap = await getDoc(doc(db, 'users', currentUid));
+        if (uSnap.exists() && uSnap.data()?.username) {
+          currentUsername = formatCleanUsername(uSnap.data().username);
         } else {
-          const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
-          if (uSnap.exists() && uSnap.data()?.username) {
-            currentUsername = formatCleanUsername(uSnap.data().username);
-          } else {
-            currentUsername = `tuner_${auth.currentUser.uid.substring(0, 6)}`;
-          }
+          currentUsername = `tuner_${currentUid.substring(0, 6)}`;
         }
       }
     } catch (e) {
       console.log('Error fetching user for comment:', e);
     }
 
+    const textToSubmit = newComment.trim();
+    const commentId = `${Date.now()}_${currentUid}`;
+    setNewComment('');
+
     try {
-      await addDoc(collection(db, 'posts', selectedPost.id, 'comments'), {
-        text: newComment.trim(),
-        authorId: auth.currentUser?.uid,
+      await setDoc(doc(db, 'comments', commentId), {
+        postId: selectedPost.id,
+        authorId: currentUid,
         authorUsername: currentUsername,
-        createdAt: serverTimestamp()
+        text: textToSubmit,
+        createdAt: Date.now()
       });
-      await updateDoc(doc(db, 'posts', selectedPost.id), { commentsCount: increment(1) });
+
+      await setDoc(doc(db, 'posts', selectedPost.id, 'comments', commentId), {
+        postId: selectedPost.id,
+        authorId: currentUid,
+        authorUsername: currentUsername,
+        text: textToSubmit,
+        createdAt: Date.now()
+      }).catch(() => {});
+
+      await updateDoc(doc(db, 'posts', selectedPost.id), { commentsCount: increment(1) }).catch(() => {});
       
       setPosts(current => current.map(p => 
         p.id === selectedPost.id ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p
       ));
-      
-      setComments(prev => [...prev, { id: Date.now().toString(), text: newComment.trim(), authorUsername: 'You' }]);
-      setNewComment('');
 
-      // Send Push Notification
-      if (selectedPost.authorId && selectedPost.authorId !== auth.currentUser?.uid) {
-        import('firebase/firestore').then(async ({ getDoc, doc }) => {
-          try {
-            const authorDoc = await getDoc(doc(db, 'users', selectedPost.authorId));
-            const pushToken = authorDoc.data()?.pushToken;
-            if (pushToken) {
-              const { sendPushNotification } = await import('../lib/notifications');
-              sendPushNotification(pushToken, 'New Comment', `Someone commented on your post!`);
-            }
-          } catch (err) {
-            console.error('Error sending push notification', err);
-          }
-        });
+      if (selectedPost.authorId && selectedPost.authorId !== currentUid) {
+        const notifId = `${Date.now()}_${currentUid}_comment_${selectedPost.id}`;
+        await setDoc(doc(db, 'notifications', notifId), {
+          userId: selectedPost.authorId,
+          actorId: currentUid,
+          type: 'comment',
+          postId: selectedPost.id,
+          read: false,
+          text: `@${currentUsername} commented on your post: "${textToSubmit.substring(0, 40)}"`,
+          createdAt: Date.now()
+        }).catch(() => {});
       }
-
     } catch (e) {
-      console.error(e);
+      console.error('Error submitting comment:', e);
+      Alert.alert('Error', 'Failed to submit comment. Please try again.');
     }
   };
 
@@ -795,11 +830,11 @@ export default function FeedScreen({ navigation }: any) {
         ) : null}
       </View>
 
-      <Modal visible={showCommentModal} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showCommentModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeComments}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Comments</Text>
-            <TouchableOpacity onPress={() => setShowCommentModal(false)}>
+            <TouchableOpacity onPress={closeComments}>
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -827,6 +862,91 @@ export default function FeedScreen({ navigation }: any) {
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Dedicated Post Options Sheet (Three Dots Button) */}
+      <Modal 
+        visible={postOptionsVisible} 
+        transparent={true} 
+        animationType="fade"
+        onRequestClose={() => setPostOptionsVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.optionsBackdrop} 
+          activeOpacity={1} 
+          onPress={() => setPostOptionsVisible(false)}
+        >
+          <View style={styles.optionsSheet}>
+            <View style={styles.optionsHandle} />
+            <Text style={styles.optionsTitle}>Post Options</Text>
+            
+            {/* Delete button for author or admin */}
+            {(selectedPostForOptions?.authorId === auth.currentUser?.uid || auth.currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com') && (
+              <TouchableOpacity 
+                style={styles.optionItem}
+                onPress={() => {
+                  const target = selectedPostForOptions;
+                  setPostOptionsVisible(false);
+                  handleDeletePost(target);
+                }}
+              >
+                <Ionicons name="trash-outline" size={20} color="#ff4444" />
+                <Text style={[styles.optionText, { color: '#ff4444' }]}>Delete Post</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Report button for non-author */}
+            {selectedPostForOptions?.authorId !== auth.currentUser?.uid && (
+              <TouchableOpacity 
+                style={styles.optionItem}
+                onPress={() => {
+                  const target = selectedPostForOptions;
+                  setPostOptionsVisible(false);
+                  handleReport(target);
+                }}
+              >
+                <Ionicons name="flag-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Report Post</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Block button for non-author */}
+            {selectedPostForOptions?.authorId !== auth.currentUser?.uid && (
+              <TouchableOpacity 
+                style={styles.optionItem}
+                onPress={() => {
+                  const authorId = selectedPostForOptions?.authorId;
+                  setPostOptionsVisible(false);
+                  if (authorId) handleBlock(authorId);
+                }}
+              >
+                <Ionicons name="ban-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Block User</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Share Post */}
+            <TouchableOpacity 
+              style={styles.optionItem}
+              onPress={() => {
+                const target = selectedPostForOptions;
+                setPostOptionsVisible(false);
+                handleShare(target);
+              }}
+            >
+              <Ionicons name="share-social-outline" size={20} color="#fff" />
+              <Text style={styles.optionText}>Share Post</Text>
+            </TouchableOpacity>
+
+            {/* Cancel */}
+            <TouchableOpacity 
+              style={[styles.optionItem, styles.cancelOption]}
+              onPress={() => setPostOptionsVisible(false)}
+            >
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
     </SafeAreaView>
@@ -962,4 +1082,63 @@ const styles = StyleSheet.create({
   sponsoredTagSmallText: { color: '#000', fontSize: 9, fontWeight: '900' },
   adCtaWhite: { backgroundColor: '#fff', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   adCtaWhiteText: { color: '#000', fontSize: 14, fontWeight: '900', textTransform: 'uppercase' },
+
+  /* Options Bottom Sheet */
+  optionsBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  optionsSheet: {
+    backgroundColor: '#18181b',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    borderWidth: 1,
+    borderColor: '#27272a',
+  },
+  optionsHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#52525b',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  optionsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#a1a1aa',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
+  },
+  optionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#f4f4f5',
+    marginLeft: 14,
+  },
+  cancelOption: {
+    borderBottomWidth: 0,
+    justifyContent: 'center',
+    marginTop: 8,
+    backgroundColor: '#27272a',
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  cancelText: {
+    color: '#a1a1aa',
+    fontWeight: '700',
+    fontSize: 15,
+    textAlign: 'center',
+  },
 });

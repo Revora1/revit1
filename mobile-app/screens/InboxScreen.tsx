@@ -3,44 +3,70 @@ import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../firebaseConfig';
-import { collection, query, where, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 
 export default function InboxScreen({ navigation }: any) {
   const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    if (!auth.currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    const currentUid = auth.currentUser.uid;
     const q = query(
       collection(db, 'chats'),
-      where('participants', 'array-contains', auth.currentUser.uid),
-      orderBy('updatedAt', 'desc')
+      where('participantIds', 'array-contains', currentUid)
     );
 
     const unsubscribe = onSnapshot(q, async (snap) => {
-      const chatPromises = snap.docs.map(async (docSnap) => {
-        const data = docSnap.data();
-        const otherUserId = data.participants.find((id: string) => id !== auth.currentUser?.uid);
+      try {
+        const chatPromises = snap.docs.map(async (docSnap) => {
+          const data = docSnap.data();
+          const list = data.participantIds || data.participants || [];
+          const otherUserId = list.find((id: string) => id !== currentUid) || '';
+          
+          let otherUser: { username: string; profilePic: string | null } = {
+            username: otherUserId ? `User_${otherUserId.substring(0, 5)}` : 'Direct Message',
+            profilePic: null
+          };
+
+          if (otherUserId) {
+            try {
+              const uSnap = await getDoc(doc(db, 'users', otherUserId));
+              if (uSnap.exists()) {
+                const uData = uSnap.data();
+                if (uData.username) otherUser.username = uData.username;
+                if (uData.profilePic) otherUser.profilePic = uData.profilePic;
+              }
+            } catch (e) {}
+          }
+          
+          return {
+            id: docSnap.id,
+            ...data,
+            otherUser,
+            otherUserId
+          };
+        });
         
-        let otherUser = { username: 'Unknown User', profilePic: null };
-        if (otherUserId) {
-           try {
-             // In a real app we'd fetch the user doc, for now we mock it or fetch if needed
-             // To keep it light, we just return the ID if we can't fetch
-             otherUser.username = "User_" + otherUserId.substring(0, 5);
-           } catch (e) {}
-        }
-        
-        return {
-          id: docSnap.id,
-          ...data,
-          otherUser,
-          otherUserId
-        };
-      });
-      
-      const resolvedChats = await Promise.all(chatPromises);
-      setChats(resolvedChats);
+        const resolvedChats = await Promise.all(chatPromises);
+        resolvedChats.sort((a, b) => {
+          const aTime = a.updatedAt || a.lastMessageAt || 0;
+          const bTime = b.updatedAt || b.lastMessageAt || 0;
+          return bTime - aTime;
+        });
+
+        setChats(resolvedChats);
+      } catch (err) {
+        console.error('Error in inbox:', err);
+      } finally {
+        setLoading(false);
+      }
+    }, (error) => {
+      console.error('Error listening to inbox chats:', error);
       setLoading(false);
     });
 
@@ -72,16 +98,37 @@ export default function InboxScreen({ navigation }: any) {
           renderItem={({ item }) => (
             <TouchableOpacity 
                style={styles.chatRow}
-               onPress={() => navigation.navigate('Chat', { otherUser: { id: item.otherUserId, username: item.otherUser?.username } })}
+               onPress={() => navigation.navigate('Chat', {
+                 chatId: item.id,
+                 otherUser: {
+                   id: item.otherUserId,
+                   uid: item.otherUserId,
+                   username: item.otherUser?.username,
+                   profilePic: item.otherUser?.profilePic
+                 }
+               })}
             >
               <View style={styles.avatar}>
-                 <Ionicons name="person" size={24} color="#666" />
+                {item.otherUser?.profilePic ? (
+                  <Image source={{ uri: item.otherUser.profilePic }} style={{ width: 50, height: 50, borderRadius: 25 }} />
+                ) : (
+                  <Ionicons name="person" size={24} color="#666" />
+                )}
               </View>
               <View style={styles.chatInfo}>
                 <Text style={styles.chatName}>{item.otherUser?.username}</Text>
-                <Text style={styles.chatMessage} numberOfLines={1}>
-                  {item.lastMessage || 'Tap to chat'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  {item.lastSenderId === auth.currentUser?.uid && (
+                    item.lastMessageRead ? (
+                      <Ionicons name="checkmark-done" size={14} color="#0284c7" />
+                    ) : (
+                      <Ionicons name="checkmark" size={13} color="#71717a" />
+                    )
+                  )}
+                  <Text style={[styles.chatMessage, { flex: 1 }]} numberOfLines={1}>
+                    {item.lastSenderId === auth.currentUser?.uid ? 'You: ' : ''}{item.lastMessage || 'Tap to chat'}
+                  </Text>
+                </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#333" />
             </TouchableOpacity>

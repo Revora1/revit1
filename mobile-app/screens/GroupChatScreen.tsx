@@ -43,8 +43,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
     const messagesRef = collection(db, 'groupMessages');
     const q = query(
       messagesRef,
-      where('groupId', '==', groupId),
-      orderBy('createdAt', 'asc')
+      where('groupId', '==', groupId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -52,6 +51,11 @@ export default function GroupChatScreen({ route, navigation }: any) {
         id: doc.id,
         ...doc.data()
       }));
+      msgs.sort((a: any, b: any) => {
+        const aTime = typeof a.createdAt === 'number' ? a.createdAt : (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0);
+        const bTime = typeof b.createdAt === 'number' ? b.createdAt : (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0);
+        return aTime - bTime;
+      });
       setMessages(msgs);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     });

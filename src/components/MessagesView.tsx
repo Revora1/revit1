@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MessageSquare, Users, Edit, Trash2 } from 'lucide-react';
+import { MessageSquare, Users, Edit, Trash2, Check, CheckCheck } from 'lucide-react';
 import { collection, query, where, onSnapshot, getDocs, orderBy, doc, getDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -161,9 +161,18 @@ export function MessagesView({ hideHeader, initialChatId, initialOtherUser, navK
                             </span>
                           )}
                         </div>
-                        <p className={`text-sm truncate ${chat.lastSenderId !== user?.uid && chat.lastMessage ? 'text-zinc-300 font-medium' : 'text-zinc-500'}`}>
-                          {chat.lastSenderId === user?.uid ? 'You: ' : ''}{chat.lastMessage || 'Started a conversation'}
-                        </p>
+                        <div className="flex items-center gap-1.5 text-sm truncate">
+                          {chat.lastSenderId === user?.uid && (
+                            chat.lastMessageRead ? (
+                              <CheckCheck size={14} className="text-sky-400 stroke-[2.5] flex-shrink-0" />
+                            ) : (
+                              <Check size={13} className="text-zinc-500 stroke-[2] flex-shrink-0" />
+                            )
+                          )}
+                          <span className={`truncate ${chat.lastSenderId !== user?.uid && chat.lastMessage ? 'text-zinc-300 font-medium' : 'text-zinc-500'}`}>
+                            {chat.lastSenderId === user?.uid ? 'You: ' : ''}{chat.lastMessage || 'Started a conversation'}
+                          </span>
+                        </div>
                       </div>
                     </motion.button>
                   </motion.div>

@@ -24,6 +24,7 @@
       }
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "versionCode": 56,
       "package": "com.revitup.network",
       "adaptiveIcon": {

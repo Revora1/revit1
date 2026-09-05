@@ -129,6 +129,7 @@ export interface Chat {
   lastMessage?: string;
   lastMessageAt?: number;
   lastSenderId?: string;
+  lastMessageRead?: boolean;
 }
 
 export interface Story {
@@ -148,6 +149,8 @@ export interface ChatMessage {
   senderId: string;
   text: string;
   createdAt: number;
+  read?: boolean;
+  readAt?: number;
 }
 
 export interface MarketplaceItem {

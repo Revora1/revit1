@@ -7,18 +7,45 @@ import {
   TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Alert,
+  Keyboard,
+  ActivityIndicator
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, query, where, orderBy, onSnapshot, setDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, setDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 
 export default function ChatScreen({ route, navigation }: any) {
-  const { chatId, otherUser } = route.params || {};
+  const { chatId: initialChatId, otherUser } = route.params || {};
+  const insets = useSafeAreaInsets();
+  const [activeChatId, setActiveChatId] = useState<string | null>(initialChatId || null);
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState(otherUser?.initialMessage || '');
+  const [isSending, setIsSending] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setIsKeyboardVisible(true);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setIsKeyboardVisible(false);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (otherUser?.initialMessage) {
@@ -26,14 +53,52 @@ export default function ChatScreen({ route, navigation }: any) {
     }
   }, [otherUser?.initialMessage]);
 
+  // Resolve or compute chatId if not passed directly
   useEffect(() => {
-    if (!auth.currentUser || !chatId) return;
+    if (initialChatId) {
+      setActiveChatId(initialChatId);
+      return;
+    }
+
+    const resolveChatId = async () => {
+      const myId = auth.currentUser?.uid;
+      const otherId = otherUser?.id || otherUser?.uid;
+      if (!myId || !otherId) return;
+
+      const chatId1 = `${myId}_${otherId}`;
+      const chatId2 = `${otherId}_${myId}`;
+
+      try {
+        const snap1 = await getDoc(doc(db, 'chats', chatId1));
+        if (snap1.exists()) {
+          setActiveChatId(chatId1);
+          return;
+        }
+        const snap2 = await getDoc(doc(db, 'chats', chatId2));
+        if (snap2.exists()) {
+          setActiveChatId(chatId2);
+          return;
+        }
+        // Default to deterministic ID if neither exists yet
+        setActiveChatId(chatId1);
+      } catch (err) {
+        console.error('Error checking chat doc:', err);
+        setActiveChatId(chatId1);
+      }
+    };
+
+    resolveChatId();
+  }, [initialChatId, otherUser?.id, otherUser?.uid]);
+
+  // Listen to messages & mark unread as read
+  useEffect(() => {
+    if (!auth.currentUser || !activeChatId) return;
 
     const messagesRef = collection(db, 'messages');
+    // Using where without orderBy avoids composite index requirement
     const q = query(
       messagesRef,
-      where('chatId', '==', chatId),
-      orderBy('createdAt', 'asc')
+      where('chatId', '==', activeChatId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -41,35 +106,84 @@ export default function ChatScreen({ route, navigation }: any) {
         id: doc.id,
         ...doc.data()
       }));
+      // Sort in-memory by createdAt ascending
+      msgs.sort((a: any, b: any) => {
+        const aTime = typeof a.createdAt === 'number' ? a.createdAt : (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0);
+        const bTime = typeof b.createdAt === 'number' ? b.createdAt : (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0);
+        return aTime - bTime;
+      });
       setMessages(msgs);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+      // Auto mark incoming messages as read by the recipient
+      const currentUid = auth.currentUser?.uid;
+      if (currentUid) {
+        let hasIncomingUnread = false;
+        snapshot.docs.forEach(d => {
+          const mData = d.data();
+          if (mData.senderId && mData.senderId !== currentUid && !mData.read) {
+            hasIncomingUnread = true;
+            updateDoc(doc(db, 'messages', d.id), {
+              read: true,
+              readAt: Date.now()
+            }).catch(() => {});
+          }
+        });
+
+        if (hasIncomingUnread) {
+          updateDoc(doc(db, 'chats', activeChatId), {
+            lastMessageRead: true,
+            [`readBy.${currentUid}`]: Date.now()
+          }).catch(() => {});
+        }
+      }
+    }, (error) => {
+      console.error('Error listening to messages:', error);
     });
 
     return () => unsubscribe();
-  }, [chatId]);
+  }, [activeChatId]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || !auth.currentUser || !chatId) return;
+    if (!inputText.trim() || !auth.currentUser) return;
     
+    let targetChatId = activeChatId;
+    const recipientId = otherUser?.id || otherUser?.uid || '';
+
+    if (!targetChatId && recipientId) {
+      targetChatId = `${auth.currentUser.uid}_${recipientId}`;
+      setActiveChatId(targetChatId);
+    }
+
+    if (!targetChatId) {
+      Alert.alert('Error', 'Unable to start chat. Recipient not found.');
+      return;
+    }
+
     const text = inputText.trim();
     setInputText('');
+    setIsSending(true);
     
     try {
       const messageId = `${Date.now()}_${auth.currentUser.uid}`;
       await setDoc(doc(db, 'messages', messageId), {
-        chatId,
+        chatId: targetChatId,
         senderId: auth.currentUser.uid,
         text,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        read: false,
+        readAt: null
       });
       
-      const recipientId = otherUser?.id || otherUser?.uid || '';
-      await setDoc(doc(db, 'chats', chatId), {
+      const participantList = Array.from(new Set([auth.currentUser.uid, recipientId])).filter(Boolean);
+      await setDoc(doc(db, 'chats', targetChatId), {
         lastMessage: text,
         lastMessageAt: Date.now(),
         updatedAt: Date.now(),
         lastSenderId: auth.currentUser.uid,
-        participants: Array.from(new Set([auth.currentUser.uid, recipientId])).filter(Boolean)
+        lastMessageRead: false,
+        participantIds: participantList,
+        participants: participantList
       }, { merge: true });
 
       if (recipientId) {
@@ -81,53 +195,88 @@ export default function ChatScreen({ route, navigation }: any) {
           read: false,
           text: `sent you a message: "${text.substring(0, 40)}${text.length > 40 ? '...' : ''}"`,
           createdAt: Date.now()
-        });
+        }).catch(() => {});
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error sending message:', e);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+    } finally {
+      setIsSending(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Custom Screen Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={22} color="#fff" />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {otherUser?.displayName || otherUser?.username || 'Chat'}
-            </Text>
-            {otherUser?.isMechanic || otherUser?.initialMessage ? (
-              <Text style={styles.headerSubtitle}>Service Provider Quote Request</Text>
-            ) : null}
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <View style={styles.container}>
+          {/* Custom Screen Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {otherUser?.displayName || otherUser?.username || 'Chat'}
+              </Text>
+              {otherUser?.isMechanic || otherUser?.initialMessage ? (
+                <Text style={styles.headerSubtitle}>Service Provider Quote Request</Text>
+              ) : null}
+            </View>
           </View>
-        </View>
 
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.messagesList}
-          renderItem={({ item }) => {
-            const isMe = item.senderId === auth.currentUser?.uid;
-            return (
-              <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
-                <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-                  {item.text}
-                </Text>
-              </View>
-            );
-          }}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        />
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
-          <View style={styles.inputContainer}>
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.messagesList}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            renderItem={({ item }) => {
+              const isMe = item.senderId === auth.currentUser?.uid;
+              const timeFormatted = item.createdAt 
+                ? new Date(typeof item.createdAt === 'number' ? item.createdAt : item.createdAt?.toMillis?.() || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                : '';
+
+              return (
+                <View style={[styles.messageRow, isMe ? styles.myRow : styles.theirRow]}>
+                  <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
+                    <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
+                      {item.text}
+                    </Text>
+                    <View style={[styles.metaRow, isMe ? styles.myMetaRow : styles.theirMetaRow]}>
+                      <Text style={[styles.timeText, isMe ? styles.myTimeText : styles.theirTimeText]}>
+                        {timeFormatted}
+                      </Text>
+                      {isMe && (
+                        item.read ? (
+                          <View style={styles.readStatusBadge}>
+                            <Ionicons name="checkmark-done" size={15} color="#0284c7" />
+                            <Text style={styles.readStatusText}>Read</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.readStatusBadge}>
+                            <Ionicons name="checkmark" size={14} color="#6b7280" />
+                            <Text style={styles.deliveredStatusText}>Delivered</Text>
+                          </View>
+                        )
+                      )}
+                    </View>
+                  </View>
+                </View>
+              );
+            }}
+          />
+
+          <View style={[
+            styles.inputContainer,
+            { paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 12) }
+          ]}>
             <TextInput
               style={styles.input}
               placeholder="Type a message..."
@@ -135,19 +284,31 @@ export default function ChatScreen({ route, navigation }: any) {
               value={inputText}
               onChangeText={setInputText}
               multiline
+              onFocus={() => {
+                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
+              }}
             />
-            <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-              <Ionicons name="send" size={20} color="#fff" />
+            <TouchableOpacity 
+              style={[styles.sendButton, (!inputText.trim() || isSending) && styles.sendButtonDisabled]} 
+              onPress={handleSend}
+              disabled={!inputText.trim() || isSending}
+            >
+              {isSending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="send" size={18} color="#fff" />
+              )}
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#000' },
+  keyboardAvoid: { flex: 1 },
   container: { flex: 1, backgroundColor: '#000' },
   header: {
     flexDirection: 'row',
@@ -179,21 +340,35 @@ const styles = StyleSheet.create({
   },
   messagesList: {
     padding: 16,
-    gap: 12
+    paddingBottom: 24,
+    gap: 10,
+    flexGrow: 1,
+    justifyContent: 'flex-end'
+  },
+  messageRow: {
+    width: '100%',
+    marginVertical: 3,
+  },
+  myRow: {
+    alignItems: 'flex-end',
+  },
+  theirRow: {
+    alignItems: 'flex-start',
   },
   messageBubble: {
-    maxWidth: '80%',
-    padding: 12,
-    borderRadius: 20,
+    maxWidth: '82%',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
   },
   myMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     borderBottomRightRadius: 4,
   },
   theirMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#222',
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
     borderBottomLeftRadius: 4,
   },
   messageText: {
@@ -206,33 +381,78 @@ const styles = StyleSheet.create({
   theirMessageText: {
     color: '#fff',
   },
-  inputContainer: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+    marginTop: 4,
+    gap: 4,
+  },
+  myMetaRow: {
+    justifyContent: 'flex-end',
+  },
+  theirMetaRow: {
+    justifyContent: 'flex-start',
+  },
+  timeText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  myTimeText: {
+    color: '#52525b',
+  },
+  theirTimeText: {
+    color: '#71717a',
+  },
+  readStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 3,
+    gap: 2,
+  },
+  readStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0284c7',
+  },
+  deliveredStatusText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#111',
-    backgroundColor: '#000',
-    gap: 12,
+    borderTopColor: '#18181b',
+    backgroundColor: '#09090b',
+    gap: 10,
   },
   input: {
     flex: 1,
-    backgroundColor: '#111',
+    backgroundColor: '#18181b',
     color: '#fff',
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderRadius: 24,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderRadius: 22,
     fontSize: 15,
-    maxHeight: 100,
+    maxHeight: 110,
+    borderWidth: 1,
+    borderColor: '#27272a',
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: '#e53935',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 1,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#27272a',
+    opacity: 0.6,
   }
 });
