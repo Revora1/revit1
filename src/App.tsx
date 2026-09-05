@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider, useAuth, isEmailVerified } from './context/AuthContext';
 import { Layout, View } from './components/Layout';
 import { AuthView } from './components/AuthView';
+import { EmailVerificationView } from './components/EmailVerificationView';
 import { Feed } from './components/Feed';
 import { Profile } from './components/Profile';
 import { UploadView } from './components/UploadView';
@@ -555,7 +556,11 @@ function InnerAppContent() {
         <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     );
-  } else if (user && !profile) {
+  } else if (!user) {
+    content = <AuthView />;
+  } else if (!isEmailVerified(user)) {
+    content = <EmailVerificationView onVerified={() => window.location.reload()} />;
+  } else if (!profile) {
     content = (
       <div className="h-full bg-black flex flex-col items-center justify-center p-6 text-center space-y-6">
         <div className="space-y-2">
@@ -580,8 +585,6 @@ function InnerAppContent() {
         </div>
       </div>
     );
-  } else if (!user) {
-    content = <AuthView />;
   } else {
     content = (
       <Layout activeView={activeView} onViewChange={handleViewChange}>

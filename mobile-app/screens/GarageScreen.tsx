@@ -7,7 +7,7 @@ import { db, auth, storage } from '../firebaseConfig';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
-export default function GarageScreen({ navigation }: any) {
+export default function GarageScreen({ navigation, route }: any) {
   const [cars, setCars] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -24,6 +24,12 @@ export default function GarageScreen({ navigation }: any) {
   const [stage, setStage] = useState('Stock');
   const [mods, setMods] = useState('');
 
+  useEffect(() => {
+    if (route?.params?.openAddModal) {
+      setShowAddModal(true);
+    }
+  }, [route?.params?.openAddModal]);
+
   const fetchCars = async () => {
     try {
       await new Promise((resolve) => {
@@ -39,11 +45,15 @@ export default function GarageScreen({ navigation }: any) {
       
       const q = query(
         collection(db, 'garage'),
-        where('ownerId', '==', auth.currentUser.uid),
-        orderBy('createdAt', 'desc')
+        where('ownerId', '==', auth.currentUser.uid)
       );
       const snap = await getDocs(q);
       const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      fetched.sort((a: any, b: any) => {
+        const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+        const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (typeof b.createdAt === 'number' ? b.createdAt : 0);
+        return tB - tA;
+      });
       setCars(fetched);
     } catch (error) {
       console.error('Error fetching garage:', error);
@@ -90,12 +100,16 @@ export default function GarageScreen({ navigation }: any) {
       let downloadUrl = null;
 
       if (imageUri) {
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
-        const filename = `garage/${auth.currentUser?.uid}/${Date.now()}.jpg`;
-        const storageRef = ref(storage, filename);
-        await uploadBytes(storageRef, blob);
-        downloadUrl = await getDownloadURL(storageRef);
+        try {
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          const filename = `garage/${auth.currentUser?.uid}/${Date.now()}.jpg`;
+          const storageRef = ref(storage, filename);
+          await uploadBytes(storageRef, blob);
+          downloadUrl = await getDownloadURL(storageRef);
+        } catch (storageErr: any) {
+          console.warn('Cover photo upload failed, proceeding without photo:', storageErr);
+        }
       }
 
       await addDoc(collection(db, 'garage'), {

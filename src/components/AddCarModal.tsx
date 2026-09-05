@@ -68,9 +68,16 @@ export function AddCarModal({ onClose }: AddCarModalProps) {
       let finalImageUrl = '';
 
       if (imageFile) {
-        const storageRef = ref(storage, `garages/${user.uid}/${Date.now()}_${imageFile.name}`);
-        const snapshot = await uploadBytes(storageRef, imageFile);
-        finalImageUrl = await getDownloadURL(snapshot.ref);
+        try {
+          const storageRef = ref(storage, `garages/${user.uid}/${Date.now()}_${imageFile.name}`);
+          const snapshot = await uploadBytes(storageRef, imageFile);
+          finalImageUrl = await getDownloadURL(snapshot.ref);
+        } catch (storageErr: any) {
+          console.warn('Storage upload issue, saving car without cover image:', storageErr);
+          if (storageErr?.message?.includes('storage/unauthorized')) {
+            alert('Photo upload notice: Firebase Storage rules prevented image upload, but your car build specs have been saved to your garage.');
+          }
+        }
       }
 
       await addDoc(collection(db, 'garage'), {
@@ -81,11 +88,7 @@ export function AddCarModal({ onClose }: AddCarModalProps) {
       });
       onClose();
     } catch (error: any) {
-      if (error?.message?.includes('storage/unauthorized')) {
-        alert('Permission Denied: To upload images, please go to your Firebase Console -> Storage -> Rules, and allow read/write access for authenticated users.');
-      } else {
-        handleFirestoreError(error, OperationType.CREATE, 'garage');
-      }
+      handleFirestoreError(error, OperationType.CREATE, 'garage');
     } finally {
       setLoading(false);
     }

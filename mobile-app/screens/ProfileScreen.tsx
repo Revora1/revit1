@@ -19,6 +19,7 @@ import {
   FlatList,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { compressImage } from '../lib/imageCompression';
@@ -40,6 +41,7 @@ import {
   addDoc,
   increment,
   serverTimestamp,
+  limit,
 } from "firebase/firestore";
 import { signOut, deleteUser } from "firebase/auth";
 
@@ -173,15 +175,14 @@ export default function ProfileScreen({ route, navigation }: any) {
   const targetUserId = resolvedUserId || rawUserParam;
   const isCurrentUser = targetUserId === auth.currentUser?.uid;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!rawUserParam) return;
+  const fetchData = React.useCallback(async () => {
+    if (!rawUserParam) return;
 
-      try {
-        let activeUid = rawUserParam;
-        let profileData = null;
-        let userDocRef = doc(db, "users", activeUid);
-        let docSnap = await getDoc(userDocRef);
+    try {
+      let activeUid = rawUserParam;
+      let profileData = null;
+      let userDocRef = doc(db, "users", activeUid);
+      let docSnap = await getDoc(userDocRef);
 
         if (docSnap.exists()) {
           profileData = docSnap.data();
@@ -244,11 +245,16 @@ export default function ProfileScreen({ route, navigation }: any) {
 
         const gQuery = query(
           collection(db, "garage"),
-          where("ownerId", "==", activeUid),
-          orderBy("createdAt", "desc"),
+          where("ownerId", "==", activeUid)
         );
         const gSnap = await getDocs(gQuery);
-        setGarage(gSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+        const fetchedCars = gSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        fetchedCars.sort((a: any, b: any) => {
+          const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+          const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (typeof b.createdAt === 'number' ? b.createdAt : 0);
+          return tB - tA;
+        });
+        setGarage(fetchedCars);
 
         const pQuery = query(
           collection(db, "posts"),
@@ -295,11 +301,16 @@ export default function ProfileScreen({ route, navigation }: any) {
         if (profileData && profileData.partnerId) {
           const pgQuery = query(
             collection(db, "garage"),
-            where("ownerId", "==", profileData.partnerId),
-            orderBy("createdAt", "desc")
+            where("ownerId", "==", profileData.partnerId)
           );
           const pgSnap = await getDocs(pgQuery);
-          setPartnerGarage(pgSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+          const fetchedPartnerCars = pgSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+          fetchedPartnerCars.sort((a: any, b: any) => {
+            const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+            const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (typeof b.createdAt === 'number' ? b.createdAt : 0);
+            return tB - tA;
+          });
+          setPartnerGarage(fetchedPartnerCars);
           
           const ppQuery = query(
             collection(db, "posts"),
@@ -368,11 +379,14 @@ export default function ProfileScreen({ route, navigation }: any) {
         console.error("Error fetching profile data:", err);
       } finally {
         setLoading(false);
-      }
-    };
-
-    fetchData();
+    }
   }, [rawUserParam]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   const handleFollowToggle = async () => {
     if (!auth.currentUser) {
@@ -1953,6 +1967,18 @@ export default function ProfileScreen({ route, navigation }: any) {
             <View style={styles.tabContent}>
               {activeTab === "garage" && (
                 <View style={styles.garageList}>
+                  {isCurrentUser && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 }}>
+                      <Text style={{ color: '#888', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>My Vehicles</Text>
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e53935', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}
+                        onPress={() => navigation.navigate("MyGarage", { openAddModal: true })}
+                      >
+                        <Ionicons name="add" size={16} color="#fff" style={{ marginRight: 4 }} />
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 }}>ADD CAR</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   {garage.length > 0 ? (
                     garage.map((car) => (
                       <TouchableOpacity key={car.id} style={styles.garageCard} onPress={() => navigation.navigate("BuildTimeline", { carId: car.id })}> 
@@ -1974,6 +2000,11 @@ export default function ProfileScreen({ route, navigation }: any) {
                           <Text style={styles.garageCardTitle}>
                             {car.year} {car.make} {car.model}
                           </Text>
+                          {car.power ? (
+                            <Text style={styles.garageCardSubtitle}>{car.power} • {car.stage || 'Stock'}</Text>
+                          ) : (
+                            <Text style={styles.garageCardSubtitle}>{car.stage || 'Stock'}</Text>
+                          )}
                         </View>
                       </TouchableOpacity>
                     ))
@@ -1986,6 +2017,17 @@ export default function ProfileScreen({ route, navigation }: any) {
                         style={{ marginBottom: 12 }}
                       />
                       <Text style={styles.emptyStateText}>No cars yet</Text>
+                      {isCurrentUser && (
+                        <TouchableOpacity
+                          style={{ marginTop: 16, backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24, flexDirection: 'row', alignItems: 'center' }}
+                          onPress={() => navigation.navigate("MyGarage", { openAddModal: true })}
+                        >
+                          <Ionicons name="add-circle" size={18} color="#000" style={{ marginRight: 6 }} />
+                          <Text style={{ color: '#000', fontWeight: '900', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            Add Your First Vehicle
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </View>

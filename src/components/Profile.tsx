@@ -1143,7 +1143,7 @@ export function Profile({ userId: propUserId, username: propUsername, initialTab
                 <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Following</p>
               </button>
               <div className="space-y-0.5">
-                <p className="text-lg font-black">{targetProfile.garage?.length || 0}</p>
+                <p className="text-lg font-black">{repData.carsCount ?? targetProfile.garage?.length ?? 0}</p>
                 <p className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Cars</p>
               </div>
             </div>

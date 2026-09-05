@@ -176,6 +176,7 @@ import MechanicBoardScreen from './screens/MechanicBoardScreen';
 import MenuScreen from './screens/MenuScreen';
 import GroupChatScreen from './screens/GroupChatScreen';
 import GroupFeedScreen from './screens/GroupFeedScreen';
+import EmailVerificationScreen from './screens/EmailVerificationScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -250,6 +251,33 @@ export default function App() {
       <ErrorBoundary>
         <StatusBar style="light" />
         <LoginScreen />
+        <CookieConsentModal />
+      </ErrorBoundary>
+    );
+  }
+
+  // Check email verification (legacy accounts before Aug 5, 2026 are exempted)
+  const isVerified = (() => {
+    if (user.emailVerified) return true;
+    const creationTime = user.metadata?.creationTime ? new Date(user.metadata.creationTime).getTime() : 0;
+    const enforceVerificationAfter = new Date('2026-08-05T17:00:00Z').getTime();
+    if (creationTime > 0 && creationTime <= enforceVerificationAfter) return true;
+    return false;
+  })();
+
+  if (!isVerified) {
+    return (
+      <ErrorBoundary>
+        <StatusBar style="light" />
+        <EmailVerificationScreen 
+          user={user} 
+          onVerified={() => {
+            if (auth.currentUser) {
+              setUser({ ...auth.currentUser });
+            }
+          }} 
+          onSignOut={() => setUser(null)} 
+        />
         <CookieConsentModal />
       </ErrorBoundary>
     );

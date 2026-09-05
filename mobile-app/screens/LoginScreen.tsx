@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { doc, setDoc, updateDoc, increment, getDoc, getDocs, collection, query, where, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
@@ -131,6 +131,12 @@ export default function LoginScreen() {
           } catch (refErr) {
             console.log('Error updating referrer points:', refErr);
           }
+        }
+        // Send Firebase email verification
+        try {
+          await sendEmailVerification(user);
+        } catch (verErr) {
+          console.log('Error sending verification email:', verErr);
         }
       } else {
         await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);

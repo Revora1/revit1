@@ -5,6 +5,17 @@ import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { UserProfile } from '../types';
 
+export const isEmailVerified = (user: User | null): boolean => {
+  if (!user) return false;
+  if (user.emailVerified) return true;
+  const creationTime = user.metadata.creationTime ? new Date(user.metadata.creationTime).getTime() : 0;
+  const enforceVerificationAfter = new Date('2026-08-05T17:00:00Z').getTime();
+  if (creationTime > 0 && creationTime <= enforceVerificationAfter) {
+    return true;
+  }
+  return false;
+};
+
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
@@ -14,6 +25,9 @@ interface AuthContextType {
   signInWithEmail: (e: string, p: string) => Promise<void>;
   signUpWithEmail: (e: string, p: string, username?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  sendVerificationEmail: () => Promise<void>;
+  reloadUser: () => Promise<boolean>;
+  isEmailVerified: (u?: User | null) => boolean;
   logout: () => Promise<void>;
   updateProfileSettings: (settings: Partial<UserProfile>) => Promise<void>;
   blockedUserIds: string[];
@@ -70,20 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user && !user.emailVerified) {
-        const creationTime = user.metadata.creationTime ? new Date(user.metadata.creationTime).getTime() : 0;
-        const enforceVerificationAfter = new Date('2026-08-05T17:00:00Z').getTime();
-        
-        if (creationTime > enforceVerificationAfter) {
-          await signOut(auth);
-          setUser(null);
-          cleanupSubscribers();
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-      }
-
       setUser(user);
       cleanupSubscribers();
 
@@ -273,18 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     const sanitizedEmail = e.trim().toLowerCase();
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, p);
-      if (userCredential.user && !userCredential.user.emailVerified) {
-        const creationTime = userCredential.user.metadata.creationTime ? new Date(userCredential.user.metadata.creationTime).getTime() : 0;
-        const enforceVerificationAfter = new Date('2026-08-05T17:00:00Z').getTime();
-        
-        if (creationTime > enforceVerificationAfter) {
-          try { await sendEmailVerification(userCredential.user); } catch (e) {}
-          await signOut(auth);
-          setError('Please verify your email address before signing in. A new verification email has been sent.');
-          return;
-        }
-      }
+      await signInWithEmailAndPassword(auth, sanitizedEmail, p);
     } catch (err: any) {
       console.log('Firebase signInWithEmailAndPassword error code:', err.code, err);
       if (err.code === 'auth/invalid-credential') {
@@ -393,9 +382,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn('Failed to process referral code during signup:', refErr);
         }
 
-        try { await sendEmailVerification(newUser); } catch (e) {}
-        await signOut(auth);
-        setError('Account created! Please check your email to verify your account before logging in.');
+        try { 
+          await sendEmailVerification(newUser); 
+        } catch (e) {
+          console.warn('sendEmailVerification during signup:', e);
+        }
+        setUser(newUser);
       }
     } catch (createErr: any) {
       console.error('Firebase createUserWithEmailAndPassword error:', createErr);
@@ -414,6 +406,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   
+  const sendVerificationEmail = async () => {
+    if (!auth.currentUser) throw new Error('No user is currently signed in.');
+    await sendEmailVerification(auth.currentUser);
+  };
+
+  const reloadUser = async (): Promise<boolean> => {
+    if (!auth.currentUser) return false;
+    await auth.currentUser.reload();
+    const fresh = auth.currentUser;
+    setUser(fresh ? Object.assign(Object.create(Object.getPrototypeOf(fresh)), fresh) : null);
+    return isEmailVerified(fresh);
+  };
+
   const resetPassword = async (email: string) => {
     try {
       await sendPasswordResetEmail(auth, email.trim().toLowerCase());
@@ -500,6 +505,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithEmail, 
       signUpWithEmail,
       resetPassword,
+      sendVerificationEmail,
+      reloadUser,
+      isEmailVerified,
       logout,
       updateProfileSettings,
       blockedUserIds,
