@@ -6,11 +6,11 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   Keyboard,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,21 +26,40 @@ export default function ChatScreen({ route, navigation }: any) {
   const [isSending, setIsSending] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    const onKeyboardShow = (e: any) => {
+      setIsKeyboardVisible(true);
+      const height = e?.endCoordinates?.height || 336;
+      Animated.timing(keyboardOffset, {
+        toValue: Platform.OS === 'ios' ? height : 0,
+        duration: Platform.OS === 'ios' ? (e?.duration || 250) : 100,
+        useNativeDriver: false,
+      }).start();
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 80);
+    };
+
+    const onKeyboardHide = (e: any) => {
+      setIsKeyboardVisible(false);
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === 'ios' ? (e?.duration || 250) : 100,
+        useNativeDriver: false,
+      }).start();
+    };
+
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setIsKeyboardVisible(true);
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
-      }
+      onKeyboardShow
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setIsKeyboardVisible(false);
-      }
+      onKeyboardHide
     );
+
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -207,26 +226,21 @@ export default function ChatScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
-        <View style={styles.container}>
-          {/* Custom Screen Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={22} color="#fff" />
-            </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle} numberOfLines={1}>
-                {otherUser?.displayName || otherUser?.username || 'Chat'}
-              </Text>
-              {otherUser?.isMechanic || otherUser?.initialMessage ? (
-                <Text style={styles.headerSubtitle}>Service Provider Quote Request</Text>
-              ) : null}
-            </View>
+      <Animated.View style={[styles.container, { paddingBottom: keyboardOffset }]}>
+        {/* Custom Screen Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {otherUser?.displayName || otherUser?.username || 'Chat'}
+            </Text>
+            {otherUser?.isMechanic || otherUser?.initialMessage ? (
+              <Text style={styles.headerSubtitle}>Service Provider Quote Request</Text>
+            ) : null}
           </View>
+        </View>
 
           <FlatList
             ref={flatListRef}
@@ -300,8 +314,7 @@ export default function ChatScreen({ route, navigation }: any) {
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+      </Animated.View>
     </SafeAreaView>
   );
 }

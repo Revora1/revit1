@@ -306,7 +306,7 @@ export default function App() {
           <Stack.Screen name="Videos" component={VideosScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Inbox" component={InboxScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Chat" component={ChatScreen} options={({ route }: any) => ({ title: route.params?.otherUser?.username || 'Chat' })} />
+          <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
           <Stack.Screen name="UserProfile" component={ProfileScreen} options={{ headerShown: false }} />
           <Stack.Screen name="StoryViewer" component={StoryViewerScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
           <Stack.Screen name="BuildTimeline" component={BuildTimelineScreen} options={{ headerShown: false }} />
