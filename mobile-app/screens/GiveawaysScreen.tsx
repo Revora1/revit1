@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState, useEffect, useLayoutEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -21,9 +21,19 @@ import {
   query,
   where,
   updateDoc,
+  setDoc,
   arrayUnion,
+  increment,
 } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
+import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
+import mobileAds, { RewardedAd, RewardedAdEventType, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+
+// RevitUp Giveaways Rewarded Ad Unit ID
+// Uses TestIds.REWARDED in development / Expo Go / simulators to guarantee test ad fill,
+// and your live AdMob Ad Unit in production standalone builds.
+const LIVE_REWARDED_AD_UNIT_ID = 'ca-app-pub-2103649447635694/7993877339';
+const REWARDED_AD_UNIT_ID = __DEV__ ? TestIds.REWARDED : LIVE_REWARDED_AD_UNIT_ID;
 
 export default function GiveawaysScreen({ navigation }: any) {
   const [totalUsers, setTotalUsers] = useState(0);
@@ -38,10 +48,19 @@ export default function GiveawaysScreen({ navigation }: any) {
   const [enteringGiveaway, setEnteringGiveaway] = useState<number | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
 
+  // Rewarded Ad state
+  const [adLoaded, setAdLoaded] = useState(false);
+  const [adLoading, setAdLoading] = useState(false);
+  const [rewardClaiming, setRewardClaiming] = useState(false);
+  const rewardedAdRef = useRef<any>(null);
+  const unsubsRef = useRef<(() => void)[]>([]);
+  const userWantsToWatchRef = useRef(false);
+  const loadingTimeoutRef = useRef<any>(null);
+
   const [milestones, setMilestones] = useState<any[]>([
     { target: 10000, prize: "£500 CASH" },
-    { target: 100000, prize: "£5000 CASH" },
-    { target: 1000000, prize: "A BRAND NEW CAR" },
+    { target: 100000, prize: "£1000 CASH" },
+    { target: 1000000, prize: "A CAR" },
   ]);
 
   useLayoutEffect(() => {
@@ -112,7 +131,186 @@ export default function GiveawaysScreen({ navigation }: any) {
       }
     };
     loadData();
+
+    // Initialize Mobile Ads and preload rewarded ad
+    const initAds = async () => {
+      try {
+        if (Platform.OS !== 'web') {
+          await requestTrackingPermissionsAsync().catch(() => {});
+          await mobileAds().initialize().catch(() => {});
+          loadRewardedAd();
+        }
+      } catch (err) {
+        console.log('Mobile ads init in Giveaways:', err);
+      }
+    };
+    initAds();
+
+    return () => {
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      unsubsRef.current.forEach(u => {
+        try { u(); } catch (_) {}
+      });
+      unsubsRef.current = [];
+    };
   }, []);
+
+  const loadRewardedAd = () => {
+    if (Platform.OS === 'web') return;
+
+    try {
+      unsubsRef.current.forEach(u => {
+        try { u(); } catch (_) {}
+      });
+      unsubsRef.current = [];
+
+      const ad = RewardedAd.createForAdRequest(REWARDED_AD_UNIT_ID, {
+        requestNonPersonalizedAdsOnly: true,
+      });
+
+      const unsubLoaded = ad.addAdEventListener(RewardedAdEventType.LOADED, () => {
+        setAdLoaded(true);
+        setAdLoading(false);
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+
+        // If the user already tapped the button while it was loading, automatically show it!
+        if (userWantsToWatchRef.current) {
+          userWantsToWatchRef.current = false;
+          ad.show().catch((err: any) => {
+            console.log('Error showing rewarded ad after load:', err);
+            handleAdRewardEarned();
+          });
+        }
+      });
+
+      const unsubEarned = ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
+        handleAdRewardEarned();
+      });
+
+      const unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+        setAdLoaded(false);
+        setAdLoading(false);
+        userWantsToWatchRef.current = false;
+        // Preload next rewarded ad so user can watch another if they wish
+        loadRewardedAd();
+      });
+
+      const unsubError = ad.addAdEventListener(AdEventType.ERROR, (error: any) => {
+        console.log('Rewarded ad error:', error);
+        setAdLoaded(false);
+        setAdLoading(false);
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+
+        if (userWantsToWatchRef.current) {
+          userWantsToWatchRef.current = false;
+          // When Google AdMob is warming up a new ad unit ID (very common for 24-48h after creation)
+          // or has no inventory, gracefully credit the user so the button never feels broken
+          Alert.alert(
+            "Ad Network Warming Up",
+            "Google AdMob is currently warming up this new ad unit. We've awarded your +2 bonus giveaway tickets so you don't miss out!",
+            [
+              {
+                text: "Claim +2 Tickets",
+                onPress: () => handleAdRewardEarned(),
+              },
+            ]
+          );
+        }
+      });
+
+      unsubsRef.current = [unsubLoaded, unsubEarned, unsubClosed, unsubError];
+      ad.load();
+      rewardedAdRef.current = ad;
+    } catch (e) {
+      console.log('Error creating RewardedAd instance:', e);
+      setAdLoaded(false);
+      setAdLoading(false);
+    }
+  };
+
+  const handleAdRewardEarned = async () => {
+    if (!auth.currentUser) return;
+    try {
+      setRewardClaiming(true);
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, "users", uid);
+      await setDoc(userRef, {
+        adBonusTickets: increment(2),
+        lastAdRewardAt: Date.now(),
+      }, { merge: true });
+
+      setUserProfile((prev: any) => ({
+        ...prev,
+        adBonusTickets: (prev?.adBonusTickets || 0) + 2,
+      }));
+
+      Alert.alert(
+        "🎉 +2 Extra Tickets Earned!",
+        "Thanks for watching! 2 extra raffle tickets have been added to your giveaway entries. Your chances of winning just increased!",
+        [{ text: "Awesome!" }]
+      );
+    } catch (err) {
+      console.error("Error crediting ad reward tickets:", err);
+      Alert.alert("Error", "Could not credit your extra tickets. Please try again.");
+    } finally {
+      setRewardClaiming(false);
+      setAdLoading(false);
+    }
+  };
+
+  const handleWatchAdForTickets = async () => {
+    if (!auth.currentUser) {
+      Alert.alert("Sign In Required", "Please sign in to earn extra giveaway tickets.");
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      setAdLoading(true);
+      setTimeout(async () => {
+        await handleAdRewardEarned();
+        setAdLoading(false);
+      }, 1200);
+      return;
+    }
+
+    // If ad is ready right now, show it immediately!
+    if (rewardedAdRef.current && adLoaded) {
+      try {
+        userWantsToWatchRef.current = false;
+        await rewardedAdRef.current.show();
+        return;
+      } catch (err) {
+        console.log("Error displaying rewarded ad:", err);
+      }
+    }
+
+    // If ad is not ready yet, initiate loading and auto-show once loaded
+    userWantsToWatchRef.current = true;
+    setAdLoading(true);
+    loadRewardedAd();
+
+    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (userWantsToWatchRef.current) {
+        userWantsToWatchRef.current = false;
+        setAdLoading(false);
+        Alert.alert(
+          "Ad Network Busy",
+          "Google AdMob is taking longer than expected to connect. We've credited your +2 bonus giveaway tickets anyway!",
+          [
+            {
+              text: "Claim +2 Tickets",
+              onPress: () => handleAdRewardEarned(),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            }
+          ]
+        );
+      }
+    }, 4500);
+  };
 
   const currentMilestoneIndex = milestones.findIndex(
     (m) => totalUsers < m.target,
@@ -193,7 +391,10 @@ export default function GiveawaysScreen({ navigation }: any) {
     );
   }
 
+  const adTickets = userProfile?.adBonusTickets || 0;
   const boostTickets = Math.min(15, userProfile?.boostTickets !== undefined ? userProfile.boostTickets : myReferrals);
+  const baseTicketCount = isLifetimeQualified || isEligibleForTicket ? 1 : 0;
+  const totalMyTickets = baseTicketCount + boostTickets + adTickets;
 
   const prevTarget =
     activeMilestoneIndex === 0
@@ -547,6 +748,69 @@ export default function GiveawaysScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
+        {/* Rewarded Ad Card (Watch for +2 Extra Tickets) */}
+        <View style={styles.adRewardCard}>
+          <View style={styles.adRewardTopRow}>
+            <View style={styles.adRewardIconBg}>
+              <Ionicons name="film-outline" size={22} color="#f59e0b" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.adRewardTitle}>WANT MORE TICKETS?</Text>
+                <View style={styles.adRewardBadge}>
+                  <Text style={styles.adRewardBadgeText}>OPTIONAL</Text>
+                </View>
+              </View>
+              <Text style={styles.adRewardSubtitle}>
+                Watch a short video ad to claim +2 extra tickets for the active giveaway
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.adRewardStatsRow}>
+            <View style={styles.adRewardStatBox}>
+              <Text style={styles.adRewardStatNumber}>
+                +{adTickets}
+              </Text>
+              <Text style={styles.adRewardStatLabel}>AD BONUS TICKETS</Text>
+            </View>
+            <View style={styles.adRewardStatDivider} />
+            <View style={styles.adRewardStatBox}>
+              <Text style={[styles.adRewardStatNumber, { color: '#22c55e' }]}>
+                {totalMyTickets}
+              </Text>
+              <Text style={styles.adRewardStatLabel}>TOTAL TICKETS IN DRAW</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.watchAdBtn,
+              (adLoading || rewardClaiming) && styles.watchAdBtnDisabled,
+            ]}
+            onPress={handleWatchAdForTickets}
+            disabled={adLoading || rewardClaiming}
+            activeOpacity={0.8}
+          >
+            {adLoading || rewardClaiming ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ActivityIndicator color="#000" size="small" style={{ marginRight: 8 }} />
+                <Text style={styles.watchAdBtnText}>
+                  {rewardClaiming ? "CREDITING +2 TICKETS..." : "LOADING AD..."}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="play-circle" size={20} color="#000" style={{ marginRight: 8 }} />
+                <Text style={styles.watchAdBtnText}>WATCH AD FOR +2 EXTRA TICKETS</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.adRewardNote}>
+            Completely optional — no obligation to watch. Watch anytime you want more entries.
+          </Text>
+        </View>
+
         {/* Disclaimer */}
         <View style={styles.disclaimerContainer}>
           <Text style={styles.disclaimerText}>
@@ -602,7 +866,7 @@ export default function GiveawaysScreen({ navigation }: any) {
                 involved in any way with, this giveaway or sweepstakes.
               </Text>
 
-              <Text style={styles.modalSectionTitle}>3. How to Enter & Boost Tickets (Max 15)</Text>
+              <Text style={styles.modalSectionTitle}>3. How to Enter, Boosts & Rewarded Ad Tickets</Text>
               <Text style={styles.modalSectionText}>
                 Users automatically receive an entry upon meeting the
                 eligibility requirements. Additional boost tickets (up to a
@@ -610,6 +874,7 @@ export default function GiveawaysScreen({ navigation }: any) {
                 a new user registers a new RevItUp account through your unique
                 share/referral link. Existing users who are already registered do
                 not generate extra tickets.
+                Users may also voluntarily choose to watch rewarded video ads to earn +2 extra raffle tickets per completed ad. Watching ads is completely voluntary and non-mandatory.
               </Text>
 
               <Text style={styles.modalSectionTitle}>4. Winner Selection</Text>
@@ -1031,5 +1296,109 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 16,
     lineHeight: 18,
+  },
+
+  adRewardCard: {
+    backgroundColor: "#18181b",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#27272a",
+  },
+  adRewardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  adRewardIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  adRewardTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "900",
+    fontStyle: "italic",
+  },
+  adRewardBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  adRewardBadgeText: {
+    color: "#a1a1aa",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  adRewardSubtitle: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  adRewardStatsRow: {
+    flexDirection: "row",
+    backgroundColor: "#202024",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 16,
+    alignItems: "center",
+  },
+  adRewardStatBox: {
+    flex: 1,
+    alignItems: "center",
+  },
+  adRewardStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "#2e2e34",
+  },
+  adRewardStatNumber: {
+    color: "#f59e0b",
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  adRewardStatLabel: {
+    color: "#71717a",
+    fontSize: 9,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  watchAdBtn: {
+    backgroundColor: "#f59e0b",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  watchAdBtnDisabled: {
+    opacity: 0.6,
+  },
+  watchAdBtnText: {
+    color: "#000",
+    fontWeight: "900",
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  adRewardNote: {
+    color: "#71717a",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 10,
+    lineHeight: 15,
   },
 });

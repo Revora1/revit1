@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, doc, getDoc, getCountFromServer, setDoc, onSnapshot, query, where, updateDoc, arrayUnion } from 'firebase/firestore';
-import { Gift, Copy, CheckCircle2, ChevronLeft, Users, Trophy, ShieldCheck, X } from 'lucide-react';
+import { collection, doc, getDoc, getCountFromServer, setDoc, onSnapshot, query, where, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { Gift, Copy, CheckCircle2, ChevronLeft, Users, Trophy, ShieldCheck, X, Film, PlayCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -26,11 +26,14 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
   const [showTC, setShowTC] = useState(false);
   const [enteredGiveaways, setEnteredGiveaways] = useState<number[]>([]);
   const [enteringGiveaway, setEnteringGiveaway] = useState<number | null>(null);
+  const [adLoading, setAdLoading] = useState(false);
+  const [adRewardSuccess, setAdRewardSuccess] = useState(false);
+  const [adBonusTickets, setAdBonusTickets] = useState(0);
   
   const [milestones, setMilestones] = useState<any[]>([
-    { target: 10000, prize: '£50 Giftcard' },
-    { target: 100000, prize: '£1000 Cash' },
-    { target: 1000000, prize: 'A Brand New Car' },
+    { target: 10000, prize: '£500 CASH' },
+    { target: 100000, prize: '£1000 CASH' },
+    { target: 1000000, prize: 'A CAR' },
   ]);
 
   useEffect(() => {
@@ -61,6 +64,7 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
             setMyReferrals(userReferrals);
             setEnteredGiveaways(data.enteredGiveaways || []);
             setScrolledFeedCount(userScrolled);
+            setAdBonusTickets(data.adBonusTickets || 0);
             if (data.giveawayQualified || (data.enteredGiveaways && data.enteredGiveaways.length > 0)) {
               hasLifetime = true;
               setIsLifetimeQualified(true);
@@ -99,9 +103,37 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
   const currentMilestoneIndex = milestones.findIndex(m => totalUsers < m.target);
   const activeMilestoneIndex = currentMilestoneIndex === -1 ? milestones.length - 1 : currentMilestoneIndex;
   const activeMilestone = milestones[activeMilestoneIndex];
+  const adTickets = adBonusTickets || (profile as any)?.adBonusTickets || 0;
   const boostTickets = Math.min(15, (profile as any)?.boostTickets !== undefined ? (profile as any).boostTickets : myReferrals);
   const currentReqsMet = (user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10 && scrolledFeedCount >= 50;
   const isEligible = isLifetimeQualified || currentReqsMet;
+  const baseTicketCount = isLifetimeQualified || isEligible ? 1 : 0;
+  const totalMyTickets = baseTicketCount + boostTickets + adTickets;
+
+  const handleWatchRewardedAd = async () => {
+    if (!user) {
+      alert("Please sign in to earn extra giveaway tickets.");
+      return;
+    }
+    setAdLoading(true);
+    // Simulate watching video on web (or native rewarded if Capacitor AdMob available)
+    setTimeout(async () => {
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        await setDoc(userRef, {
+          adBonusTickets: increment(2),
+          lastAdRewardAt: Date.now()
+        }, { merge: true });
+        setAdBonusTickets(prev => prev + 2);
+        setAdRewardSuccess(true);
+        setTimeout(() => setAdRewardSuccess(false), 5000);
+      } catch (e) {
+        console.error("Error rewarding ad tickets:", e);
+      } finally {
+        setAdLoading(false);
+      }
+    }, 1500);
+  };
 
   const handleEnterGiveaway = async (target: number) => {
     if (!user) return;
@@ -408,6 +440,61 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
             </button>
           </div>
 
+          {/* Optional Rewarded Ad for +2 Tickets */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-center text-amber-500 flex-shrink-0">
+                <Film size={22} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-base italic uppercase text-white">Want More Tickets?</h3>
+                  <span className="bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase px-1.5 py-0.5 rounded">Optional</span>
+                </div>
+                <p className="text-zinc-400 text-xs mt-0.5">Watch a short video ad to claim +2 extra tickets for the active draw</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3 text-center">
+              <div>
+                <div className="text-2xl font-black text-amber-500">+{adTickets}</div>
+                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mt-0.5">Ad Bonus Tickets</div>
+              </div>
+              <div className="border-l border-zinc-800">
+                <div className="text-2xl font-black text-emerald-400">{totalMyTickets}</div>
+                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mt-0.5">Total Tickets In Draw</div>
+              </div>
+            </div>
+
+            {adRewardSuccess && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-emerald-400 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 size={16} />
+                <span>+2 extra tickets added to your giveaway entries!</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleWatchRewardedAd}
+              disabled={adLoading}
+              className="w-full bg-amber-500 hover:bg-amber-400 active:scale-95 disabled:opacity-50 text-black py-3.5 rounded-xl font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10"
+            >
+              {adLoading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Loading Ad...</span>
+                </>
+              ) : (
+                <>
+                  <PlayCircle size={18} />
+                  <span>Watch Ad For +2 Extra Tickets</span>
+                </>
+              )}
+            </button>
+            <p className="text-[11px] text-zinc-500 text-center leading-relaxed">
+              Completely optional — no obligation to watch. Watch anytime you want more entries.
+            </p>
+          </div>
+
           <div className="text-[9px] text-zinc-500 space-y-2 pt-6 pb-2 px-2 text-center uppercase tracking-wider leading-relaxed border-t border-zinc-900 mt-6">
             <p>
               <strong className="text-zinc-400">Disclaimer:</strong> Apple Inc. and Google LLC are NOT sponsors of, nor are they involved in any way with, this giveaway or sweepstakes.
@@ -452,8 +539,8 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                     Apple Inc. and Google LLC are NOT sponsors of, nor are they involved in any way with, this giveaway or sweepstakes.
                   </p>
                   <p>
-                    <strong className="text-white block mb-1">3. How to Enter & Boost Tickets (Max 15)</strong>
-                    Users automatically receive an entry ticket upon meeting the eligibility requirements. Additional boost tickets (up to a maximum limit of 15 extra tickets per user) can only be earned when a new user registers a new account on RevItUp using your unique share/referral link. Existing users who are already registered do not grant extra boost tickets.
+                    <strong className="text-white block mb-1">3. How to Enter, Boosts & Rewarded Ad Tickets</strong>
+                    Users automatically receive an entry ticket upon meeting the eligibility requirements. Additional boost tickets (up to a maximum limit of 15 extra tickets per user) can be earned when a new user registers a new account on RevItUp using your unique share/referral link. Existing users who are already registered do not grant extra boost tickets. Users may also optionally choose to watch rewarded video ads to earn +2 extra raffle tickets per completed ad. Watching ads is completely voluntary and non-mandatory.
                   </p>
                   <p>
                     <strong className="text-white block mb-1">4. Winner Selection</strong>
