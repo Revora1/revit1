@@ -508,6 +508,10 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handleDeletePost = async (post: any) => {
+    if (!post || !auth.currentUser || post.authorId !== auth.currentUser.uid) {
+      Alert.alert('Error', 'Only the owner of the post can delete their posts.');
+      return;
+    }
     Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
@@ -830,38 +834,64 @@ export default function FeedScreen({ navigation }: any) {
         ) : null}
       </View>
 
-      <Modal visible={showCommentModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeComments}>
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Comments</Text>
-            <TouchableOpacity onPress={closeComments}>
-              <Ionicons name="close" size={28} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.commentsList}>
-            {comments.map(c => (
-              <View key={c.id} style={styles.commentItem}>
-                <Text style={styles.commentUser}>@{formatCleanUsername(c.authorUsername)}</Text>
-                <Text style={styles.commentText}>{c.text}</Text>
+      <Modal visible={showCommentModal} animationType="slide" transparent={true} onRequestClose={closeComments}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
+          {/* Backdrop: tap to dismiss comments and stay on the post */}
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeComments} />
+
+          <View style={[styles.modalContainer, { height: '72%', flex: undefined, borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: '#2f2f2f' }]}>
+            <View style={{ alignItems: 'center', paddingTop: 8, paddingBottom: 2 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#444' }} />
+            </View>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.modalTitle}>Comments</Text>
+                {comments.length > 0 && (
+                  <View style={{ backgroundColor: '#262626', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginLeft: 8 }}>
+                    <Text style={{ color: '#aaa', fontSize: 12, fontWeight: 'bold' }}>{comments.length}</Text>
+                  </View>
+                )}
               </View>
-            ))}
-            {comments.length === 0 && <Text style={{color: '#666', textAlign: 'center', marginTop: 40}}>Be the first to comment!</Text>}
-          </ScrollView>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={styles.commentInputRow}>
-              <TextInput 
-                style={styles.commentInput} 
-                placeholder="Add a comment..." 
-                placeholderTextColor="#666" 
-                value={newComment}
-                onChangeText={setNewComment}
-              />
-              <TouchableOpacity onPress={submitComment}>
-                <Ionicons name="send" size={24} color="#e53935" />
+              <TouchableOpacity onPress={closeComments} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 4 }}>
+                <Ionicons name="close" size={24} color="#aaa" />
               </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
+            <ScrollView style={styles.commentsList} keyboardShouldPersistTaps="handled">
+              {comments.map(c => (
+                <View key={c.id} style={styles.commentItem}>
+                  <Text style={styles.commentUser}>@{formatCleanUsername(c.authorUsername)}</Text>
+                  <Text style={styles.commentText}>{c.text}</Text>
+                </View>
+              ))}
+              {comments.length === 0 && (
+                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={38} color="#444" style={{ marginBottom: 8 }} />
+                  <Text style={{ color: '#888', textAlign: 'center', fontSize: 14 }}>No comments yet.</Text>
+                  <Text style={{ color: '#555', textAlign: 'center', fontSize: 12, marginTop: 4 }}>Be the first to comment!</Text>
+                </View>
+              )}
+            </ScrollView>
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+            >
+              <View style={[styles.commentInputRow, { paddingBottom: Platform.OS === 'ios' ? 24 : 14 }]}>
+                <TextInput 
+                  style={styles.commentInput} 
+                  placeholder="Add a comment..." 
+                  placeholderTextColor="#666" 
+                  value={newComment}
+                  onChangeText={setNewComment}
+                  returnKeyType="send"
+                  onSubmitEditing={submitComment}
+                />
+                <TouchableOpacity onPress={submitComment} disabled={!newComment.trim()}>
+                  <Ionicons name="send" size={24} color={newComment.trim() ? '#e53935' : '#555'} />
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </View>
       </Modal>
 
       {/* Dedicated Post Options Sheet (Three Dots Button) */}
@@ -880,8 +910,8 @@ export default function FeedScreen({ navigation }: any) {
             <View style={styles.optionsHandle} />
             <Text style={styles.optionsTitle}>Post Options</Text>
             
-            {/* Delete button for author or admin */}
-            {(selectedPostForOptions?.authorId === auth.currentUser?.uid || auth.currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com') && (
+            {/* Delete button only for author */}
+            {selectedPostForOptions?.authorId && selectedPostForOptions.authorId === auth.currentUser?.uid && (
               <TouchableOpacity 
                 style={styles.optionItem}
                 onPress={() => {

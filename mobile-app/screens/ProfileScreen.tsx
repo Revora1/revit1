@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   StyleSheet,
@@ -42,6 +42,7 @@ import {
   increment,
   serverTimestamp,
   limit,
+  onSnapshot,
 } from "firebase/firestore";
 import { signOut, deleteUser } from "firebase/auth";
 
@@ -126,6 +127,20 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [selectedFeedPost, setSelectedFeedPost] = useState<any>(null);
   const [feedComments, setFeedComments] = useState<any[]>([]);
   const [newFeedComment, setNewFeedComment] = useState('');
+  const feedCommentUnsubRef = useRef<(() => void) | null>(null);
+
+  const closeFeedComments = () => {
+    setShowFeedCommentsModal(false);
+    if (feedCommentUnsubRef.current) {
+      feedCommentUnsubRef.current();
+      feedCommentUnsubRef.current = null;
+    }
+  };
+
+  const closeFeedViewer = () => {
+    closeFeedComments();
+    setShowFeedViewer(false);
+  };
   const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
   const [posts, setPosts] = useState<any[]>([]);
@@ -786,7 +801,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   };
 
   const handleFeedPostOptions = (post: any) => {
-    const isOwner = post.authorId === auth.currentUser?.uid || auth.currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com';
+    const isOwner = !!(post.authorId && auth.currentUser?.uid && post.authorId === auth.currentUser.uid);
     const options: any[] = [];
     if (isOwner) {
       options.push({ text: 'Delete Post', onPress: () => handleDeletePostFromFeed(post), style: 'destructive' });
@@ -801,6 +816,10 @@ export default function ProfileScreen({ route, navigation }: any) {
   };
 
   const handleDeletePostFromFeed = async (post: any) => {
+    if (!post || !auth.currentUser || post.authorId !== auth.currentUser.uid) {
+      Alert.alert('Error', 'Only the owner of the post can delete their posts.');
+      return;
+    }
     Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -813,7 +832,7 @@ export default function ProfileScreen({ route, navigation }: any) {
             setFeedViewerPosts(prev => {
               const updated = prev.filter(p => p.id !== post.id);
               if (updated.length === 0) {
-                setShowFeedViewer(false);
+                closeFeedViewer();
               }
               return updated;
             });
@@ -833,16 +852,26 @@ export default function ProfileScreen({ route, navigation }: any) {
     if (post.id) {
       updateDoc(doc(db, 'posts', post.id), { viewsCount: increment(1) }).catch(console.error);
     }
+    
+    if (feedCommentUnsubRef.current) {
+      feedCommentUnsubRef.current();
+      feedCommentUnsubRef.current = null;
+    }
+
     try {
       const q = query(collection(db, 'comments'), where('postId', '==', post.id));
-      const snap = await getDocs(q);
-      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      fetched.sort((a: any, b: any) => {
-        const aTime = typeof a.createdAt === 'number' ? a.createdAt : (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0);
-        const bTime = typeof b.createdAt === 'number' ? b.createdAt : (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0);
-        return aTime - bTime;
+      const unsub = onSnapshot(q, (snapshot) => {
+        const liveComments = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        liveComments.sort((a: any, b: any) => {
+          const aTime = typeof a.createdAt === 'number' ? a.createdAt : (a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0));
+          const bTime = typeof b.createdAt === 'number' ? b.createdAt : (b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0));
+          return aTime - bTime;
+        });
+        setFeedComments(liveComments);
+      }, (err) => {
+        console.log('Error listening to feed comments:', err);
       });
-      setFeedComments(fetched);
+      feedCommentUnsubRef.current = unsub;
     } catch (e) {
       console.log('Error loading comments:', e);
     }
@@ -886,7 +915,19 @@ export default function ProfileScreen({ route, navigation }: any) {
       setFeedViewerPosts(current => current.map(p => 
         p.id === selectedFeedPost.id ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p
       ));
-      setFeedComments(prev => [...prev, { id: commentId, text: textToSubmit, authorUsername: currentUserName, createdAt: Date.now() }]);
+
+      if (selectedFeedPost.authorId && selectedFeedPost.authorId !== currentUid) {
+        const notifId = `${Date.now()}_${currentUid}_comment_${selectedFeedPost.id}`;
+        setDoc(doc(db, 'notifications', notifId), {
+          userId: selectedFeedPost.authorId,
+          actorId: currentUid,
+          type: 'comment',
+          postId: selectedFeedPost.id,
+          message: textToSubmit,
+          read: false,
+          createdAt: Date.now()
+        }).catch(() => {});
+      }
     } catch (e) {
       console.error('Error submitting comment:', e);
       Alert.alert('Error', 'Failed to submit comment.');
@@ -894,7 +935,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   };
 
   const handlePostOptions = (post: any) => {
-    const isOwner = post.authorId === auth.currentUser?.uid || auth.currentUser?.email?.toLowerCase() === 'tonyang11552883@gmail.com';
+    const isOwner = !!(post.authorId && auth.currentUser?.uid && post.authorId === auth.currentUser.uid);
     const options: any[] = [];
     if (isOwner) {
       options.push({ text: 'Delete Post', onPress: () => handleDeletePost(post), style: 'destructive' });
@@ -909,6 +950,10 @@ export default function ProfileScreen({ route, navigation }: any) {
   };
 
   const handleDeletePost = async (post: any) => {
+    if (!post || !auth.currentUser || post.authorId !== auth.currentUser.uid) {
+      Alert.alert('Error', 'Only the owner of the post can delete their posts.');
+      return;
+    }
     Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
@@ -2535,7 +2580,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         visible={showFeedViewer} 
         animationType="slide" 
         presentationStyle="fullScreen"
-        onRequestClose={() => setShowFeedViewer(false)}
+        onRequestClose={closeFeedViewer}
       >
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           {/* Feed Header */}
@@ -2571,7 +2616,7 @@ export default function ProfileScreen({ route, navigation }: any) {
                 shadowRadius: 5,
                 elevation: 8,
               }} 
-              onPress={() => setShowFeedViewer(false)}
+              onPress={closeFeedViewer}
               hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
               activeOpacity={0.7}
             >
@@ -2612,7 +2657,7 @@ export default function ProfileScreen({ route, navigation }: any) {
                 shadowRadius: 5,
                 elevation: 8,
               }} 
-              onPress={() => setShowFeedViewer(false)}
+              onPress={closeFeedViewer}
               hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
               activeOpacity={0.7}
             >
@@ -2734,46 +2779,151 @@ export default function ProfileScreen({ route, navigation }: any) {
               );
             }}
           />
-        </View>
-      </Modal>
 
-      {/* Feed Comments Modal */}
-      <Modal visible={showFeedCommentsModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#111' }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#333' }}>
-            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Comments</Text>
-            <TouchableOpacity onPress={() => setShowFeedCommentsModal(false)}>
-              <Ionicons name="close" size={28} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          
-          <ScrollView style={{ flex: 1, padding: 16 }}>
-            {feedComments.map(c => (
-              <View key={c.id} style={{ marginBottom: 16, backgroundColor: '#1a1a1a', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#333' }}>
-                <Text style={{ color: '#aaa', fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>@{c.authorUsername}</Text>
-                <Text style={{ color: '#fff', fontSize: 15, lineHeight: 22 }}>{c.text}</Text>
-              </View>
-            ))}
-            {feedComments.length === 0 && (
-              <Text style={{ color: '#666', textAlign: 'center', marginTop: 40 }}>Be the first to comment!</Text>
-            )}
-          </ScrollView>
-
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: '#333', backgroundColor: '#1a1a1a' }}>
-              <TextInput 
-                style={{ flex: 1, backgroundColor: '#000', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: '#fff', marginRight: 12, borderWidth: 1, borderColor: '#333' }}
-                placeholder="Add a comment..." 
-                placeholderTextColor="#666" 
-                value={newFeedComment}
-                onChangeText={setNewFeedComment}
+          {/* Feed Comments Sheet Overlay (renders directly over the post while viewing) */}
+          {showFeedCommentsModal && (
+            <View 
+              style={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                right: 0, 
+                bottom: 0, 
+                zIndex: 999999, 
+                elevation: 999 
+              }}
+            >
+              {/* Semi-transparent backdrop - allows viewing post above & tap to dismiss */}
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} 
+                activeOpacity={1} 
+                onPress={closeFeedComments} 
               />
-              <TouchableOpacity onPress={submitFeedComment}>
-                <Ionicons name="send" size={24} color="#e53935" />
-              </TouchableOpacity>
+
+              {/* Bottom Sheet Container */}
+              <View 
+                style={{ 
+                  height: '72%', 
+                  backgroundColor: '#121212', 
+                  borderTopLeftRadius: 22, 
+                  borderTopRightRadius: 22, 
+                  borderWidth: 1, 
+                  borderColor: '#2f2f2f',
+                  overflow: 'hidden',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: -4 },
+                  shadowOpacity: 0.6,
+                  shadowRadius: 10,
+                  elevation: 20
+                }}
+              >
+                {/* Drag handle */}
+                <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
+                  <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#444' }} />
+                </View>
+
+                {/* Header */}
+                <View style={{ 
+                  flexDirection: 'row', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  paddingHorizontal: 20, 
+                  paddingVertical: 12, 
+                  borderBottomWidth: 1, 
+                  borderBottomColor: '#242424' 
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }}>Comments</Text>
+                    {feedComments.length > 0 && (
+                      <View style={{ backgroundColor: '#262626', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginLeft: 8 }}>
+                        <Text style={{ color: '#aaa', fontSize: 12, fontWeight: 'bold' }}>{feedComments.length}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity 
+                    onPress={closeFeedComments}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    style={{ padding: 4 }}
+                  >
+                    <Ionicons name="close" size={24} color="#aaa" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Comments List */}
+                <ScrollView 
+                  style={{ flex: 1, padding: 16 }}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {feedComments.map(c => (
+                    <View key={c.id} style={{ marginBottom: 12, backgroundColor: '#181818', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#282828' }}>
+                      <Text style={{ color: '#aaa', fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>@{c.authorUsername}</Text>
+                      <Text style={{ color: '#fff', fontSize: 14, lineHeight: 20 }}>{c.text}</Text>
+                    </View>
+                  ))}
+                  {feedComments.length === 0 && (
+                    <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={38} color="#444" style={{ marginBottom: 8 }} />
+                      <Text style={{ color: '#888', textAlign: 'center', fontSize: 14 }}>No comments yet.</Text>
+                      <Text style={{ color: '#555', textAlign: 'center', fontSize: 12, marginTop: 4 }}>Be the first to share your thoughts!</Text>
+                    </View>
+                  )}
+                </ScrollView>
+
+                {/* Input with KeyboardAvoidingView and Safe Area */}
+                <KeyboardAvoidingView 
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+                >
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    paddingHorizontal: 16, 
+                    paddingVertical: 12, 
+                    borderTopWidth: 1, 
+                    borderTopColor: '#242424', 
+                    backgroundColor: '#181818',
+                    paddingBottom: insets.bottom > 0 ? insets.bottom + 6 : 14
+                  }}>
+                    <TextInput 
+                      style={{ 
+                        flex: 1, 
+                        backgroundColor: '#0a0a0a', 
+                        borderRadius: 20, 
+                        paddingHorizontal: 16, 
+                        paddingVertical: 10, 
+                        color: '#fff', 
+                        marginRight: 10, 
+                        borderWidth: 1, 
+                        borderColor: '#333',
+                        fontSize: 14
+                      }}
+                      placeholder="Add a comment..." 
+                      placeholderTextColor="#666" 
+                      value={newFeedComment}
+                      onChangeText={setNewFeedComment}
+                      returnKeyType="send"
+                      onSubmitEditing={submitFeedComment}
+                    />
+                    <TouchableOpacity 
+                      onPress={submitFeedComment} 
+                      disabled={!newFeedComment.trim()}
+                      style={{ 
+                        backgroundColor: newFeedComment.trim() ? '#e53935' : '#333', 
+                        width: 40, 
+                        height: 40, 
+                        borderRadius: 20, 
+                        alignItems: 'center', 
+                        justifyContent: 'center' 
+                      }}
+                    >
+                      <Ionicons name="send" size={18} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                </KeyboardAvoidingView>
+              </View>
             </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
+          )}
+        </View>
       </Modal>
 
       {/* Follows Modal */}
