@@ -102,6 +102,21 @@ export function UploadView({ onComplete, onClose, groupId }: { onComplete?: () =
         songId: selectedSong ? JSON.stringify(selectedSong) : '',
         createdAt: Date.now()
       };
+
+      if (formData.carTagId) {
+        const selectedCar = cars.find(c => c.id === formData.carTagId);
+        if (selectedCar) {
+          postData.carTag = `${selectedCar.make || ''} ${selectedCar.model || ''}`.trim();
+          postData.car = {
+            id: selectedCar.id,
+            make: selectedCar.make || '',
+            model: selectedCar.model || '',
+            year: selectedCar.year || '',
+            stage: selectedCar.stage || 'Stock',
+            power: selectedCar.power || ''
+          };
+        }
+      }
       
       // Clear ad flags if not admin or not video
       if (user.email?.toLowerCase() !== 'tonyang11552883@gmail.com' || mediaType !== 'video') {

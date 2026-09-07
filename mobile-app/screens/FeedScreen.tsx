@@ -718,10 +718,26 @@ export default function FeedScreen({ navigation }: any) {
                 <Text style={styles.postUsername}>@{formatCleanUsername(item.authorUsername) || `user_${item.authorId?.substring(0,6) || 'unknown'}`}</Text>
               </TouchableOpacity>
               {item.caption ? <Text style={styles.postCaption}>{item.caption}</Text> : null}
-              <View style={styles.musicTicker}>
-                <Ionicons name="musical-notes" size={12} color="#fff" style={{ marginRight: 6 }} />
-                <Text style={styles.musicText}>Original Sound - RevitUp</Text>
-              </View>
+              { (item.carTag || item.car?.make) ? (
+                <TouchableOpacity 
+                  style={styles.carTagBadge}
+                  onPress={() => {
+                    if (item.carTagId) {
+                      navigation.navigate('BuildTimeline', { carId: item.carTagId });
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="car-sport" size={13} color="#e53935" style={{ marginRight: 5 }} />
+                  <Text style={styles.carTagText}>#{item.carTag || `${item.car?.make} ${item.car?.model}`}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {item.songTitle ? (
+                <View style={styles.musicTicker}>
+                  <Ionicons name="musical-notes" size={12} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.musicText}>{item.songTitle}</Text>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.rightActions}>
@@ -1081,7 +1097,22 @@ const styles = StyleSheet.create({
   },
   postInfo: { flex: 1, paddingRight: 20 },
   postUsername: { color: '#fff', fontSize: 17, fontWeight: 'bold', marginBottom: 8 },
-  postCaption: { color: '#fff', fontSize: 15, marginBottom: 12, lineHeight: 20 },
+  postCaption: { color: '#fff', fontSize: 15, marginBottom: 8, lineHeight: 20 },
+  carTagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  carTagText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
   musicTicker: { flexDirection: 'row', alignItems: 'center' },
   musicText: { color: '#fff', fontSize: 13 },
   
