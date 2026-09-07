@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Platform, TouchableOpacity, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function DiscoverScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState('POSTS');
@@ -235,7 +236,7 @@ export default function DiscoverScreen({ navigation }: any) {
 const PostCard = ({ image, text, user, likes, comments, onPress }: any) => (
   <TouchableOpacity style={styles.postCard} onPress={onPress}>
     <Image source={{ uri: image }} style={styles.postCardImage} />
-    <View style={styles.postCardGradient}>
+    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={styles.postCardGradient}>
       <Text style={styles.postCardText} numberOfLines={3}>{text}</Text>
       <View style={styles.postCardFooter}>
         <View style={styles.postCardUser}>
@@ -249,7 +250,7 @@ const PostCard = ({ image, text, user, likes, comments, onPress }: any) => (
           <Text style={styles.postCardStatText}>{comments}</Text>
         </View>
       </View>
-    </View>
+    </LinearGradient>
   </TouchableOpacity>
 );
 
@@ -344,7 +345,6 @@ const styles = StyleSheet.create({
   postCardGradient: { 
     position: 'absolute', bottom: 0, left: 0, right: 0, 
     padding: 12, paddingTop: 40,
-    backgroundColor: 'rgba(0,0,0,0.6)' 
   },
   postCardText: { color: '#fff', fontWeight: 'bold', fontSize: 13, marginBottom: 8 },
   postCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

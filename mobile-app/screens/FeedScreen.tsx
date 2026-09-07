@@ -711,7 +711,10 @@ export default function FeedScreen({ navigation }: any) {
         
         
 
-        <View style={styles.postOverlay}>
+        <View
+          style={styles.postOverlay}
+          pointerEvents="box-none"
+        >
           <View style={styles.bottomContent}>
             <View style={styles.postInfo}>
               <TouchableOpacity onPress={() => navigation.navigate("UserProfile", { userId: item.authorId })}>
@@ -1085,10 +1088,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingTop: 80,
-    paddingBottom: 20,
+    paddingBottom: 24,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(0,0,0,0.4)', // Faux gradient
   },
   bottomContent: {
     flexDirection: 'row',
@@ -1096,17 +1097,35 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   postInfo: { flex: 1, paddingRight: 20 },
-  postUsername: { color: '#fff', fontSize: 17, fontWeight: 'bold', marginBottom: 8 },
-  postCaption: { color: '#fff', fontSize: 15, marginBottom: 8, lineHeight: 20 },
+  postUsername: { 
+    color: '#fff', 
+    fontSize: 17, 
+    fontWeight: 'bold', 
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  postCaption: { 
+    color: '#fff', 
+    fontSize: 15, 
+    marginBottom: 8, 
+    lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   carTagBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
     alignSelf: 'flex-start',
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   carTagText: {
     color: '#fff',
@@ -1117,8 +1136,23 @@ const styles = StyleSheet.create({
   musicText: { color: '#fff', fontSize: 13 },
   
   rightActions: { alignItems: 'center', gap: 20 },
-  actionButton: { alignItems: 'center' },
-  actionText: { color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 },
+  actionButton: { 
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  actionText: { 
+    color: '#fff', 
+    fontSize: 12, 
+    fontWeight: 'bold', 
+    marginTop: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
 
   /* Comments Modal Styles */
   modalContainer: { flex: 1, backgroundColor: '#111' },
