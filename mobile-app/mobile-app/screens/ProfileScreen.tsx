@@ -1,0 +1,3264 @@
+import React, { useEffect, useState, useRef } from "react";
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  Platform,
+  TouchableOpacity,
+  ActivityIndicator,
+  Image,
+  Dimensions,
+  Alert,
+  Modal,
+  Share,
+  Linking,
+  TextInput,
+  KeyboardAvoidingView,
+  FlatList,
+} from "react-native";
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
+import { compressImage } from '../lib/imageCompression';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from "../firebaseConfig";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  getCountFromServer,
+  collectionGroup,
+  updateDoc,
+  deleteDoc,
+  setDoc,
+  addDoc,
+  increment,
+  serverTimestamp,
+  limit,
+  onSnapshot,
+} from "firebase/firestore";
+import { signOut, deleteUser } from "firebase/auth";
+
+const { width } = Dimensions.get("window");
+const POST_SIZE = (width - 36) / 3; // 3 column grid with padding
+
+const SettingsItem = ({
+  icon,
+  title,
+  subtitle,
+  iconBgColor = "#222",
+  iconColor = "#fff",
+  isDanger = false,
+  onPress,
+}: any) => (
+  <TouchableOpacity
+    style={[styles.settingsItem, isDanger && styles.settingsItemDanger]}
+    onPress={onPress}
+  >
+    <View
+      style={[
+        styles.settingsIconWrapper,
+        { backgroundColor: isDanger ? "transparent" : iconBgColor },
+      ]}
+    >
+      <Ionicons
+        name={icon as any}
+        size={20}
+        color={isDanger ? "#e53935" : iconColor}
+      />
+    </View>
+    <View style={styles.settingsTextCol}>
+      <Text
+        style={[styles.settingsTitle, isDanger && styles.settingsTitleDanger]}
+      >
+        {title}
+      </Text>
+      <Text
+        style={[
+          styles.settingsSubtitle,
+          isDanger && styles.settingsSubtitleDanger,
+        ]}
+      >
+        {subtitle}
+      </Text>
+    </View>
+  </TouchableOpacity>
+);
+
+
+const formatTimeAgo = (timestamp: any) => {
+  if (!timestamp) return '';
+  try {
+    const date = timestamp?.toDate ? timestamp.toDate() : (timestamp?.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp));
+    if (isNaN(date.getTime())) return '';
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (diffInSeconds < 60) return 'Just now';
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) return `${diffInWeeks}w ago`;
+    return date.toLocaleDateString();
+  } catch (e) {
+    return '';
+  }
+};
+
+export default function ProfileScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  const [profile, setProfile] = useState<any>(null);
+  // Profile Post Feed Viewer States
+  const [showFeedViewer, setShowFeedViewer] = useState(false);
+  const [feedInitialIndex, setFeedInitialIndex] = useState(0);
+  const [feedViewerPosts, setFeedViewerPosts] = useState<any[]>([]);
+  const feedFlatListRef = React.useRef<any>(null);
+  const [showFeedCommentsModal, setShowFeedCommentsModal] = useState(false);
+  const [selectedFeedPost, setSelectedFeedPost] = useState<any>(null);
+  const [feedComments, setFeedComments] = useState<any[]>([]);
+  const [newFeedComment, setNewFeedComment] = useState('');
+  const feedCommentUnsubRef = useRef<(() => void) | null>(null);
+
+  const closeFeedComments = () => {
+    setShowFeedCommentsModal(false);
+    if (feedCommentUnsubRef.current) {
+      feedCommentUnsubRef.current();
+      feedCommentUnsubRef.current = null;
+    }
+  };
+
+  const closeFeedViewer = () => {
+    closeFeedComments();
+    setShowFeedViewer(false);
+  };
+  const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
+
+  const [posts, setPosts] = useState<any[]>([]);
+  const [garage, setGarage] = useState<any[]>([]);
+  const [partnerProfile, setPartnerProfile] = useState<any>(null);
+  const [partnerGarage, setPartnerGarage] = useState<any[]>([]);
+  const [partnerPosts, setPartnerPosts] = useState<any[]>([]);
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"garage" | "posts" | "duo" | "listings">("garage");
+  const [showSettings, setShowSettings] = useState(false);
+  const [activeSubView, setActiveSubView] = useState<string | null>(null);
+
+  const [dynamicFollowersCount, setDynamicFollowersCount] = useState<
+    number | null
+  >(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showFollowsModal, setShowFollowsModal] = useState<'followers' | 'following' | null>(null);
+  const [followsList, setFollowsList] = useState<any[]>([]);
+  const [loadingFollows, setLoadingFollows] = useState(false);
+  const [dynamicFollowingCount, setDynamicFollowingCount] = useState<
+    number | null
+  >(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [checkingFollow, setCheckingFollow] = useState(false);
+
+  const [adminStats, setAdminStats] = useState({ users: 0, garages: 0, logs: 0 });
+
+  // Settings States
+  const [cookieConsent, setCookieConsent] = useState(true);
+  
+  useEffect(() => {
+    AsyncStorage.getItem('gdpr-consent').then((val: string | null) => {
+      setCookieConsent(val === 'accepted');
+    }).catch(console.error);
+  }, []);
+
+  // Edit Profile States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editUsername, setEditUsername] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const rawUserParam = route?.params?.userId || route?.params?.username || route?.params?.ref || route?.params?.u || auth.currentUser?.uid;
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const targetUserId = resolvedUserId || rawUserParam;
+  const isCurrentUser = targetUserId === auth.currentUser?.uid;
+
+  const fetchData = React.useCallback(async () => {
+    if (!rawUserParam) return;
+
+    try {
+      let activeUid = rawUserParam;
+      let profileData = null;
+      let userDocRef = doc(db, "users", activeUid);
+      let docSnap = await getDoc(userDocRef);
+
+        if (docSnap.exists()) {
+          profileData = docSnap.data();
+          setResolvedUserId(activeUid);
+        } else {
+          // If not found directly by UID, attempt lookup by username
+          const lookupTarget = rawUserParam;
+          const uQuery = query(
+            collection(db, "users"),
+            where("username", "==", lookupTarget),
+            limit(1)
+          );
+          let uSnap = await getDocs(uQuery);
+          if (uSnap.empty) {
+            uSnap = await getDocs(query(
+              collection(db, "users"),
+              where("usernameLower", "==", lookupTarget.toLowerCase()),
+              limit(1)
+            ));
+          }
+          // If looking for tony and not found yet, also check legacy tonyang11552883
+          if (uSnap.empty && lookupTarget.toLowerCase() === "tony") {
+            uSnap = await getDocs(query(
+              collection(db, "users"),
+              where("username", "==", "tonyang11552883"),
+              limit(1)
+            ));
+          }
+
+          if (!uSnap.empty) {
+            const foundDoc = uSnap.docs[0];
+            activeUid = foundDoc.id;
+            profileData = foundDoc.data();
+            userDocRef = doc(db, "users", activeUid);
+            setResolvedUserId(activeUid);
+          }
+        }
+
+        if (profileData) {
+          // Auto-heal developer profile from email prefix (tonyang11552883) to clean username 'tony'
+          if (
+            (auth.currentUser?.email?.toLowerCase() === "tonyang11552883@gmail.com" && activeUid === auth.currentUser?.uid) ||
+            profileData.email?.toLowerCase() === "tonyang11552883@gmail.com"
+          ) {
+            if (profileData.username === "tonyang11552883" || profileData.username === "tonyang1155" || !profileData.username) {
+              profileData.username = "tony";
+              profileData.usernameLower = "tony";
+              updateDoc(userDocRef, { username: "tony", usernameLower: "tony" }).catch(console.error);
+            }
+          }
+          setProfile(profileData);
+          if (profileData.partnerId) {
+            const partnerRef = doc(db, "users", profileData.partnerId);
+            const partnerSnap = await getDoc(partnerRef);
+            if (partnerSnap.exists()) {
+               setPartnerProfile({ id: partnerSnap.id, ...partnerSnap.data() });
+            }
+          }
+        }
+
+        const gQuery = query(
+          collection(db, "garage"),
+          where("ownerId", "==", activeUid)
+        );
+        const gSnap = await getDocs(gQuery);
+        const fetchedCars = gSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        fetchedCars.sort((a: any, b: any) => {
+          const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+          const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (typeof b.createdAt === 'number' ? b.createdAt : 0);
+          return tB - tA;
+        });
+        setGarage(fetchedCars);
+
+        const pQuery = query(
+          collection(db, "posts"),
+          where("authorId", "==", activeUid),
+          orderBy("createdAt", "desc"),
+        );
+        const pSnap = await getDocs(pQuery);
+        const fetchedPosts = pSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+        const currentUid = auth.currentUser?.uid;
+        const likedPostIds = new Set<string>();
+        if (currentUid && fetchedPosts.length > 0) {
+          try {
+            const likeChecks = await Promise.all(
+              fetchedPosts.map(p => getDoc(doc(db, 'likes', `${currentUid}_${p.id}`)))
+            );
+            likeChecks.forEach((lSnap, idx) => {
+              if (lSnap.exists()) {
+                likedPostIds.add(fetchedPosts[idx].id);
+              }
+            });
+          } catch (e) {
+            console.log('Error checking likes:', e);
+          }
+        }
+
+        const enrichedPosts = fetchedPosts.map(p => ({
+          ...p,
+          isLiked: likedPostIds.has(p.id),
+          likesCount: Number(p.likesCount) || 0
+        }));
+
+        setPosts(enrichedPosts);
+
+        const lQuery = query(
+          collection(db, "marketplace"),
+          where("sellerId", "==", activeUid),
+          orderBy("createdAt", "desc")
+        );
+        const lSnap = await getDocs(lQuery);
+        setListings(lSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        // Fetch partner garage and posts
+        if (profileData && profileData.partnerId) {
+          const pgQuery = query(
+            collection(db, "garage"),
+            where("ownerId", "==", profileData.partnerId)
+          );
+          const pgSnap = await getDocs(pgQuery);
+          const fetchedPartnerCars = pgSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+          fetchedPartnerCars.sort((a: any, b: any) => {
+            const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+            const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (typeof b.createdAt === 'number' ? b.createdAt : 0);
+            return tB - tA;
+          });
+          setPartnerGarage(fetchedPartnerCars);
+          
+          const ppQuery = query(
+            collection(db, "posts"),
+            where("authorId", "==", profileData.partnerId),
+            orderBy("createdAt", "desc")
+          );
+          const ppSnap = await getDocs(ppQuery);
+          setPartnerPosts(ppSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        }
+
+        // Fetch dynamic counts
+        const followersQ = query(
+          collection(db, "follows"),
+          where("followingId", "==", activeUid),
+        );
+        const followingQ = query(
+          collection(db, "follows"),
+          where("followerId", "==", activeUid),
+        );
+        const [followersSnap, followingSnap] = await Promise.all([
+          getCountFromServer(followersQ),
+          getCountFromServer(followingQ),
+        ]);
+
+        const actualFollowers = followersSnap.data().count;
+        const actualFollowing = followingSnap.data().count;
+
+        setDynamicFollowersCount(actualFollowers);
+        setDynamicFollowingCount(actualFollowing);
+
+        if (auth.currentUser && activeUid !== auth.currentUser?.uid) {
+          try {
+            const followSnap = await getDoc(doc(db, "follows", `${auth.currentUser.uid}_${activeUid}`));
+            setIsFollowing(followSnap.exists());
+          } catch (e) {
+            console.error("Error checking follow status:", e);
+          }
+        }
+
+        if (activeUid === auth.currentUser?.uid && auth.currentUser?.email === "tonyang11552883@gmail.com") {
+          try {
+            const usersCountQ = await getCountFromServer(collection(db, "users"));
+            const garagesCountQ = await getCountFromServer(collection(db, "garage"));
+            const logsCountQ = await getCountFromServer(collectionGroup(db, "build_logs"));
+            setAdminStats({
+              users: usersCountQ.data().count,
+              garages: garagesCountQ.data().count,
+              logs: logsCountQ.data().count,
+            });
+          } catch (e) {
+            console.error("Admin stats error:", e);
+          }
+        }
+
+        if (
+          profileData &&
+          (profileData.followersCount !== actualFollowers ||
+            profileData.followingCount !== actualFollowing)
+        ) {
+          await setDoc(userDocRef, {
+            followersCount: actualFollowers,
+            followingCount: actualFollowing,
+          }, { merge: true });
+        }
+      } catch (err) {
+        console.error("Error fetching profile data:", err);
+      } finally {
+        setLoading(false);
+    }
+  }, [rawUserParam]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
+
+  const handleFollowToggle = async () => {
+    if (!auth.currentUser) {
+      Alert.alert("Sign In Required", "Please sign in to follow users.");
+      return;
+    }
+    if (isCurrentUser || checkingFollow || !targetUserId) return;
+    setCheckingFollow(true);
+    const myUid = auth.currentUser.uid;
+    const followId = `${myUid}_${targetUserId}`;
+    const followRef = doc(db, 'follows', followId);
+    const myRef = doc(db, 'users', myUid);
+    const targetRef = doc(db, 'users', targetUserId);
+
+    const willFollow = !isFollowing;
+    setIsFollowing(willFollow);
+    setDynamicFollowersCount(prev => (prev !== null ? (willFollow ? prev + 1 : Math.max(0, prev - 1)) : (willFollow ? 1 : 0)));
+
+    try {
+      if (!willFollow) {
+        await deleteDoc(followRef);
+        try { await setDoc(myRef, { followingCount: increment(-1) }, { merge: true }); } catch (e) {}
+        try { await setDoc(targetRef, { followersCount: increment(-1) }, { merge: true }); } catch (e) {}
+      } else {
+        await setDoc(followRef, {
+          followerId: myUid,
+          followingId: targetUserId,
+          createdAt: Date.now()
+        });
+        try { await setDoc(myRef, { followingCount: increment(1) }, { merge: true }); } catch (e) {}
+        try { await setDoc(targetRef, { followersCount: increment(1) }, { merge: true }); } catch (e) {}
+
+        const notifId = `${Date.now()}_${myUid}_follow_${targetUserId}`;
+        try {
+          await setDoc(doc(db, 'notifications', notifId), {
+            userId: targetUserId,
+            actorId: myUid,
+            type: 'follow',
+            read: false,
+            createdAt: Date.now()
+          });
+        } catch (e) {}
+      }
+    } catch (error) {
+      console.error("Follow error:", error);
+      setIsFollowing(!willFollow);
+      setDynamicFollowersCount(prev => (prev !== null ? (!willFollow ? prev + 1 : Math.max(0, prev - 1)) : 0));
+      Alert.alert("Error", "Could not update follow status.");
+    } finally {
+      setCheckingFollow(false);
+    }
+  };
+
+  // --- Handlers for Edit Profile ---
+    const handleOpenFollows = async (type: 'followers' | 'following') => {
+    setShowFollowsModal(type);
+    setLoadingFollows(true);
+    try {
+      const db = require('../firebaseConfig').db;
+      const { collection, query, where, getDocs, doc, getDoc } = require('firebase/firestore');
+      
+      const q = type === 'followers'
+        ? query(collection(db, "follows"), where("followingId", "==", targetUserId))
+        : query(collection(db, "follows"), where("followerId", "==", targetUserId));
+        
+      const snapshot = await getDocs(q);
+      const userIds = [...new Set(snapshot.docs.map((d: any) => type === 'followers' ? d.data().followerId : d.data().followingId))];
+      
+      const users = [];
+      for (const id of userIds) {
+        const uDoc = await getDoc(doc(db, "users", id));
+        if (uDoc.exists()) {
+          users.push({ id: uDoc.id, ...uDoc.data() });
+        }
+      }
+      setFollowsList(users);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingFollows(false);
+    }
+  };
+
+  const handleOpenEditProfile = () => {
+    const initialName = (profile?.username === "tonyang11552883" || profile?.username === "tonyang1155" || (auth.currentUser?.email?.toLowerCase() === "tonyang11552883@gmail.com" && (!profile?.username || profile?.username.startsWith("tonyang"))))
+      ? "tony"
+      : (profile?.username || "");
+    setEditUsername(initialName);
+    setEditBio(profile?.bio || "");
+    setShowEditModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!auth.currentUser) return;
+    const cleanName = editUsername.trim();
+    if (!cleanName) {
+      Alert.alert("Error", "Username cannot be empty");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      // Check if username is already taken if changed
+      if (cleanName.toLowerCase() !== profile?.username?.toLowerCase()) {
+        const uLowerQuery = query(
+          collection(db, "users"),
+          where("usernameLower", "==", cleanName.toLowerCase()),
+          limit(1)
+        );
+        const snap = await getDocs(uLowerQuery);
+        if (!snap.empty && snap.docs[0].id !== auth.currentUser.uid) {
+          Alert.alert("Username Taken", "This username is already in use. Please choose a different one.");
+          setSavingProfile(false);
+          return;
+        }
+      }
+
+      let downloadUrl = profile.profilePic || null;
+      if (editAvatarUri && editAvatarUri !== profile.profilePic) {
+        const compressedUri = await compressImage(editAvatarUri);
+        const response = await fetch(compressedUri);
+        const blob = await response.blob();
+        const filename = `avatars/${auth.currentUser.uid}/${Date.now()}.jpg`;
+        const storageRef = ref(storage, filename);
+        await uploadBytes(storageRef, blob);
+        downloadUrl = await getDownloadURL(storageRef);
+      }
+
+      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        username: cleanName,
+        usernameLower: cleanName.toLowerCase(),
+        bio: editBio,
+        ...(downloadUrl ? { profilePic: downloadUrl } : {})
+      });
+      setProfile((prev: any) => ({
+        ...prev,
+        username: cleanName,
+        usernameLower: cleanName.toLowerCase(),
+        bio: editBio,
+        profilePic: downloadUrl || prev.profilePic
+      }));
+      setShowEditModal(false);
+    } catch (err: any) {
+      Alert.alert("Error", "Failed to update profile: " + err.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const pickAvatar = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult || !permissionResult.granted) {
+        Alert.alert('Permission Required', 'Photo library permission is needed to update your profile avatar. You can enable photo access in device Settings.');
+        return;
+      }
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.4,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setEditAvatarUri(result.assets[0].uri);
+      }
+    } catch (err: any) {
+      console.log('Error picking avatar:', err);
+      Alert.alert('Error', 'Could not open photo library: ' + (err.message || 'Permission denied'));
+    }
+  };
+
+  // --- Handlers for Settings Actions ---
+  const handleSignOut = () => {
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: () => {
+          setShowSettings(false);
+          signOut(auth).catch(console.error);
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Permanently remove all your data? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!auth.currentUser) return;
+            try {
+              await deleteUser(auth.currentUser);
+              setShowSettings(false);
+            } catch (e: any) {
+              if (e.code === "auth/requires-recent-login") {
+                Alert.alert(
+                  "Verification Required",
+                  "Please log out and log back in before deleting your account.",
+                );
+              } else {
+                Alert.alert("Error", e.message);
+              }
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDeleteListing = async (itemId: string) => {
+    Alert.alert(
+      "Delete Listing",
+      "Are you sure you want to delete this listing?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: async () => {
+            try {
+               await deleteDoc(doc(db, "marketplace", itemId));
+               setListings(prev => prev.filter(item => item.id !== itemId));
+               Alert.alert("Success", "Listing deleted.");
+            } catch (e) {
+               console.error(e);
+               Alert.alert("Error", "Could not delete item.");
+            }
+        }}
+      ]
+    );
+  };
+
+  
+  const handleOpenFeedViewer = async (index: number, postList?: any[]) => {
+    const list = postList || posts;
+    if (!list || list.length === 0) return;
+
+    const currentUid = auth.currentUser?.uid;
+    let preparedList = list;
+    if (currentUid) {
+      try {
+        const likeChecks = await Promise.all(
+          list.map(p => getDoc(doc(db, 'likes', `${currentUid}_${p.id}`)))
+        );
+        preparedList = list.map((p, idx) => ({
+          ...p,
+          isLiked: likeChecks[idx].exists(),
+          likesCount: Number(p.likesCount) || 0
+        }));
+      } catch (e) {
+        console.log('Error verifying feed viewer likes:', e);
+      }
+    }
+
+    setFeedViewerPosts(preparedList);
+    setFeedInitialIndex(index);
+    setShowFeedViewer(true);
+  };
+
+  const handleFeedLike = async (postId: string) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      Alert.alert("Sign In Required", "Please sign in to like posts.");
+      return;
+    }
+
+    const targetPost = feedViewerPosts.find(p => p.id === postId) || posts.find(p => p.id === postId);
+    if (!targetPost) return;
+
+    const wasLiked = Boolean(targetPost.isLiked);
+    const currentCount = Number(targetPost.likesCount) || 0;
+    const newLiked = !wasLiked;
+    const newCount = wasLiked ? Math.max(0, currentCount - 1) : currentCount + 1;
+
+    setPosts(current => current.map(p => 
+      p.id === postId ? { ...p, isLiked: newLiked, likesCount: newCount } : p
+    ));
+    setFeedViewerPosts(current => current.map(p => 
+      p.id === postId ? { ...p, isLiked: newLiked, likesCount: newCount } : p
+    ));
+
+    const likeId = `${userId}_${postId}`;
+    const likeRef = doc(db, 'likes', likeId);
+    const postRef = doc(db, 'posts', postId);
+
+    try {
+      if (wasLiked) {
+        await deleteDoc(likeRef);
+        await updateDoc(postRef, { likesCount: increment(-1) });
+      } else {
+        await setDoc(likeRef, {
+          userId: userId,
+          postId: postId,
+          createdAt: Date.now()
+        });
+        await updateDoc(postRef, { likesCount: increment(1) });
+
+        if (targetPost.authorId && targetPost.authorId !== userId) {
+          const notifId = `${Date.now()}_${userId}_like_${postId}`;
+          setDoc(doc(db, 'notifications', notifId), {
+            userId: targetPost.authorId,
+            actorId: userId,
+            type: 'like',
+            postId: postId,
+            read: false,
+            createdAt: Date.now()
+          }).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling feed like:', err);
+      // Revert if error
+      setPosts(current => current.map(p => 
+        p.id === postId ? { ...p, isLiked: wasLiked, likesCount: currentCount } : p
+      ));
+      setFeedViewerPosts(current => current.map(p => 
+        p.id === postId ? { ...p, isLiked: wasLiked, likesCount: currentCount } : p
+      ));
+    }
+  };
+
+  const formatCleanUsername = (rawName?: string) => {
+    if (!rawName) return "tuner";
+    if (
+      rawName === "tonyang11552883" ||
+      rawName === "tonyang1155" ||
+      (auth.currentUser?.email?.toLowerCase() === "tonyang11552883@gmail.com" && rawName.startsWith("tonyang"))
+    ) {
+      return "tony";
+    }
+    // Never display raw email prefixes with @ or trailing random numbers if matching email
+    if (rawName.includes("@")) {
+      return rawName.split("@")[0];
+    }
+    return rawName;
+  };
+
+  const username = formatCleanUsername(
+    profile?.username ||
+    `tuner_${auth.currentUser?.uid?.substring(0, 6)}` ||
+    "tuner"
+  );
+
+  const handleFeedShare = async (post: any) => {
+    try {
+      const authorName = formatCleanUsername(post.authorUsername || username || 'tuner');
+      const shareUrl = `https://revitup.today/?p=${post.id}${authorName ? `&ref=${encodeURIComponent(authorName)}` : ''}`;
+      if (Platform.OS === 'ios') {
+        await Share.share({
+          url: shareUrl,
+        });
+      } else {
+        await Share.share({
+          message: shareUrl,
+        });
+      }
+    } catch (error: any) {
+      console.log('Error sharing', error);
+    }
+  };
+
+  const handleReportPost = async (post: any) => {
+    if (!auth.currentUser) {
+      Alert.alert('Sign In', 'Please sign in to report a post.');
+      return;
+    }
+    try {
+      await addDoc(collection(db, 'reports'), {
+        postId: post.id,
+        reportedBy: auth.currentUser.uid,
+        createdAt: Date.now()
+      });
+      Alert.alert('Reported', 'Thank you. Our team will review this post.');
+    } catch (e) {
+      console.error('Error reporting post:', e);
+      Alert.alert('Error', 'Failed to report post.');
+    }
+  };
+
+  const handleBlockUser = async (userId: string) => {
+    if (!auth.currentUser) {
+      Alert.alert('Sign In', 'Please sign in to block a user.');
+      return;
+    }
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'blockedUsers', userId), {
+        blockedAt: Date.now()
+      });
+      Alert.alert('Blocked', 'You will no longer see content from this user.');
+    } catch (e) {
+      console.error('Error blocking user:', e);
+      Alert.alert('Blocked', 'User has been blocked.');
+    }
+  };
+
+  const handleFeedPostOptions = (post: any) => {
+    const isOwner = !!(post.authorId && auth.currentUser?.uid && post.authorId === auth.currentUser.uid);
+    const options: any[] = [];
+    if (isOwner) {
+      options.push({ text: 'Delete Post', onPress: () => handleDeletePostFromFeed(post), style: 'destructive' });
+    } else {
+      options.push({ text: 'Report Post', onPress: () => handleReportPost(post), style: 'destructive' });
+      options.push({ text: 'Block User', onPress: () => handleBlockUser(post.authorId), style: 'destructive' });
+    }
+    options.push({ text: 'Share Post', onPress: () => handleFeedShare(post) });
+    options.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert('Post Options', '', options);
+  };
+
+  const handleDeletePostFromFeed = async (post: any) => {
+    if (!post || !auth.currentUser || post.authorId !== auth.currentUser.uid) {
+      Alert.alert('Error', 'Only the owner of the post can delete their posts.');
+      return;
+    }
+    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteDoc(doc(db, 'posts', post.id));
+            setPosts(prev => prev.filter(p => p.id !== post.id));
+            setFeedViewerPosts(prev => {
+              const updated = prev.filter(p => p.id !== post.id);
+              if (updated.length === 0) {
+                closeFeedViewer();
+              }
+              return updated;
+            });
+            Alert.alert('Success', 'Post deleted successfully');
+          } catch (err) {
+            console.error(err);
+            Alert.alert('Error', 'Failed to delete post');
+          }
+        }
+      }
+    ]);
+  };
+
+  const openFeedComments = async (post: any) => {
+    setSelectedFeedPost(post);
+    setShowFeedCommentsModal(true);
+    if (post.id) {
+      updateDoc(doc(db, 'posts', post.id), { viewsCount: increment(1) }).catch(console.error);
+    }
+    
+    if (feedCommentUnsubRef.current) {
+      feedCommentUnsubRef.current();
+      feedCommentUnsubRef.current = null;
+    }
+
+    try {
+      const q = query(collection(db, 'comments'), where('postId', '==', post.id));
+      const unsub = onSnapshot(q, (snapshot) => {
+        const liveComments = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        liveComments.sort((a: any, b: any) => {
+          const aTime = typeof a.createdAt === 'number' ? a.createdAt : (a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0));
+          const bTime = typeof b.createdAt === 'number' ? b.createdAt : (b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0));
+          return aTime - bTime;
+        });
+        setFeedComments(liveComments);
+      }, (err) => {
+        console.log('Error listening to feed comments:', err);
+      });
+      feedCommentUnsubRef.current = unsub;
+    } catch (e) {
+      console.log('Error loading comments:', e);
+    }
+  };
+
+  const submitFeedComment = async () => {
+    if (!newFeedComment.trim() || !selectedFeedPost) return;
+    if (!auth.currentUser) {
+      Alert.alert('Sign In', 'Please sign in to comment.');
+      return;
+    }
+    const currentUid = auth.currentUser.uid;
+    const textToSubmit = newFeedComment.trim();
+    const commentId = `${Date.now()}_${currentUid}`;
+    setNewFeedComment('');
+
+    try {
+      const currentUserName = formatCleanUsername(profile?.username || auth.currentUser?.displayName || `tuner_${currentUid.substring(0, 4)}`);
+      
+      await setDoc(doc(db, 'comments', commentId), {
+        postId: selectedFeedPost.id,
+        authorId: currentUid,
+        authorUsername: currentUserName,
+        text: textToSubmit,
+        createdAt: Date.now()
+      });
+
+      await setDoc(doc(db, 'posts', selectedFeedPost.id, 'comments', commentId), {
+        postId: selectedFeedPost.id,
+        authorId: currentUid,
+        authorUsername: currentUserName,
+        text: textToSubmit,
+        createdAt: Date.now()
+      }).catch(() => {});
+
+      await updateDoc(doc(db, 'posts', selectedFeedPost.id), { commentsCount: increment(1) }).catch(() => {});
+      
+      setPosts(current => current.map(p => 
+        p.id === selectedFeedPost.id ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p
+      ));
+      setFeedViewerPosts(current => current.map(p => 
+        p.id === selectedFeedPost.id ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p
+      ));
+
+      if (selectedFeedPost.authorId && selectedFeedPost.authorId !== currentUid) {
+        const notifId = `${Date.now()}_${currentUid}_comment_${selectedFeedPost.id}`;
+        setDoc(doc(db, 'notifications', notifId), {
+          userId: selectedFeedPost.authorId,
+          actorId: currentUid,
+          type: 'comment',
+          postId: selectedFeedPost.id,
+          message: textToSubmit,
+          read: false,
+          createdAt: Date.now()
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.error('Error submitting comment:', e);
+      Alert.alert('Error', 'Failed to submit comment.');
+    }
+  };
+
+  const handlePostOptions = (post: any) => {
+    const isOwner = !!(post.authorId && auth.currentUser?.uid && post.authorId === auth.currentUser.uid);
+    const options: any[] = [];
+    if (isOwner) {
+      options.push({ text: 'Delete Post', onPress: () => handleDeletePost(post), style: 'destructive' });
+    } else {
+      options.push({ text: 'Report Post', onPress: () => handleReportPost(post), style: 'destructive' });
+      options.push({ text: 'Block User', onPress: () => handleBlockUser(post.authorId), style: 'destructive' });
+    }
+    options.push({ text: 'Share Post', onPress: () => handleFeedShare(post) });
+    options.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert('Post Options', '', options);
+  };
+
+  const handleDeletePost = async (post: any) => {
+    if (!post || !auth.currentUser || post.authorId !== auth.currentUser.uid) {
+      Alert.alert('Error', 'Only the owner of the post can delete their posts.');
+      return;
+    }
+    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteDoc(doc(db, 'posts', post.id));
+            setPosts(posts.filter(p => p.id !== post.id));
+            Alert.alert('Success', 'Post deleted');
+          } catch (err) {
+            console.error(err);
+            Alert.alert('Error', 'Failed to delete post');
+          }
+      }}
+    ]);
+  };
+
+  const handleShareProfile = async () => {
+    try {
+      const shareUsername = formatCleanUsername(profile?.username || username || "tuner");
+      const profileUrl = `https://revitup.today/?ref=${encodeURIComponent(shareUsername)}`;
+      if (Platform.OS === 'ios') {
+        await Share.share({
+          url: profileUrl,
+        });
+      } else {
+        await Share.share({
+          message: profileUrl,
+        });
+      }
+    } catch (error: any) {
+      console.log('Error sharing profile:', error);
+    }
+  };
+
+  const handleInvite = async () => {
+    try {
+      const inviteUsername = formatCleanUsername(profile?.username || username || "tuner");
+      const inviteUrl = `https://revitup.today/?ref=${encodeURIComponent(inviteUsername)}`;
+      if (Platform.OS === 'ios') {
+        await Share.share({
+          url: inviteUrl,
+        });
+      } else {
+        await Share.share({
+          message: inviteUrl,
+        });
+      }
+    } catch (error) {}
+  };
+
+  const renderSubViewContent = () => {
+    switch (activeSubView) {
+      case "notifications":
+        return (
+          <View style={{ padding: 16 }}>
+            <View style={styles.settingsItem}>
+              <View style={styles.settingsTextCol}>
+                <Text style={styles.settingsTitle}>Push Notifications</Text>
+                <Text style={styles.settingsSubtitle}>
+                  Receive alerts on your device
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#fff",
+                  width: 48,
+                  height: 24,
+                  borderRadius: 12,
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "#000",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    marginLeft: 28,
+                  }}
+                />
+              </View>
+            </View>
+            <View style={styles.settingsItem}>
+              <View style={styles.settingsTextCol}>
+                <Text style={styles.settingsTitle}>Email Updates</Text>
+                <Text style={styles.settingsSubtitle}>
+                  Weekly digest and news
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#222",
+                  width: 48,
+                  height: 24,
+                  borderRadius: 12,
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "#888",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    marginLeft: 4,
+                  }}
+                />
+              </View>
+            </View>
+            <View
+              style={{
+                marginTop: 24,
+                padding: 16,
+                backgroundColor: "#111",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#333",
+              }}
+            >
+              <Text
+                style={{
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: "bold",
+                  marginBottom: 8,
+                  textTransform: "uppercase",
+                }}
+              >
+                Phone Notification Diagnostics
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: "#222",
+                    padding: 8,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text
+                    style={{ color: "#888", fontSize: 10, fontWeight: "bold" }}
+                  >
+                    STATUS
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#4caf50",
+                      fontSize: 10,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    ● ACTIVE
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: "#222",
+                    padding: 8,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text
+                    style={{ color: "#888", fontSize: 10, fontWeight: "bold" }}
+                  >
+                    APP MODE
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#4caf50",
+                      fontSize: 10,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    NATIVE APP
+                  </Text>
+                        </View>
+                      </View>
+              <View
+                style={{
+                  backgroundColor: "rgba(76, 175, 80, 0.1)",
+                  padding: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: "rgba(76, 175, 80, 0.2)",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#4caf50",
+                    fontSize: 10,
+                    fontWeight: "bold",
+                    marginBottom: 4,
+                  }}
+                >
+                  MOBILE INTEGRATION MODE
+                </Text>
+                <Text style={{ color: "#ccc", fontSize: 10 }}>
+                  You are running the official RevItUp mobile application.
+                  Native alerts are integrated directly with your device's
+                  system settings.
+                </Text>
+                        </View>
+                      </View>
+          </View>
+        );
+      case "privacy":
+        return (
+          <View style={{ padding: 16 }}>
+            <View style={styles.settingsItem}>
+              <View style={styles.settingsTextCol}>
+                <Text style={styles.settingsTitle}>Public Garage</Text>
+                <Text style={styles.settingsSubtitle}>
+                  Anyone can see your vehicles
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#fff",
+                  width: 48,
+                  height: 24,
+                  borderRadius: 12,
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "#000",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    marginLeft: 28,
+                  }}
+                />
+              </View>
+            </View>
+            <View style={styles.settingsItem}>
+              <View style={styles.settingsTextCol}>
+                <Text style={styles.settingsTitle}>Hide License Plates</Text>
+                <Text style={styles.settingsSubtitle}>
+                  Auto-blur plates in photos
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#222",
+                  width: 48,
+                  height: 24,
+                  borderRadius: 12,
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "#888",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    marginLeft: 4,
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        );
+      case "appearance":
+        return (
+          <View style={{ padding: 16 }}>
+            <View style={{ flexDirection: "row", gap: 16 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  height: 100,
+                  backgroundColor: "#000",
+                  borderWidth: 2,
+                  borderColor: "#fff",
+                  borderRadius: 16,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>Dark</Text>
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: "#fff",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: "#000",
+                    }}
+                  />
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled
+                style={{
+                  flex: 1,
+                  height: 100,
+                  backgroundColor: "#111",
+                  borderWidth: 2,
+                  borderColor: "#333",
+                  borderRadius: 16,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: 0.5,
+                }}
+              >
+                <Text style={{ color: "#555", fontWeight: "bold" }}>
+                  Light (Soon)
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.settingsItem, { marginTop: 24 }]}>
+              <View style={styles.settingsTextCol}>
+                <Text style={styles.settingsTitle}>Reduce Motion</Text>
+                <Text style={styles.settingsSubtitle}>
+                  Disable some animations
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#222",
+                  width: 48,
+                  height: 24,
+                  borderRadius: 12,
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "#888",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    marginLeft: 4,
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        );
+      case "data":
+        return (
+          <View style={{ padding: 16 }}>
+            <View style={styles.settingsItem}>
+              <View style={styles.settingsTextCol}>
+                <Text style={styles.settingsTitle}>High Quality Media</Text>
+                <Text style={styles.settingsSubtitle}>
+                  Always upload and view high-res photos
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#222",
+                  width: 48,
+                  height: 24,
+                  borderRadius: 12,
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "#888",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    marginLeft: 4,
+                  }}
+                />
+              </View>
+            </View>
+
+            <Text style={[styles.dangerZoneHeader, { marginTop: 16 }]}>
+              PRIVACY RIGHTS (GDPR / CCPA)
+            </Text>
+            <View
+              style={{
+                padding: 16,
+                backgroundColor: "#111",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#333",
+                marginBottom: 16,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  marginBottom: 4,
+                }}
+              >
+                Request Access
+              </Text>
+              <Text style={{ color: "#888", fontSize: 11, marginBottom: 16 }}>
+                In compliance with GDPR and CCPA, you can download a complete
+                copy of all your custom build details and profile info.
+              </Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#222",
+                  padding: 12,
+                  borderRadius: 24,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 12, fontWeight: "bold" }}
+                >
+                  Download Data Export
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View
+              style={{
+                padding: 16,
+                backgroundColor: "#111",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#333",
+                marginBottom: 24,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#e53935",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  marginBottom: 4,
+                }}
+              >
+                Request Erasure
+              </Text>
+              <Text style={{ color: "#888", fontSize: 11, marginBottom: 16 }}>
+                Instantly and permanently delete your user account. This will
+                recursively purge your profile details and vehicles.
+              </Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "rgba(229, 57, 53, 0.1)",
+                  padding: 12,
+                  borderRadius: 24,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{ color: "#e53935", fontSize: 12, fontWeight: "bold" }}
+                >
+                  Request Permanent Erasure
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "bold" }}>
+                Cache Storage
+              </Text>
+              <Text style={{ color: "#888", fontSize: 12 }}>124 MB</Text>
+            </View>
+            <Text style={{ color: "#888", fontSize: 11, marginBottom: 16 }}>
+              Clear cache to free up space. This won't delete your posts or
+              cars.
+            </Text>
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#222",
+                padding: 12,
+                borderRadius: 24,
+                alignItems: "center",
+              }}
+              onPress={() =>
+                Alert.alert(
+                  "Success",
+                  "Cache cleared successfully! Freed up 124 MB of local assets.",
+                )
+              }
+            >
+              <Text style={{ color: "#fff", fontSize: 12, fontWeight: "bold" }}>
+                Clear Cache
+              </Text>
+            </TouchableOpacity>
+          </View>
+        );
+      case "devices":
+        return (
+          <View style={{ padding: 16 }}>
+            <View
+              style={{
+                backgroundColor: "#111",
+                padding: 16,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#333",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <View>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <Ionicons
+                    name="phone-portrait-outline"
+                    size={16}
+                    color="#888"
+                  />
+                  <Text
+                    style={{ color: "#fff", fontSize: 14, fontWeight: "bold" }}
+                  >
+                    Current Device
+                  </Text>
+                </View>
+                <Text style={{ color: "#4caf50", fontSize: 12, marginTop: 4 }}>
+                  Active now
+                </Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={{ color: "#888", fontSize: 12 }}>
+                  RevitUp Mobile
+                </Text>
+                <Text style={{ color: "#888", fontSize: 12 }}>Native App</Text>
+                        </View>
+                      </View>
+            <Text
+              style={{
+                color: "#888",
+                fontSize: 12,
+                textAlign: "center",
+                marginTop: 16,
+              }}
+            >
+              You are only logged in on this device.
+            </Text>
+          </View>
+        );
+      case "admob":
+        return (
+          <View style={{ padding: 16 }}>
+            <View
+              style={{
+                backgroundColor: "#111",
+                padding: 16,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#333",
+                marginBottom: 16,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <Ionicons name="sparkles" size={16} color="#ff9800" />
+                <Text
+                  style={{
+                    color: "#ff9800",
+                    fontSize: 10,
+                    fontWeight: "900",
+                    letterSpacing: 1,
+                  }}
+                >
+                  FEED INTEGRATION ONLY
+                </Text>
+              </View>
+              <Text
+                style={{
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: "900",
+                  fontStyle: "italic",
+                  marginBottom: 8,
+                }}
+              >
+                PREMIUM NATIVE FEED ADS
+              </Text>
+              <Text style={{ color: "#888", fontSize: 12, lineHeight: 18 }}>
+                To maximize UI consistency and respect user focus, other
+                intrusive ad formats are completely disabled. Google AdMob is
+                integrated strictly as a beautifully customized native ad inside
+                your feed.
+              </Text>
+            </View>
+
+            <View
+              style={{
+                padding: 16,
+                backgroundColor: "#111",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#333",
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <Text
+                  style={{ color: "#888", fontSize: 10, fontWeight: "bold" }}
+                >
+                  GOOGLE ADMOB SDK DIAGNOSTICS
+                </Text>
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: "#4caf50",
+                  }}
+                />
+              </View>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: "#222",
+                    padding: 8,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text
+                    style={{ color: "#888", fontSize: 10, fontWeight: "bold" }}
+                  >
+                    ENVIRONMENT
+                  </Text>
+                  <Text
+                    style={{ color: "#fff", fontSize: 10, fontWeight: "bold" }}
+                  >
+                    ● NATIVE MOBILE
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: "#222",
+                    padding: 8,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text
+                    style={{ color: "#888", fontSize: 10, fontWeight: "bold" }}
+                  >
+                    DEVICE PLATFORM
+                  </Text>
+                  <Text
+                    style={{ color: "#fff", fontSize: 10, fontWeight: "bold" }}
+                  >
+                    MOBILE APP
+                  </Text>
+                        </View>
+                      </View>
+              <View
+                style={{
+                  backgroundColor: "#222",
+                  padding: 12,
+                  borderRadius: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#888",
+                    fontSize: 10,
+                    fontWeight: "bold",
+                    marginBottom: 8,
+                  }}
+                >
+                  ACTIVE AD UNIT IDS
+                </Text>
+                <Text
+                  style={{
+                    color: "#ff9800",
+                    fontSize: 10,
+                    fontFamily: "monospace",
+                  }}
+                >
+                  Native Feed: Active
+                </Text>
+                <Text
+                  style={{
+                    color: "#555",
+                    fontSize: 10,
+                    fontFamily: "monospace",
+                    textDecorationLine: "line-through",
+                  }}
+                >
+                  Banner: Disabled
+                </Text>
+                <Text
+                  style={{
+                    color: "#555",
+                    fontSize: 10,
+                    fontFamily: "monospace",
+                    textDecorationLine: "line-through",
+                  }}
+                >
+                  Interstitial: Disabled
+                </Text>
+                        </View>
+                      </View>
+          </View>
+        );
+      case "about":
+        return (
+          <View style={{ padding: 16, alignItems: "center" }}>
+            <View
+              style={{
+                width: 80,
+                height: 80,
+                backgroundColor: "#111",
+                borderRadius: 24,
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#fff",
+                  fontSize: 32,
+                  fontWeight: "900",
+                  fontStyle: "italic",
+                }}
+              >
+                R
+              </Text>
+            </View>
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 24,
+                fontWeight: "900",
+                fontStyle: "italic",
+                marginBottom: 4,
+              }}
+            >
+              REVITUP
+            </Text>
+            <Text style={{ color: "#888", fontSize: 12, marginBottom: 24 }}>
+              Version 1.2.310 (Build 310)
+            </Text>
+
+            <TouchableOpacity
+              style={{ marginBottom: 16 }}
+              onPress={() => setActiveSubView("user_guide")}
+            >
+              <Text style={{ color: "#aaa", fontSize: 14, fontWeight: "bold" }}>
+                User Guide / How to Use
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ marginBottom: 16 }}
+              onPress={() => setActiveSubView("tos")}
+            >
+              <Text style={{ color: "#aaa", fontSize: 14, fontWeight: "bold" }}>
+                Terms of Service
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ marginBottom: 16 }}
+              onPress={() => Linking.openURL("https://revitup.today/privacy-policy/")}
+            >
+              <Text style={{ color: "#aaa", fontSize: 14, fontWeight: "bold" }}>
+                Privacy Policy
+              </Text>
+            </TouchableOpacity>
+          </View>
+        );
+      case "tos":
+        return (
+          <ScrollView style={{ padding: 16 }}>
+            <Text
+              style={{ color: "#fff", fontWeight: "bold", marginBottom: 8 }}
+            >
+              Last Updated: May 5, 2026
+            </Text>
+            <Text style={{ color: "#aaa", fontSize: 14, marginBottom: 16 }}>
+              Welcome to RevItUp. By using our application, you agree to these
+              Terms of Service. Please read them carefully.
+            </Text>
+
+            <Text
+              style={{ color: "#fff", fontWeight: "bold", marginBottom: 8 }}
+            >
+              1. Acceptance of Terms
+            </Text>
+            <Text style={{ color: "#aaa", fontSize: 14, marginBottom: 16 }}>
+              By accessing and using RevItUp, you accept and agree to be bound
+              by the terms and provision of this agreement.
+            </Text>
+
+            <Text
+              style={{ color: "#fff", fontWeight: "bold", marginBottom: 8 }}
+            >
+              2. User Account
+            </Text>
+            <Text style={{ color: "#aaa", fontSize: 14, marginBottom: 16 }}>
+              You must be responsible for safeguarding the password that you use
+              to access the Service and for any activities or actions under your
+              password.
+            </Text>
+
+            <Text
+              style={{ color: "#fff", fontWeight: "bold", marginBottom: 8 }}
+            >
+              3. Content
+            </Text>
+            <Text style={{ color: "#aaa", fontSize: 14, marginBottom: 16 }}>
+              Our Service allows you to post, link, store, share and otherwise
+              make available certain information, text, graphics, or other
+              material.
+            </Text>
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        );
+      case "privacy_policy":
+      case "user_guide":
+        return (
+          <View
+            style={{
+              padding: 16,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons
+              name="document-text-outline"
+              size={48}
+              color="#555"
+              style={{ marginBottom: 16 }}
+            />
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 16,
+                fontWeight: "bold",
+                marginBottom: 8,
+              }}
+            >
+              View on Web
+            </Text>
+            <Text
+              style={{
+                color: "#888",
+                fontSize: 14,
+                textAlign: "center",
+                marginBottom: 24,
+              }}
+            >
+              This document is hosted on our website for easy reading.
+            </Text>
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#fff",
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+                borderRadius: 24,
+              }}
+              onPress={() => Linking.openURL("https://revitup.today")}
+            >
+              <Text style={{ color: "#000", fontWeight: "bold" }}>
+                Open in Browser
+              </Text>
+            </TouchableOpacity>
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {(!isCurrentUser || (navigation.canGoBack && navigation.canGoBack())) && (
+            <TouchableOpacity 
+              onPress={() => navigation.goBack()} 
+              style={{ padding: 6, marginRight: 10 }}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.headerText}>{isCurrentUser ? "Profile" : (profile?.username || "Tuner")}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <TouchableOpacity
+            onPress={handleShareProfile}
+            style={{ padding: 4 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Share Profile"
+          >
+            <Ionicons name="share-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+          {isCurrentUser && (
+            <TouchableOpacity
+              onPress={() => setShowSettings(true)}
+              style={{ padding: 4 }}
+            >
+              <Ionicons name="settings-outline" size={26} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <ActivityIndicator
+            size="large"
+            color="#fff"
+            style={{ marginTop: 40 }}
+          />
+        ) : (
+          <>
+            {/* Owner Console */}
+            {isCurrentUser && auth.currentUser?.email === "tonyang11552883@gmail.com" && (
+              <View style={{ marginHorizontal: 16, marginTop: 16, backgroundColor: '#111', borderRadius: 24, padding: 16, borderWidth: 1, borderColor: '#333' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#ff9800', shadowColor: '#ff9800', shadowOpacity: 0.8, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } }} />
+                    <Text style={{ color: '#ff9800', fontWeight: '900', fontSize: 12, letterSpacing: 1.5 }}>OWNER CONSOLE</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => navigation.navigate("Admin")} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#ff9800', backgroundColor: 'rgba(255, 152, 0, 0.1)' }}>
+                    <Text style={{ color: '#ff9800', fontWeight: '900', fontSize: 10, letterSpacing: 1 }}>ACTIVE</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+                  <View style={{ flex: 1, backgroundColor: '#1a1a1a', padding: 16, borderRadius: 16, alignItems: 'center' }}>
+                    <Text style={{ color: '#888', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 8 }}>JOINED</Text>
+                    <Text style={{ color: '#fff', fontSize: 24, fontWeight: '900', fontStyle: 'italic' }}>{adminStats.users}</Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: '#1a1a1a', padding: 16, borderRadius: 16, alignItems: 'center' }}>
+                    <Text style={{ color: '#888', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 8 }}>GARAGES</Text>
+                    <Text style={{ color: '#fff', fontSize: 24, fontWeight: '900', fontStyle: 'italic' }}>{adminStats.garages}</Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: '#1a1a1a', padding: 16, borderRadius: 16, alignItems: 'center' }}>
+                    <Text style={{ color: '#888', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 8 }}>LOGS</Text>
+                    <Text style={{ color: '#fff', fontSize: 24, fontWeight: '900', fontStyle: 'italic' }}>{adminStats.logs}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Profile Header */}
+            <View style={styles.profileHeader}>
+              <View style={styles.avatarContainer}>
+                {profile?.profilePic ? (
+                  <Image source={{ uri: profile.profilePic }} style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: '#333' }} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={48} color="#666" />
+                  </View>
+                )}
+              </View>
+              <Text style={styles.username}>@{username}</Text>
+              <Text style={styles.bio}>
+                {profile?.bio || "Live life a quarter mile at a time."}
+              </Text>
+
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{garage.length}</Text>
+                  <Text style={styles.statLabel}>Garage</Text>
+                </View>
+                <TouchableOpacity style={styles.statItem} onPress={() => handleOpenFollows('followers')}>
+                  <Text style={styles.statNumber}>
+                    {dynamicFollowersCount !== null
+                      ? dynamicFollowersCount
+                      : Math.max(0, profile?.followersCount || 0)}
+                  </Text>
+                  <Text style={styles.statLabel}>Followers</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.statItem} onPress={() => handleOpenFollows('following')}>
+                  <Text style={styles.statNumber}>
+                    {dynamicFollowingCount !== null
+                      ? dynamicFollowingCount
+                      : Math.max(0, profile?.followingCount || 0)}
+                  </Text>
+                  <Text style={styles.statLabel}>Following</Text>
+                </TouchableOpacity>
+              </View>
+
+              {isCurrentUser ? (
+                <TouchableOpacity style={styles.editButton} onPress={handleOpenEditProfile}>
+                  <Ionicons name="pencil-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.editButtonText}>Edit Profile</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.actionButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.editButton, { flex: 1, width: 'auto' }, isFollowing && { backgroundColor: '#222', borderWidth: 1, borderColor: '#444' }]}
+                    onPress={handleFollowToggle}
+                    disabled={checkingFollow}
+                  >
+                    <Ionicons name={isFollowing ? "checkmark-outline" : "person-add-outline"} size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={[styles.editButtonText, isFollowing && { color: '#fff' }]}>
+                      {checkingFollow ? 'Updating...' : isFollowing ? 'Following' : 'Follow'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.messageButton}
+                    onPress={() => {
+                      if (!auth.currentUser) {
+                        Alert.alert('Sign In', 'Please sign in to message this user.');
+                        return;
+                      }
+                      const myId = auth.currentUser.uid;
+                      const otherId = targetUserId;
+                      const chatId = myId < otherId ? `${myId}_${otherId}` : `${otherId}_${myId}`;
+                      navigation.navigate('Chat', { 
+                        chatId,
+                        otherUser: { 
+                          id: otherId, 
+                          uid: otherId, 
+                          username: profile?.username || username || 'User', 
+                          profilePic: profile?.profilePic || null 
+                        } 
+                      });
+                    }}
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.editButtonText}>Message</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* Tabs */}
+            <View style={styles.tabRow}>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === "garage" && styles.tabActive]}
+                onPress={() => setActiveTab("garage")}
+              >
+                <Ionicons
+                  name="car-sport"
+                  size={20}
+                  color={activeTab === "garage" ? "#fff" : "#666"}
+                />
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "garage" && styles.tabTextActive,
+                  ]}
+                >
+                  Garage
+                </Text>
+              </TouchableOpacity>
+              
+              {profile?.partnerId && partnerProfile && (
+                <TouchableOpacity
+                  style={[styles.tab, activeTab === "duo" && styles.tabActive]}
+                  onPress={() => setActiveTab("duo")}
+                >
+                  <Ionicons
+                    name="heart"
+                    size={20}
+                    color={activeTab === "duo" ? "#e53935" : "#666"}
+                  />
+                  <Text
+                    style={[
+                      styles.tabText,
+                      activeTab === "duo" && { color: "#e53935" },
+                    ]}
+                  >
+                    Duo
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.tab, activeTab === "posts" && styles.tabActive]}
+                onPress={() => setActiveTab("posts")}
+              >
+                <Ionicons
+                  name="grid"
+                  size={20}
+                  color={activeTab === "posts" ? "#fff" : "#666"}
+                />
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "posts" && styles.tabTextActive,
+                  ]}
+                >
+                  Posts
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === "listings" && styles.tabActive]}
+                onPress={() => setActiveTab("listings")}
+              >
+                <Ionicons
+                  name="pricetag-outline"
+                  size={20}
+                  color={activeTab === "listings" ? "#fff" : "#666"}
+                />
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "listings" && styles.tabTextActive,
+                  ]}
+                >
+                  Listings
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Tab Content */}
+            <View style={styles.tabContent}>
+              {activeTab === "garage" && (
+                <View style={styles.garageList}>
+                  {isCurrentUser && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 }}>
+                      <Text style={{ color: '#888', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>My Vehicles</Text>
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e53935', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}
+                        onPress={() => navigation.navigate("MyGarage", { openAddModal: true })}
+                      >
+                        <Ionicons name="add" size={16} color="#fff" style={{ marginRight: 4 }} />
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 }}>ADD CAR</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  {garage.length > 0 ? (
+                    garage.map((car) => (
+                      <TouchableOpacity key={car.id} style={styles.garageCard} onPress={() => navigation.navigate("BuildTimeline", { carId: car.id })}> 
+                        {car.coverImage ? (
+                          <Image
+                            source={{ uri: car.coverImage }}
+                            style={styles.garageCardImage}
+                          />
+                        ) : (
+                          <View style={styles.garageCardNoImage}>
+                            <Ionicons
+                              name="car-sport-outline"
+                              size={48}
+                              color="#666"
+                            />
+                          </View>
+                        )}
+                        <View style={styles.garageCardInfo}>
+                          <Text style={styles.garageCardTitle}>
+                            {car.year} {car.make} {car.model}
+                          </Text>
+                          {car.power ? (
+                            <Text style={styles.garageCardSubtitle}>{car.power} • {car.stage || 'Stock'}</Text>
+                          ) : (
+                            <Text style={styles.garageCardSubtitle}>{car.stage || 'Stock'}</Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Ionicons
+                        name="car-sport-outline"
+                        size={48}
+                        color="#333"
+                        style={{ marginBottom: 12 }}
+                      />
+                      <Text style={styles.emptyStateText}>No cars yet</Text>
+                      {isCurrentUser && (
+                        <TouchableOpacity
+                          style={{ marginTop: 16, backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24, flexDirection: 'row', alignItems: 'center' }}
+                          onPress={() => navigation.navigate("MyGarage", { openAddModal: true })}
+                        >
+                          <Ionicons name="add-circle" size={18} color="#000" style={{ marginRight: 6 }} />
+                          <Text style={{ color: '#000', fontWeight: '900', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            Add Your First Vehicle
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {activeTab === "duo" && profile?.partnerId && partnerProfile && (
+                <View style={{ flex: 1 }}>
+                  {/* Duo Header Row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                     <Image source={{ uri: profile.profilePic || "https://via.placeholder.com/150" }} style={{ width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: '#444' }} />
+                     <Ionicons name="heart" size={24} color="#e53935" style={{ marginHorizontal: 16 }} />
+                     <Image source={{ uri: partnerProfile.profilePic || "https://via.placeholder.com/150" }} style={{ width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: '#e53935' }} />
+                  </View>
+                  <Text style={{ color: '#fff', textAlign: 'center', fontSize: 16, fontWeight: 'bold', marginBottom: 20 }}>
+                     {profile.username} & {partnerProfile.username}
+                  </Text>
+                  
+                  {/* Combined Garage */}
+                  <Text style={{ color: '#aaa', paddingHorizontal: 16, marginBottom: 12, fontWeight: 'bold', textTransform: 'uppercase', fontSize: 12, letterSpacing: 1 }}>
+                     Shared Garage
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+                     {[...garage, ...partnerGarage].map((car, index) => (
+                       <View key={car.id || index} style={{ marginRight: 16, width: 140 }}>
+                          <Image source={{ uri: car.coverImage || car.images?.[0] || "https://via.placeholder.com/300" }} style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: '#222' }} />
+                          <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 8 }} numberOfLines={1}>{car.year} {car.make} {car.model}</Text>
+                       </View>
+                     ))}
+                     {[...garage, ...partnerGarage].length === 0 && (
+                        <Text style={{ color: '#666' }}>No cars in the shared garage yet.</Text>
+                     )}
+                  </ScrollView>
+
+                  {/* Combined Feed */}
+                  <Text style={{ color: '#aaa', paddingHorizontal: 16, marginBottom: 12, fontWeight: 'bold', textTransform: 'uppercase', fontSize: 12, letterSpacing: 1 }}>
+                     Duo Feed
+                  </Text>
+                  <View style={styles.postGrid}>
+                    {(() => {
+                      const duoList = [...posts, ...partnerPosts].sort((a,b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                      return duoList.map((post, index) => (
+                        <TouchableOpacity 
+                          key={post.id || index} 
+                          style={styles.postItem} 
+                          onPress={() => handleOpenFeedViewer(index, duoList)} 
+                          onLongPress={() => handlePostOptions(post)}
+                        >
+                          <Image
+                            source={{ uri: post.mediaUrls?.[0] || post.mediaUrl || "https://via.placeholder.com/300" }}
+                            style={styles.postImage}
+                          />
+                        </TouchableOpacity>
+                      ));
+                    })()}
+                    {[...posts, ...partnerPosts].length === 0 && (
+                        <Text style={{ color: '#666', padding: 16 }}>No shared posts yet.</Text>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {activeTab === "posts" && (
+                <View style={styles.postGrid}>
+                  {posts.length > 0 ? (
+                    posts.map((post, index) => (
+                      <TouchableOpacity 
+                        key={post.id} 
+                        style={styles.postItem} 
+                        onPress={() => handleOpenFeedViewer(index, posts)} 
+                        onLongPress={() => handlePostOptions(post)}
+                      >
+                        {post.mediaUrl ||
+                        (post.mediaUrls && post.mediaUrls[0]) ? (
+                          <Image
+                            source={{ uri: post.mediaUrl || post.mediaUrls[0] }}
+                            style={styles.postImage}
+                          />
+                        ) : (
+                          <View style={styles.postNoImage}>
+                            <Text
+                              style={styles.postNoImageText}
+                              numberOfLines={3}
+                            >
+                              {post.caption}
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Ionicons
+                        name="images-outline"
+                        size={48}
+                        color="#333"
+                        style={{ marginBottom: 12 }}
+                      />
+                      <Text style={styles.emptyStateText}>No posts yet</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {activeTab === "listings" && (
+                <View style={styles.garageList}>
+                  {listings.length > 0 ? (
+                    listings.map((item) => (
+                      <View key={item.id} style={styles.garageCard}>
+                        {item.images && item.images.length > 0 ? (
+                          <Image
+                            source={{ uri: item.images[0] }}
+                            style={styles.garageCardImage}
+                          />
+                        ) : (
+                          <View style={styles.garageCardNoImage}>
+                            <Ionicons
+                              name="cart-outline"
+                              size={48}
+                              color="#666"
+                            />
+                          </View>
+                        )}
+                        <View style={styles.garageCardInfo}>
+                          <Text style={styles.garageCardTitle} numberOfLines={1}>
+                            {item.title}
+                          </Text>
+                          <Text style={styles.garageCardSubtitle}>
+                            {item.currency || '$'}{item.price}
+                          </Text>
+                          <Text style={{ color: '#888', fontSize: 12, marginTop: 4 }}>
+                            {item.status || 'Available'}
+                          </Text>
+                        </View>
+                        {isCurrentUser && (
+                          <TouchableOpacity
+                            style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(229, 57, 53, 0.9)', padding: 8, borderRadius: 20 }}
+                            onPress={() => handleDeleteListing(item.id)}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#fff" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Ionicons
+                        name="pricetag-outline"
+                        size={48}
+                        color="#333"
+                        style={{ marginBottom: 12 }}
+                      />
+                      <Text style={styles.emptyStateText}>No active listings</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal visible={showEditModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.settingsModalHeader}>
+            <Text style={styles.settingsModalTitle}>Edit Profile</Text>
+            <TouchableOpacity onPress={() => setShowEditModal(false)}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ padding: 20 }}>
+            <View style={{ alignItems: 'center', marginBottom: 24 }}>
+              <TouchableOpacity onPress={pickAvatar} style={{ alignItems: 'center' }}>
+                <Image 
+                  source={{ uri: editAvatarUri || profile?.profilePic || "https://via.placeholder.com/150" }} 
+                  style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#333' }} 
+                />
+                <Text style={{ color: '#e53935', marginTop: 12, fontWeight: 'bold' }}>Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: '#fff', marginBottom: 8, fontWeight: 'bold' }}>Username</Text>
+            <TextInput
+              style={{ backgroundColor: '#1a1a1a', color: '#fff', padding: 12, borderRadius: 8, marginBottom: 20 }}
+              value={editUsername}
+              onChangeText={setEditUsername}
+              placeholder="Username"
+              placeholderTextColor="#666"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="none"
+            />
+            <Text style={{ color: '#fff', marginBottom: 8, fontWeight: 'bold' }}>Bio</Text>
+            <TextInput
+              style={{ backgroundColor: '#1a1a1a', color: '#fff', padding: 12, borderRadius: 8, marginBottom: 20, minHeight: 80 }}
+              value={editBio}
+              onChangeText={setEditBio}
+              placeholder="Bio"
+              placeholderTextColor="#666"
+              multiline
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: '#fff', padding: 16, borderRadius: 12, alignItems: 'center' }}
+              onPress={handleSaveProfile}
+              disabled={savingProfile}
+            >
+              {savingProfile ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 16 }}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Settings Modal */}
+      <Modal
+        visible={showSettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          {!activeSubView ? (
+            <View style={styles.settingsModalHeader}>
+              <Text style={styles.settingsModalTitle}>Settings</Text>
+              <TouchableOpacity onPress={() => setShowSettings(false)}>
+                <Ionicons name="close" size={28} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {!activeSubView ? (
+            <ScrollView
+              style={styles.settingsScroll}
+              contentContainerStyle={styles.settingsScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {auth.currentUser?.email === "tonyang11552883@gmail.com" && (
+                <SettingsItem
+                  icon="shield-outline"
+                  title="Admin Panel"
+                  subtitle="MANAGE REPORTS AND USERS"
+                  onPress={() => {
+                    setShowSettings(false);
+                    navigation.navigate("Admin");
+                  }}
+                />
+              )}
+              <SettingsItem
+                icon="notifications-outline"
+                title="Notifications"
+                subtitle="MANAGE PUSH ALERTS"
+                onPress={() => setActiveSubView("notifications")}
+              />
+              <SettingsItem
+                icon="shield-checkmark-outline"
+                title="Privacy"
+                subtitle="WHO CAN SEE YOUR GARAGE"
+                onPress={() => setActiveSubView("privacy")}
+              />
+              <SettingsItem
+                icon="moon-outline"
+                title="Appearance"
+                subtitle="DARK MODE, THEMES"
+                onPress={() => setActiveSubView("appearance")}
+              />
+              <SettingsItem
+                icon="server-outline"
+                title="Data & Storage"
+                subtitle="MANAGE CACHE & DATA USAGE"
+                onPress={() => setActiveSubView("data")}
+              />
+              <SettingsItem
+                icon="phone-portrait-outline"
+                title="Connected Devices"
+                subtitle="MANAGE ACTIVE SESSIONS"
+                onPress={() => setActiveSubView("devices")}
+              />
+              <SettingsItem
+                icon="tv-outline"
+                title="Google AdMob"
+                subtitle="CONFIGURE & TEST MOBILE ADS"
+                onPress={() => setActiveSubView("admob")}
+              />
+              <SettingsItem
+                icon="help-circle-outline"
+                title="Support"
+                subtitle="GET HELP WITH REVITUP"
+                onPress={() =>
+                  Linking.openURL("mailto:support@revitup.today").catch(() =>
+                    Alert.alert(
+                      "Support",
+                      "Contact us at support@revitup.today",
+                    ),
+                  )
+                }
+              />
+              <SettingsItem
+                icon="information-circle-outline"
+                title="About"
+                subtitle="APP VERSION, TERMS, PRIVACY POLICY"
+                onPress={() => setActiveSubView("about")}
+              />
+              <SettingsItem
+                icon="shield-half-outline"
+                title="Privacy Policy"
+                subtitle="FULL GDPR DISCLOSURE"
+                onPress={() => Linking.openURL("https://revitup.today/privacy-policy/")}
+              />
+
+              {/* Fully active Cookie Consent Toggle */}
+              <SettingsItem
+                icon={
+                  cookieConsent ? "lock-closed-outline" : "lock-open-outline"
+                }
+                title="Cookie Consent"
+                subtitle={
+                  cookieConsent ? "CURRENTLY: ACCEPTED" : "CURRENTLY: DECLINED"
+                }
+                iconBgColor={cookieConsent ? "#4caf50" : "#555"}
+                onPress={() => {
+                  
+                  const newConsent = !cookieConsent;
+                  setCookieConsent(newConsent);
+                  if (newConsent) {
+                    AsyncStorage.setItem('gdpr-consent', 'accepted').catch(console.error);
+                    Alert.alert(
+                      "Cookies Accepted",
+                      "Thank you for supporting personalized experiences."
+                    );
+                  } else {
+                    AsyncStorage.removeItem('gdpr-consent').catch(console.error);
+                    Alert.alert(
+                      "Cookies Declined",
+                      "Non-essential tracking has been disabled."
+                    );
+                  }
+                  if (false) {
+                    Alert.alert(
+                      "Cookies Declined",
+                      "Non-essential tracking has been disabled.",
+                    );
+                  } else {
+                    Alert.alert(
+                      "Cookies Accepted",
+                      "Thank you for supporting personalized experiences.",
+                    );
+                  }
+                }}
+              />
+
+              <SettingsItem
+                icon="share-social-outline"
+                title="Invite Friends"
+                subtitle="SHARE THE APP WITH OTHERS"
+                onPress={handleInvite}
+              />
+
+              <Text style={styles.dangerZoneHeader}>DANGER ZONE</Text>
+              <SettingsItem
+                icon="log-out-outline"
+                title="Log Out"
+                subtitle="END CURRENT SESSION"
+                isDanger
+                onPress={handleSignOut}
+              />
+              <SettingsItem
+                icon="trash-outline"
+                title="Delete Account"
+                subtitle="PERMANENTLY REMOVE DATA"
+                isDanger
+                onPress={handleDeleteAccount}
+              />
+
+              <Text style={styles.settingsFooter}>
+                REVITUP V1.2.310 (BUILD 310) • GOOGLE CLOUD EDITION
+              </Text>
+            </ScrollView>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 16,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#333",
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    if (
+                      ["tos", "privacy_policy", "user_guide"].includes(
+                        activeSubView,
+                      )
+                    ) {
+                      setActiveSubView("about");
+                    } else {
+                      setActiveSubView(null);
+                    }
+                  }}
+                  style={{ marginRight: 16 }}
+                >
+                  <Ionicons name="chevron-back" size={24} color="#fff" />
+                </TouchableOpacity>
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 18,
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {activeSubView.replace("_", " ")}
+                </Text>
+              </View>
+              {renderSubViewContent()}
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* Profile Post Feed Modal */}
+      <Modal 
+        visible={showFeedViewer} 
+        animationType="slide" 
+        presentationStyle="fullScreen"
+        onRequestClose={closeFeedViewer}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Feed Header */}
+          <View 
+            pointerEvents="box-none" 
+            style={{ 
+              position: 'absolute', 
+              top: insets.top > 0 ? insets.top + 12 : (Platform.OS === 'ios' ? 56 : 36), 
+              left: 0, 
+              right: 0, 
+              zIndex: 99999, 
+              elevation: 99,
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              justifyContent: 'space-between', 
+              paddingHorizontal: 16 
+            }}
+          >
+            {/* Back Button with text and generous touch area */}
+            <TouchableOpacity 
+              style={{ 
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: 'rgba(20,20,20,0.92)', 
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                borderRadius: 24,
+                borderWidth: 1.5,
+                borderColor: 'rgba(255,255,255,0.4)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.6,
+                shadowRadius: 5,
+                elevation: 8,
+              }} 
+              onPress={closeFeedViewer}
+              hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={22} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', letterSpacing: 0.5 }}>Back</Text>
+            </TouchableOpacity>
+
+            {/* Title Pill */}
+            <View 
+              style={{ 
+                backgroundColor: 'rgba(20,20,20,0.92)', 
+                paddingHorizontal: 14, 
+                paddingVertical: 9, 
+                borderRadius: 20, 
+                borderWidth: 1, 
+                borderColor: 'rgba(255,255,255,0.25)' 
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>
+                @{profile?.username || username}'s Posts
+              </Text>
+            </View>
+
+            {/* Quick Close (X) Button */}
+            <TouchableOpacity 
+              style={{ 
+                width: 42, 
+                height: 42, 
+                borderRadius: 21, 
+                backgroundColor: 'rgba(20,20,20,0.92)', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                borderWidth: 1.5,
+                borderColor: 'rgba(255,255,255,0.4)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.6,
+                shadowRadius: 5,
+                elevation: 8,
+              }} 
+              onPress={closeFeedViewer}
+              hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Vertical Feed List */}
+          <FlatList
+            ref={feedFlatListRef}
+            data={feedViewerPosts}
+            keyExtractor={(item, index) => item.id || index.toString()}
+            pagingEnabled
+            showsVerticalScrollIndicator={false}
+            snapToInterval={windowHeight}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            initialScrollIndex={feedInitialIndex < feedViewerPosts.length ? feedInitialIndex : 0}
+            getItemLayout={(data, index) => ({
+              length: windowHeight,
+              offset: windowHeight * index,
+              index,
+            })}
+            renderItem={({ item }) => {
+              const postAuthor = item.authorUsername || profile?.username || username;
+              const postTime = formatTimeAgo(item.createdAt);
+
+              return (
+                <View style={{ width: windowWidth, height: windowHeight, backgroundColor: '#000', position: 'relative' }}>
+                  {/* Media Content */}
+                  {item.mediaUrls && item.mediaUrls.length > 0 ? (
+                    <View style={{ width: '100%', height: '100%' }}>
+                      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+                        {item.mediaUrls.map((uri: string, idx: number) => (
+                          <View key={idx} style={{ width: windowWidth, height: windowHeight }}>
+                            <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          </View>
+                        ))}
+                      </ScrollView>
+                      {item.mediaUrls.length > 1 && (
+                        <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 110 : 95, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                          <Ionicons name="images" size={14} color="#fff" style={{ marginRight: 6 }} />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{item.mediaUrls.length}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : item.mediaUrl ? (
+                    <Image source={{ uri: item.mediaUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : (
+                    <View style={{ width: '100%', height: '100%', backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="car-sport" size={64} color="#333" />
+                      {item.caption ? (
+                        <Text style={{ color: '#fff', padding: 24, textAlign: 'center', fontSize: 16 }}>{item.caption}</Text>
+                      ) : null}
+                    </View>
+                  )}
+
+                  {/* Post Overlay Info & Right Action Buttons */}
+                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 100, paddingBottom: 40, paddingHorizontal: 16, backgroundColor: 'rgba(0,0,0,0.45)' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                      {/* Left Info: Name, Time Added, Caption, Music Ticker */}
+                      <View style={{ flex: 1, paddingRight: 20 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                          <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }}>@{postAuthor}</Text>
+                          {postTime ? (
+                            <>
+                              <Text style={{ color: '#aaa', marginHorizontal: 6 }}>•</Text>
+                              <Text style={{ color: '#aaa', fontSize: 13, fontWeight: '500' }}>{postTime}</Text>
+                            </>
+                          ) : null}
+                        </View>
+
+                        {item.caption ? (
+                          <Text style={{ color: '#fff', fontSize: 15, marginBottom: 12, lineHeight: 20 }}>
+                            {item.caption}
+                          </Text>
+                        ) : null}
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                          <Ionicons name="musical-notes" size={13} color="#fff" style={{ marginRight: 6 }} />
+                          <Text style={{ color: '#fff', fontSize: 13 }}>Original Sound - RevitUp</Text>
+                        </View>
+                      </View>
+
+                      {/* Right Navigation / Action Buttons */}
+                      <View style={{ alignItems: 'center', gap: 20 }}>
+                        {/* Like Button */}
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedLike(item.id)}>
+                          <Ionicons name={item.isLiked ? "heart" : "heart-outline"} size={36} color={item.isLiked ? "#e53935" : "#fff"} />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                            {item.likesCount || 0}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Comment Button */}
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => openFeedComments(item)}>
+                          <Ionicons name="chatbubble-ellipses" size={32} color="#fff" />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                            {item.commentsCount || 0}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Share Button */}
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedShare(item)}>
+                          <Ionicons name="share-social" size={32} color="#fff" />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                            Share
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Options Button (Delete / Report) */}
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedPostOptions(item)}>
+                          <Ionicons name="ellipsis-horizontal" size={26} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              );
+            }}
+          />
+
+          {/* Feed Comments Sheet Overlay (renders directly over the post while viewing) */}
+          {showFeedCommentsModal && (
+            <View 
+              style={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                right: 0, 
+                bottom: 0, 
+                zIndex: 999999, 
+                elevation: 999 
+              }}
+            >
+              {/* Semi-transparent backdrop - allows viewing post above & tap to dismiss */}
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} 
+                activeOpacity={1} 
+                onPress={closeFeedComments} 
+              />
+
+              {/* Bottom Sheet Container */}
+              <View 
+                style={{ 
+                  height: '72%', 
+                  backgroundColor: '#121212', 
+                  borderTopLeftRadius: 22, 
+                  borderTopRightRadius: 22, 
+                  borderWidth: 1, 
+                  borderColor: '#2f2f2f',
+                  overflow: 'hidden',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: -4 },
+                  shadowOpacity: 0.6,
+                  shadowRadius: 10,
+                  elevation: 20
+                }}
+              >
+                {/* Drag handle */}
+                <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
+                  <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#444' }} />
+                </View>
+
+                {/* Header */}
+                <View style={{ 
+                  flexDirection: 'row', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  paddingHorizontal: 20, 
+                  paddingVertical: 12, 
+                  borderBottomWidth: 1, 
+                  borderBottomColor: '#242424' 
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }}>Comments</Text>
+                    {feedComments.length > 0 && (
+                      <View style={{ backgroundColor: '#262626', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginLeft: 8 }}>
+                        <Text style={{ color: '#aaa', fontSize: 12, fontWeight: 'bold' }}>{feedComments.length}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity 
+                    onPress={closeFeedComments}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    style={{ padding: 4 }}
+                  >
+                    <Ionicons name="close" size={24} color="#aaa" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Comments List */}
+                <ScrollView 
+                  style={{ flex: 1, padding: 16 }}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {feedComments.map(c => (
+                    <View key={c.id} style={{ marginBottom: 12, backgroundColor: '#181818', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#282828' }}>
+                      <Text style={{ color: '#aaa', fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>@{c.authorUsername}</Text>
+                      <Text style={{ color: '#fff', fontSize: 14, lineHeight: 20 }}>{c.text}</Text>
+                    </View>
+                  ))}
+                  {feedComments.length === 0 && (
+                    <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={38} color="#444" style={{ marginBottom: 8 }} />
+                      <Text style={{ color: '#888', textAlign: 'center', fontSize: 14 }}>No comments yet.</Text>
+                      <Text style={{ color: '#555', textAlign: 'center', fontSize: 12, marginTop: 4 }}>Be the first to share your thoughts!</Text>
+                    </View>
+                  )}
+                </ScrollView>
+
+                {/* Input with KeyboardAvoidingView and Safe Area */}
+                <KeyboardAvoidingView 
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+                >
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    paddingHorizontal: 16, 
+                    paddingVertical: 12, 
+                    borderTopWidth: 1, 
+                    borderTopColor: '#242424', 
+                    backgroundColor: '#181818',
+                    paddingBottom: insets.bottom > 0 ? insets.bottom + 6 : 14
+                  }}>
+                    <TextInput 
+                      style={{ 
+                        flex: 1, 
+                        backgroundColor: '#0a0a0a', 
+                        borderRadius: 20, 
+                        paddingHorizontal: 16, 
+                        paddingVertical: 10, 
+                        color: '#fff', 
+                        marginRight: 10, 
+                        borderWidth: 1, 
+                        borderColor: '#333',
+                        fontSize: 14
+                      }}
+                      placeholder="Add a comment..." 
+                      placeholderTextColor="#666" 
+                      value={newFeedComment}
+                      onChangeText={setNewFeedComment}
+                      returnKeyType="send"
+                      onSubmitEditing={submitFeedComment}
+                    />
+                    <TouchableOpacity 
+                      onPress={submitFeedComment} 
+                      disabled={!newFeedComment.trim()}
+                      style={{ 
+                        backgroundColor: newFeedComment.trim() ? '#e53935' : '#333', 
+                        width: 40, 
+                        height: 40, 
+                        borderRadius: 20, 
+                        alignItems: 'center', 
+                        justifyContent: 'center' 
+                      }}
+                    >
+                      <Ionicons name="send" size={18} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                </KeyboardAvoidingView>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* Follows Modal */}
+      <Modal visible={!!showFollowsModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.settingsModalHeader}>
+            <Text style={styles.settingsModalTitle}>
+              {showFollowsModal === 'followers' ? 'Followers' : 'Following'}
+            </Text>
+            <TouchableOpacity onPress={() => setShowFollowsModal(null)}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ flex: 1, padding: 16 }}>
+            {loadingFollows ? (
+              <ActivityIndicator size="large" color="#e53935" style={{ marginTop: 40 }} />
+            ) : followsList.length > 0 ? (
+              followsList.map(u => (
+                <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Image source={{ uri: u.profilePic || "https://via.placeholder.com/150" }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: '#333' }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{u.username}</Text>
+                    {u.bio && <Text style={{ color: '#aaa', fontSize: 14 }} numberOfLines={1}>{u.bio}</Text>}
+                  </View>
+                  <TouchableOpacity 
+                     style={{ backgroundColor: '#222', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
+                     onPress={() => {
+                        setShowFollowsModal(null);
+                        if (u.id !== auth.currentUser?.uid) {
+                          navigation.push('UserProfile', { userId: u.id });
+                        }
+                     }}
+                  >
+                     <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>View</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            ) : (
+              <Text style={{ color: '#666', textAlign: 'center', marginTop: 40 }}>
+                No users found.
+              </Text>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#000",
+    paddingTop: Platform.OS === "android" ? 25 : 0,
+  },
+  header: {
+    flexDirection: "row",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: "#111",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  headerText: { color: "#fff", fontSize: 22, fontWeight: "bold" },
+  content: { flex: 1 },
+
+  // Profile Header
+  profileHeader: { alignItems: "center", padding: 24 },
+  avatarContainer: { marginBottom: 16 },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#1a1a1a",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#333",
+  },
+  username: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "900",
+    fontStyle: "italic",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  bio: {
+    color: "#aaa",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+
+  // Stats
+  statsRow: {
+    flexDirection: "row",
+    width: "100%",
+    justifyContent: "space-evenly",
+    marginBottom: 24,
+  },
+  statItem: { alignItems: "center" },
+  statNumber: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  statLabel: {
+    color: "#666",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    fontWeight: "bold",
+  },
+
+  // Actions
+  actionButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  editButton: {
+    backgroundColor: "#1a1a1a",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#333",
+    width: "80%",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  editButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  messageButton: {
+    flex: 1,
+    backgroundColor: "#1a1a1a",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#333",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+
+  // Tabs
+  tabRow: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "#222",
+    borderBottomWidth: 1,
+    borderBottomColor: "#222",
+    marginTop: 16,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    gap: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  tabActive: { borderBottomColor: "#fff" },
+  tabText: {
+    color: "#666",
+    fontSize: 14,
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  tabTextActive: { color: "#fff" },
+
+  // Content
+  tabContent: { flex: 1, padding: 12 },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyStateText: { color: "#555", fontSize: 15, fontWeight: "bold" },
+
+  // Garage List
+  garageList: { gap: 12 },
+  garageCard: {
+    flexDirection: "row",
+    backgroundColor: "#111",
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#222",
+    height: 100,
+  },
+  garageCardImage: { width: 120, height: "100%", resizeMode: "cover" },
+  garageCardNoImage: {
+    width: 120,
+    height: "100%",
+    backgroundColor: "#1a1a1a",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  garageCardInfo: { flex: 1, padding: 12, justifyContent: "center" },
+  garageCardTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  garageCardSubtitle: {
+    color: "#aaa",
+    fontSize: 12,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+
+  // Post Grid
+  postGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  postItem: {
+    width: POST_SIZE,
+    height: POST_SIZE,
+    backgroundColor: "#111",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  postImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  postNoImage: {
+    width: "100%",
+    height: "100%",
+    padding: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  postNoImageText: { color: "#aaa", fontSize: 10, textAlign: "center" },
+
+  // Settings Modal
+  modalContainer: { flex: 1, backgroundColor: "#050505" },
+  settingsModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  settingsModalTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  dragHandleContainer: {
+    width: "100%",
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  dragHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#333",
+  },
+  settingsScroll: { flex: 1 },
+  settingsScrollContent: { paddingHorizontal: 16, paddingBottom: 40 },
+
+  settingsItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#111",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 10,
+  },
+  settingsIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  settingsTextCol: { flex: 1, justifyContent: "center" },
+  settingsTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  settingsSubtitle: {
+    color: "#777",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+
+  settingsItemDanger: {
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "rgba(229, 57, 53, 0.2)",
+  },
+  settingsTitleDanger: { color: "#e53935" },
+  settingsSubtitleDanger: { color: "#b71c1c" },
+
+  dangerZoneHeader: {
+    color: "#666",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginLeft: 4,
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  settingsFooter: {
+    color: "#444",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    textAlign: "center",
+    marginTop: 40,
+    marginBottom: 60,
+  },
+});

@@ -1,0 +1,208 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return request.auth.token.email == 'tonyang11552883@gmail.com';
+    }
+
+    match /{path=**}/build_logs/{logId} {
+      allow read: if true;
+    }
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount', 'followersCount', 'followingCount', 'updatedAt', 'reputationBonus', 'scrolledFeedCount', 'feedViewsCount', 'giveawayQualified', 'adBonusTickets', 'boostTickets'])) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      
+      match /following/{followingId} {
+        allow read: if true;
+        allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+      
+      match /followers/{followerId} {
+        allow read: if true;
+        allow write: if isSignedIn() && (request.auth.uid == followerId || request.auth.uid == userId || isAdmin());
+      }
+      
+      match /private/{docId} {
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+    }
+
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likesCount', 'views', 'viewCount', 'viewsCount', 'sharesCount', 'loopsCount', 'commentsCount', 'groupStatus']) ||
+        isAdmin() ||
+        (resource.data.keys().hasAll(['groupId']) && get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.adminId == request.auth.uid)
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid || 
+        isAdmin() ||
+        (resource.data.keys().hasAll(['groupId']) && get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.adminId == request.auth.uid)
+      );
+      
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      }
+    }
+    
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+
+    match /groups/{groupId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.adminId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.adminId == request.auth.uid || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount']) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['joinRequests'])
+      );
+      allow delete: if isSignedIn();
+    }
+    match /groupMembers/{memberId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /garage/{carId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likesCount']) ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      
+      match /build_logs/{logId} {
+        allow read: if true;
+        allow write: if isSignedIn() && get(/databases/$(database)/documents/garage/$(carId)).data.ownerId == request.auth.uid;
+      }
+    }
+
+    match /stories/{storyId} {
+      allow read: if true;
+      allow create: if isSignedIn() && (
+        (request.resource.data.keys().hasAny(['userId']) && request.resource.data.userId == request.auth.uid) ||
+        (request.resource.data.keys().hasAny(['authorId']) && request.resource.data.authorId == request.auth.uid)
+      );
+      allow update, delete: if isSignedIn() && (
+        (resource.data.keys().hasAny(['userId']) && resource.data.userId == request.auth.uid) ||
+        (resource.data.keys().hasAny(['authorId']) && resource.data.authorId == request.auth.uid) ||
+        isAdmin()
+      );
+    }
+
+    match /dyno/{recordId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /performance_board/{recordId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /chats/{chatId} {
+      allow read: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participantIds || (resource.data.keys().hasAny(['participants']) && request.auth.uid in resource.data.participants) || isAdmin());
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.participantIds || (resource.data.keys().hasAny(['participants']) && request.auth.uid in resource.data.participants) || isAdmin());
+      allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participantIds || (request.resource.data.keys().hasAny(['participants']) && request.auth.uid in request.resource.data.participants));
+      allow delete: if isAdmin();
+    }
+
+    match /messages/{messageId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /groupMessages/{messageId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /videos/{videoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /blocks/{blockId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /likes/{likeId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /follows/{followId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /notifications/{notificationId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /helpful_votes/{voteId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+    match /giveaways/{giveawayId} {
+      allow read: if true;
+      allow write: if isAdmin();
+      match /tickets/{ticketId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    match /battles/{battleId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+      
+      match /entries/{entryId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+    match /marketplace/{itemId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+    match /mechanics/{shopId} {
+      allow read: if true;
+      allow create: if isSignedIn() && (
+        (request.resource.data.keys().hasAny(['userId']) && request.resource.data.userId == request.auth.uid) ||
+        (request.resource.data.keys().hasAny(['addedBy']) && request.resource.data.addedBy == request.auth.uid)
+      );
+      allow update: if isSignedIn() && (
+        (resource.data.keys().hasAny(['userId']) && resource.data.userId == request.auth.uid) ||
+        (resource.data.keys().hasAny(['addedBy']) && resource.data.addedBy == request.auth.uid) ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        (resource.data.keys().hasAny(['userId']) && resource.data.userId == request.auth.uid) ||
+        (resource.data.keys().hasAny(['addedBy']) && resource.data.addedBy == request.auth.uid) ||
+        isAdmin()
+      );
+    }
+  }
+}
