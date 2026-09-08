@@ -2716,60 +2716,91 @@ export default function ProfileScreen({ route, navigation }: any) {
                   )}
 
                   {/* Post Overlay Info & Right Action Buttons */}
-                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 100, paddingBottom: 40, paddingHorizontal: 16, backgroundColor: 'rgba(0,0,0,0.45)' }}>
+                  <View 
+                    style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: 24, paddingHorizontal: 16 }}
+                    pointerEvents="box-none"
+                  >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                       {/* Left Info: Name, Time Added, Caption, Music Ticker */}
                       <View style={{ flex: 1, paddingRight: 20 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                          <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }}>@{postAuthor}</Text>
+                          <Text style={{ 
+                            color: '#fff', 
+                            fontSize: 17, 
+                            fontWeight: 'bold',
+                            textShadowColor: 'rgba(0, 0, 0, 0.85)',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 3,
+                          }}>@{postAuthor}</Text>
                           {postTime ? (
                             <>
                               <Text style={{ color: '#aaa', marginHorizontal: 6 }}>•</Text>
-                              <Text style={{ color: '#aaa', fontSize: 13, fontWeight: '500' }}>{postTime}</Text>
+                              <Text style={{ 
+                                color: '#ccc', 
+                                fontSize: 13, 
+                                fontWeight: '500',
+                                textShadowColor: 'rgba(0, 0, 0, 0.85)',
+                                textShadowOffset: { width: 0, height: 1 },
+                                textShadowRadius: 3,
+                              }}>{postTime}</Text>
                             </>
                           ) : null}
                         </View>
 
                         {item.caption ? (
-                          <Text style={{ color: '#fff', fontSize: 15, marginBottom: 12, lineHeight: 20 }}>
+                          <Text style={{ 
+                            color: '#fff', 
+                            fontSize: 15, 
+                            marginBottom: 8, 
+                            lineHeight: 20,
+                            textShadowColor: 'rgba(0, 0, 0, 0.85)',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 3,
+                          }}>
                             {item.caption}
                           </Text>
                         ) : null}
 
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                           <Ionicons name="musical-notes" size={13} color="#fff" style={{ marginRight: 6 }} />
-                          <Text style={{ color: '#fff', fontSize: 13 }}>Original Sound - RevitUp</Text>
+                          <Text style={{ 
+                            color: '#fff', 
+                            fontSize: 13,
+                            textShadowColor: 'rgba(0, 0, 0, 0.85)',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 3,
+                          }}>Original Sound - RevitUp</Text>
                         </View>
                       </View>
 
                       {/* Right Navigation / Action Buttons */}
                       <View style={{ alignItems: 'center', gap: 20 }}>
                         {/* Like Button */}
-                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedLike(item.id)}>
+                        <TouchableOpacity style={{ alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.8, shadowRadius: 3, elevation: 3 }} onPress={() => handleFeedLike(item.id)}>
                           <Ionicons name={item.isLiked ? "heart" : "heart-outline"} size={36} color={item.isLiked ? "#e53935" : "#fff"} />
-                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4, textShadowColor: 'rgba(0,0,0,0.85)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                             {item.likesCount || 0}
                           </Text>
                         </TouchableOpacity>
 
                         {/* Comment Button */}
-                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => openFeedComments(item)}>
+                        <TouchableOpacity style={{ alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.8, shadowRadius: 3, elevation: 3 }} onPress={() => openFeedComments(item)}>
                           <Ionicons name="chatbubble-ellipses" size={32} color="#fff" />
-                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4, textShadowColor: 'rgba(0,0,0,0.85)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                             {item.commentsCount || 0}
                           </Text>
                         </TouchableOpacity>
 
                         {/* Share Button */}
-                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedShare(item)}>
+                        <TouchableOpacity style={{ alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.8, shadowRadius: 3, elevation: 3 }} onPress={() => handleFeedShare(item)}>
                           <Ionicons name="share-social" size={32} color="#fff" />
-                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4 }}>
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginTop: 4, textShadowColor: 'rgba(0,0,0,0.85)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                             Share
                           </Text>
                         </TouchableOpacity>
 
                         {/* Options Button (Delete / Report) */}
-                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => handleFeedPostOptions(item)}>
+                        <TouchableOpacity style={{ alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.8, shadowRadius: 3, elevation: 3 }} onPress={() => handleFeedPostOptions(item)}>
                           <Ionicons name="ellipsis-horizontal" size={26} color="#fff" />
                         </TouchableOpacity>
                       </View>

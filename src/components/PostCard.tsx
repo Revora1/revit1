@@ -814,8 +814,8 @@ export const PostCard: React.FC<PostCardProps> = React.memo(({ post, isActive, i
         </div>
       )}
 
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60 pointer-events-none" />
+      {/* Overlay (Transparent to keep natural image brightness) */}
+      <div className="absolute inset-0 pointer-events-none" />
 
       {/* Right Side Actions */}
       <div className="absolute right-4 bottom-[calc(52px+env(safe-area-inset-bottom,0px)+24px)] flex flex-col items-center gap-4 z-20 select-none pointer-events-auto">
