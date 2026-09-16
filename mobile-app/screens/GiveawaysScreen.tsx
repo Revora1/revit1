@@ -166,6 +166,10 @@ export default function GiveawaysScreen({ navigation }: any) {
 
       const ad = RewardedAd.createForAdRequest(REWARDED_AD_UNIT_ID, {
         requestNonPersonalizedAdsOnly: true,
+        serverSideVerificationOptions: {
+          userId: auth.currentUser ? auth.currentUser.uid : '',
+          customData: auth.currentUser ? auth.currentUser.uid : '',
+        },
       });
 
       const unsubLoaded = ad.addAdEventListener(RewardedAdEventType.LOADED, () => {
@@ -234,19 +238,40 @@ export default function GiveawaysScreen({ navigation }: any) {
       setRewardClaiming(true);
       const uid = auth.currentUser.uid;
       const userRef = doc(db, "users", uid);
+
+      const now = Date.now();
+      const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+      const rawHistory: number[] = Array.isArray(userProfile?.rewardedAdTimestamps)
+        ? userProfile.rewardedAdTimestamps
+        : [];
+      const recentTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
+
+      if (recentTimestamps.length >= 5) {
+        Alert.alert(
+          "Daily Limit Reached",
+          "You have already watched the maximum of 5 rewarded ads for today. Check back in a few hours!"
+        );
+        return;
+      }
+
+      recentTimestamps.push(now);
+
       await setDoc(userRef, {
         adBonusTickets: increment(2),
-        lastAdRewardAt: Date.now(),
+        lastAdRewardAt: now,
+        rewardedAdTimestamps: recentTimestamps,
       }, { merge: true });
 
       setUserProfile((prev: any) => ({
         ...prev,
         adBonusTickets: (prev?.adBonusTickets || 0) + 2,
+        lastAdRewardAt: now,
+        rewardedAdTimestamps: recentTimestamps,
       }));
 
       Alert.alert(
         "🎉 +2 Extra Tickets Earned!",
-        "Thanks for watching! 2 extra raffle tickets have been added to your giveaway entries. Your chances of winning just increased!",
+        `Thanks for watching! 2 extra raffle tickets have been added to your giveaway entries (${recentTimestamps.length}/5 watched today).`,
         [{ text: "Awesome!" }]
       );
     } catch (err) {
@@ -261,6 +286,29 @@ export default function GiveawaysScreen({ navigation }: any) {
   const handleWatchAdForTickets = async () => {
     if (!auth.currentUser) {
       Alert.alert("Sign In Required", "Please sign in to earn extra giveaway tickets.");
+      return;
+    }
+
+    // Check 24-hour limit before triggering ad
+    const now = Date.now();
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+    const rawHistory: number[] = Array.isArray(userProfile?.rewardedAdTimestamps)
+      ? userProfile.rewardedAdTimestamps
+      : [];
+    const recentTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
+
+    if (recentTimestamps.length >= 5) {
+      // Find time until oldest ad in window expires
+      const oldestTs = Math.min(...recentTimestamps);
+      const msUntilReset = TWENTY_FOUR_HOURS_MS - (now - oldestTs);
+      const hours = Math.floor(msUntilReset / (1000 * 60 * 60));
+      const minutes = Math.ceil((msUntilReset % (1000 * 60 * 60)) / (1000 * 60));
+
+      Alert.alert(
+        "Daily Limit Reached (5/5)",
+        `You've reached the limit of 5 rewarded ads in 24 hours. Your next ad entry resets in approximately ${hours > 0 ? `${hours}h ` : ''}${minutes}m.`,
+        [{ text: "Got it" }]
+      );
       return;
     }
 
@@ -395,6 +443,16 @@ export default function GiveawaysScreen({ navigation }: any) {
   const boostTickets = Math.min(15, userProfile?.boostTickets !== undefined ? userProfile.boostTickets : myReferrals);
   const baseTicketCount = isLifetimeQualified || isEligibleForTicket ? 1 : 0;
   const totalMyTickets = baseTicketCount + boostTickets + adTickets;
+
+  // 24-hour rewarded ads count
+  const now = Date.now();
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const rawHistory: number[] = Array.isArray(userProfile?.rewardedAdTimestamps)
+    ? userProfile.rewardedAdTimestamps
+    : [];
+  const recentAdTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
+  const adsWatchedToday = Math.min(5, recentAdTimestamps.length);
+  const adsLimitReached = adsWatchedToday >= 5;
 
   const prevTarget =
     activeMilestoneIndex === 0
@@ -757,12 +815,16 @@ export default function GiveawaysScreen({ navigation }: any) {
             <View style={{ flex: 1, marginLeft: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={styles.adRewardTitle}>WANT MORE TICKETS?</Text>
-                <View style={styles.adRewardBadge}>
-                  <Text style={styles.adRewardBadgeText}>OPTIONAL</Text>
+                <View style={[styles.adRewardBadge, adsLimitReached && { backgroundColor: "rgba(239, 68, 68, 0.2)" }]}>
+                  <Text style={[styles.adRewardBadgeText, adsLimitReached && { color: "#ef4444" }]}>
+                    {adsLimitReached ? "DAILY LIMIT REACHED" : `${adsWatchedToday}/5 TODAY`}
+                  </Text>
                 </View>
               </View>
               <Text style={styles.adRewardSubtitle}>
-                Watch a short video ad to claim +2 extra tickets for the active giveaway
+                {adsLimitReached
+                  ? "You've reached your maximum of 5 rewarded ads for today (resets every 24h)."
+                  : "Watch a short video ad to claim +2 extra tickets for the active giveaway (up to 5 per 24h)."}
               </Text>
             </View>
           </View>
@@ -776,6 +838,13 @@ export default function GiveawaysScreen({ navigation }: any) {
             </View>
             <View style={styles.adRewardStatDivider} />
             <View style={styles.adRewardStatBox}>
+              <Text style={[styles.adRewardStatNumber, { color: adsLimitReached ? '#ef4444' : '#f59e0b' }]}>
+                {adsWatchedToday} / 5
+              </Text>
+              <Text style={styles.adRewardStatLabel}>WATCHED (24H LIMIT)</Text>
+            </View>
+            <View style={styles.adRewardStatDivider} />
+            <View style={styles.adRewardStatBox}>
               <Text style={[styles.adRewardStatNumber, { color: '#22c55e' }]}>
                 {totalMyTickets}
               </Text>
@@ -786,10 +855,11 @@ export default function GiveawaysScreen({ navigation }: any) {
           <TouchableOpacity
             style={[
               styles.watchAdBtn,
-              (adLoading || rewardClaiming) && styles.watchAdBtnDisabled,
+              (adLoading || rewardClaiming || adsLimitReached) && styles.watchAdBtnDisabled,
+              adsLimitReached && { backgroundColor: "#27272a" },
             ]}
             onPress={handleWatchAdForTickets}
-            disabled={adLoading || rewardClaiming}
+            disabled={adLoading || rewardClaiming || adsLimitReached}
             activeOpacity={0.8}
           >
             {adLoading || rewardClaiming ? (
@@ -799,15 +869,24 @@ export default function GiveawaysScreen({ navigation }: any) {
                   {rewardClaiming ? "CREDITING +2 TICKETS..." : "LOADING AD..."}
                 </Text>
               </View>
+            ) : adsLimitReached ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="time-outline" size={20} color="#71717a" style={{ marginRight: 8 }} />
+                <Text style={[styles.watchAdBtnText, { color: "#71717a" }]}>DAILY LIMIT REACHED (5/5)</Text>
+              </View>
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="play-circle" size={20} color="#000" style={{ marginRight: 8 }} />
-                <Text style={styles.watchAdBtnText}>WATCH AD FOR +2 EXTRA TICKETS</Text>
+                <Text style={styles.watchAdBtnText}>
+                  WATCH AD FOR +2 EXTRA TICKETS ({5 - adsWatchedToday} LEFT)
+                </Text>
               </View>
             )}
           </TouchableOpacity>
           <Text style={styles.adRewardNote}>
-            Completely optional — no obligation to watch. Watch anytime you want more entries.
+            {adsLimitReached
+              ? "You can watch up to 5 rewarded ads in any 24-hour period to keep raffles fair for everyone."
+              : "Completely optional — no obligation to watch. Maximum 5 ads in any 24-hour period."}
           </Text>
         </View>
 

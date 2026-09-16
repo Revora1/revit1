@@ -11,7 +11,8 @@ const PORT = process.env.PORT || 3000;
 
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { verifyAdMobSSV } from './server-admob-ssv';
 
 if (!getApps().length) {
   try {
@@ -201,6 +202,110 @@ app.get(['/.well-known/assetlinks.json', '/assetlinks.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.status(200).send(JSON.stringify(androidAssetLinks, null, 2));
 });
+
+// Google AdMob Rewarded Server-Side Verification (SSV) Endpoint
+app.get(['/api/admob-ssv', '/api/admob/ssv'], async (req, res) => {
+  try {
+    const rawUrl = req.originalUrl || req.url;
+    console.log(`[AdMob SSV] Incoming callback request: ${rawUrl}`);
+
+    const result = await verifyAdMobSSV(rawUrl);
+    if (!result.isValid) {
+      console.warn(`[AdMob SSV] Signature verification failed: ${result.reason}`);
+      // Return 400 with explanation so AdMob testing tool shows specific diagnostics
+      return res.status(400).send(`Verification failed: ${result.reason}`);
+    }
+
+    const {
+      user_id,
+      custom_data,
+      reward_amount,
+      reward_item,
+      transaction_id,
+      timestamp
+    } = result.params;
+
+    console.log(`[AdMob SSV] Valid SSV verified! transaction_id: ${transaction_id}, user_id: ${user_id}, reward: ${reward_amount} ${reward_item}`);
+
+    // Parse effective user ID (checks user_id first, then custom_data)
+    const effectiveUserId = user_id || custom_data;
+    const ticketsToAdd = parseInt(reward_amount, 10) || 2;
+
+    if (effectiveUserId && firestoreDb) {
+      const ssvTxRef = firestoreDb.collection('admob_ssv_transactions').doc(transaction_id || `tx_${Date.now()}`);
+      const userRef = firestoreDb.collection('users').doc(effectiveUserId);
+
+      await firestoreDb.runTransaction(async (transaction: any) => {
+        const txDoc = await transaction.get(ssvTxRef);
+        if (txDoc.exists) {
+          console.log(`[AdMob SSV] Transaction ${transaction_id} already processed. Skipping duplicate.`);
+          return;
+        }
+
+        const userDoc = await transaction.get(userRef);
+        const userData = userDoc.exists ? userDoc.data() : {};
+
+        // 24-Hour Rolling Window Check (Max 5 rewarded ads)
+        const now = Date.now();
+        const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+        const rawHistory: number[] = Array.isArray(userData?.rewardedAdTimestamps)
+          ? userData.rewardedAdTimestamps
+          : [];
+        // Keep only timestamps within the last 24 hours
+        const recentAdTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
+
+        if (recentAdTimestamps.length >= 5) {
+          console.log(`[AdMob SSV] User ${effectiveUserId} has already reached the maximum limit of 5 rewarded ads in 24 hours. Acknowledging callback without crediting extra tickets.`);
+          // Record the transaction so it isn't retried as a new event, but do not increment tickets
+          transaction.set(ssvTxRef, {
+            transactionId: transaction_id || '',
+            userId: effectiveUserId,
+            rewardAmount: 0,
+            rewardItem: reward_item || 'tickets',
+            status: 'rate_limited_max_5_in_24h',
+            timestamp: timestamp || now,
+            processedAt: FieldValue.serverTimestamp(),
+            rawUrl: rawUrl
+          });
+          return;
+        }
+
+        recentAdTimestamps.push(now);
+
+        // Record the transaction to prevent replay attacks
+        transaction.set(ssvTxRef, {
+          transactionId: transaction_id || '',
+          userId: effectiveUserId,
+          rewardAmount: ticketsToAdd,
+          rewardItem: reward_item || 'tickets',
+          status: 'credited',
+          timestamp: timestamp || now,
+          processedAt: FieldValue.serverTimestamp(),
+          rawUrl: rawUrl
+        });
+
+        // Credit the user's bonus tickets and update the 24-hour timestamps
+        transaction.set(userRef, {
+          adBonusTickets: FieldValue.increment(ticketsToAdd),
+          lastAdRewardAt: now,
+          lastAdTransactionId: transaction_id || '',
+          rewardedAdTimestamps: recentAdTimestamps
+        }, { merge: true });
+      });
+
+      console.log(`[AdMob SSV] Successfully processed for user ${effectiveUserId}`);
+    } else {
+      console.log(`[AdMob SSV] Verified callback received without actionable user_id (or test ping). Acknowledging 200 OK.`);
+    }
+
+    // Google expects an HTTP 200 OK response
+    return res.status(200).send('OK');
+  } catch (error: any) {
+    console.error('[AdMob SSV] Internal error processing callback:', error);
+    return res.status(500).send('Internal Server Error');
+  }
+});
+
 
 
 app.post('/api/send-push', async (req, res) => {

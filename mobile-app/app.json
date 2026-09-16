@@ -23,7 +23,7 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
-      "versionCode": 57,
+      "versionCode": 67,
       "package": "com.revitup.network",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

@@ -29,6 +29,114 @@ var import_dotenv = __toESM(require("dotenv"), 1);
 var import_app = require("firebase-admin/app");
 var import_messaging = require("firebase-admin/messaging");
 var import_firestore = require("firebase-admin/firestore");
+
+// server-admob-ssv.ts
+var import_https = __toESM(require("https"), 1);
+var import_crypto = __toESM(require("crypto"), 1);
+var cachedKeys = /* @__PURE__ */ new Map();
+var cacheExpiresAt = 0;
+var ADMOB_KEYS_URL = "https://www.gstatic.com/admob/reward/verifier-keys.json";
+var CACHE_TTL_MS = 12 * 60 * 60 * 1e3;
+async function getAdMobPublicKeys() {
+  const now = Date.now();
+  if (cachedKeys.size > 0 && now < cacheExpiresAt) {
+    return cachedKeys;
+  }
+  return new Promise((resolve) => {
+    import_https.default.get(ADMOB_KEYS_URL, (res) => {
+      if (res.statusCode !== 200) {
+        console.warn(`[AdMob SSV] Failed to fetch public keys, HTTP status ${res.statusCode}`);
+        return resolve(cachedKeys);
+      }
+      let rawData = "";
+      res.on("data", (chunk) => {
+        rawData += chunk;
+      });
+      res.on("end", () => {
+        try {
+          const parsed = JSON.parse(rawData);
+          const keyMap = /* @__PURE__ */ new Map();
+          if (Array.isArray(parsed.keys)) {
+            for (const k of parsed.keys) {
+              if (k.keyId && k.pem) {
+                keyMap.set(k.keyId, k.pem);
+              }
+            }
+          }
+          if (keyMap.size > 0) {
+            cachedKeys = keyMap;
+            cacheExpiresAt = Date.now() + CACHE_TTL_MS;
+            console.log(`[AdMob SSV] Successfully loaded ${keyMap.size} verification public keys from AdMob.`);
+          }
+          resolve(cachedKeys);
+        } catch (err) {
+          console.error("[AdMob SSV] Failed to parse AdMob public keys JSON:", err);
+          resolve(cachedKeys);
+        }
+      });
+    }).on("error", (err) => {
+      console.error("[AdMob SSV] Error connecting to AdMob key server:", err);
+      resolve(cachedKeys);
+    });
+  });
+}
+async function verifyAdMobSSV(originalUrl) {
+  try {
+    const questionIndex = originalUrl.indexOf("?");
+    if (questionIndex === -1) {
+      return { isValid: false, reason: "No query string found", params: {} };
+    }
+    const queryString = originalUrl.substring(questionIndex + 1);
+    const sigIndex = queryString.indexOf("signature=");
+    if (sigIndex === -1) {
+      return { isValid: false, reason: "Missing signature parameter", params: {} };
+    }
+    const contentToVerify = sigIndex > 0 && queryString[sigIndex - 1] === "&" ? queryString.substring(0, sigIndex - 1) : queryString.substring(0, sigIndex);
+    const parsedParams = {};
+    const urlParams = new URLSearchParams(queryString);
+    urlParams.forEach((val, key) => {
+      parsedParams[key] = val;
+    });
+    const signature = parsedParams["signature"];
+    const keyIdStr = parsedParams["key_id"];
+    if (!signature) {
+      return { isValid: false, reason: "Empty signature", params: parsedParams };
+    }
+    if (!keyIdStr) {
+      return { isValid: false, reason: "Missing key_id parameter", params: parsedParams };
+    }
+    const keyId = parseInt(keyIdStr, 10);
+    if (isNaN(keyId)) {
+      return { isValid: false, reason: `Invalid key_id format: ${keyIdStr}`, params: parsedParams };
+    }
+    let keys = await getAdMobPublicKeys();
+    let publicKeyPem = keys.get(keyId);
+    if (!publicKeyPem) {
+      cacheExpiresAt = 0;
+      keys = await getAdMobPublicKeys();
+      publicKeyPem = keys.get(keyId);
+    }
+    if (!publicKeyPem) {
+      return { isValid: false, reason: `AdMob Public Key ID ${keyId} not found in trusted keys`, params: parsedParams };
+    }
+    let base64Sig = signature.replace(/-/g, "+").replace(/_/g, "/");
+    while (base64Sig.length % 4 !== 0) {
+      base64Sig += "=";
+    }
+    const signatureBuffer = Buffer.from(base64Sig, "base64");
+    const verifier = import_crypto.default.createVerify("SHA256");
+    verifier.update(contentToVerify, "utf8");
+    const isValid = verifier.verify(publicKeyPem, signatureBuffer);
+    if (!isValid) {
+      return { isValid: false, reason: "Cryptographic signature mismatch", params: parsedParams };
+    }
+    return { isValid: true, params: parsedParams };
+  } catch (err) {
+    return { isValid: false, reason: err?.message || "Verification exception", params: {} };
+  }
+}
+
+// server.ts
 import_dotenv.default.config();
 var app = (0, import_express.default)();
 var PORT = process.env.PORT || 3e3;
@@ -202,6 +310,83 @@ var androidAssetLinks = [
 app.get(["/.well-known/assetlinks.json", "/assetlinks.json"], (req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.status(200).send(JSON.stringify(androidAssetLinks, null, 2));
+});
+app.get(["/api/admob-ssv", "/api/admob/ssv"], async (req, res) => {
+  try {
+    const rawUrl = req.originalUrl || req.url;
+    console.log(`[AdMob SSV] Incoming callback request: ${rawUrl}`);
+    const result = await verifyAdMobSSV(rawUrl);
+    if (!result.isValid) {
+      console.warn(`[AdMob SSV] Signature verification failed: ${result.reason}`);
+      return res.status(400).send(`Verification failed: ${result.reason}`);
+    }
+    const {
+      user_id,
+      custom_data,
+      reward_amount,
+      reward_item,
+      transaction_id,
+      timestamp
+    } = result.params;
+    console.log(`[AdMob SSV] Valid SSV verified! transaction_id: ${transaction_id}, user_id: ${user_id}, reward: ${reward_amount} ${reward_item}`);
+    const effectiveUserId = user_id || custom_data;
+    const ticketsToAdd = parseInt(reward_amount, 10) || 2;
+    if (effectiveUserId && firestoreDb) {
+      const ssvTxRef = firestoreDb.collection("admob_ssv_transactions").doc(transaction_id || `tx_${Date.now()}`);
+      const userRef = firestoreDb.collection("users").doc(effectiveUserId);
+      await firestoreDb.runTransaction(async (transaction) => {
+        const txDoc = await transaction.get(ssvTxRef);
+        if (txDoc.exists) {
+          console.log(`[AdMob SSV] Transaction ${transaction_id} already processed. Skipping duplicate.`);
+          return;
+        }
+        const userDoc = await transaction.get(userRef);
+        const userData = userDoc.exists ? userDoc.data() : {};
+        const now = Date.now();
+        const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1e3;
+        const rawHistory = Array.isArray(userData?.rewardedAdTimestamps) ? userData.rewardedAdTimestamps : [];
+        const recentAdTimestamps = rawHistory.filter((ts) => typeof ts === "number" && now - ts < TWENTY_FOUR_HOURS_MS);
+        if (recentAdTimestamps.length >= 5) {
+          console.log(`[AdMob SSV] User ${effectiveUserId} has already reached the maximum limit of 5 rewarded ads in 24 hours. Acknowledging callback without crediting extra tickets.`);
+          transaction.set(ssvTxRef, {
+            transactionId: transaction_id || "",
+            userId: effectiveUserId,
+            rewardAmount: 0,
+            rewardItem: reward_item || "tickets",
+            status: "rate_limited_max_5_in_24h",
+            timestamp: timestamp || now,
+            processedAt: import_firestore.FieldValue.serverTimestamp(),
+            rawUrl
+          });
+          return;
+        }
+        recentAdTimestamps.push(now);
+        transaction.set(ssvTxRef, {
+          transactionId: transaction_id || "",
+          userId: effectiveUserId,
+          rewardAmount: ticketsToAdd,
+          rewardItem: reward_item || "tickets",
+          status: "credited",
+          timestamp: timestamp || now,
+          processedAt: import_firestore.FieldValue.serverTimestamp(),
+          rawUrl
+        });
+        transaction.set(userRef, {
+          adBonusTickets: import_firestore.FieldValue.increment(ticketsToAdd),
+          lastAdRewardAt: now,
+          lastAdTransactionId: transaction_id || "",
+          rewardedAdTimestamps: recentAdTimestamps
+        }, { merge: true });
+      });
+      console.log(`[AdMob SSV] Successfully processed for user ${effectiveUserId}`);
+    } else {
+      console.log(`[AdMob SSV] Verified callback received without actionable user_id (or test ping). Acknowledging 200 OK.`);
+    }
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.error("[AdMob SSV] Internal error processing callback:", error);
+    return res.status(500).send("Internal Server Error");
+  }
 });
 app.post("/api/send-push", async (req, res) => {
   try {

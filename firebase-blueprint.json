@@ -17,6 +17,7 @@
         "giveawayQualified": { "type": "boolean" },
         "adBonusTickets": { "type": "integer" },
         "boostTickets": { "type": "integer" },
+        "rewardedAdTimestamps": { "type": "array", "items": { "type": "integer" } },
         "garage": { "type": "array", "items": { "type": "string" } },
         "partnerId": { "type": "string" },
         "fcmTokens": { "type": "array", "items": { "type": "string" } }
@@ -211,9 +212,28 @@
         "createdAt": { "type": "integer" }
       },
       "required": ["reporterId", "targetId", "targetType", "reason", "createdAt"]
+    },
+    "AdMobSSVTransaction": {
+      "title": "AdMobSSVTransaction",
+      "description": "Verified AdMob server-side verification transaction record",
+      "type": "object",
+      "properties": {
+        "transactionId": { "type": "string" },
+        "userId": { "type": "string" },
+        "rewardAmount": { "type": "integer" },
+        "rewardItem": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "processedAt": { "type": "string" },
+        "rawUrl": { "type": "string" }
+      },
+      "required": ["transactionId", "userId", "rewardAmount"]
     }
   },
   "firestore": {
+    "/admob_ssv_transactions/{transactionId}": {
+      "schema": "AdMobSSVTransaction",
+      "description": "Stores processed AdMob rewarded video SSV callbacks"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "Internal user profile documents"

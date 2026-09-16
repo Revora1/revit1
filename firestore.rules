@@ -17,7 +17,7 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         request.auth.uid == userId ||
-        (resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount', 'followersCount', 'followingCount', 'updatedAt', 'reputationBonus', 'scrolledFeedCount', 'feedViewsCount', 'giveawayQualified', 'adBonusTickets', 'boostTickets'])) ||
+        (resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referralsCount', 'followersCount', 'followingCount', 'updatedAt', 'reputationBonus', 'scrolledFeedCount', 'feedViewsCount', 'giveawayQualified', 'adBonusTickets', 'boostTickets', 'rewardedAdTimestamps', 'lastAdRewardAt', 'lastAdTransactionId'])) ||
         isAdmin()
       );
       allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
@@ -203,6 +203,9 @@ service cloud.firestore {
         (resource.data.keys().hasAny(['addedBy']) && resource.data.addedBy == request.auth.uid) ||
         isAdmin()
       );
+    }
+    match /admob_ssv_transactions/{transactionId} {
+      allow read, write: if isAdmin();
     }
   }
 }
