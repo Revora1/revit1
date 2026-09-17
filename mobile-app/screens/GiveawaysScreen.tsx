@@ -870,8 +870,8 @@ export default function GiveawaysScreen({ navigation }: any) {
                 )}
               </View>
             </TouchableOpacity>
-          );
-        })}
+          )
+        )}
 
         {/* Entry Status Card */}
         <View style={styles.statusCard}>

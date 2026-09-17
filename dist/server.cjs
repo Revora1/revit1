@@ -329,7 +329,17 @@ app.get(["/api/admob-ssv", "/api/admob/ssv"], async (req, res) => {
       timestamp
     } = result.params;
     console.log(`[AdMob SSV] Valid SSV verified! transaction_id: ${transaction_id}, user_id: ${user_id}, reward: ${reward_amount} ${reward_item}`);
-    const effectiveUserId = user_id || custom_data;
+    let effectiveUserId = user_id || custom_data || "";
+    let targetGiveawayId = "";
+    if (custom_data && custom_data.includes("__")) {
+      const parts = custom_data.split("__");
+      effectiveUserId = parts[0];
+      targetGiveawayId = parts[1];
+    } else if (user_id && user_id.includes("__")) {
+      const parts = user_id.split("__");
+      effectiveUserId = parts[0];
+      targetGiveawayId = parts[1];
+    }
     const ticketsToAdd = parseInt(reward_amount, 10) || 2;
     if (effectiveUserId && firestoreDb) {
       const ssvTxRef = firestoreDb.collection("admob_ssv_transactions").doc(transaction_id || `tx_${Date.now()}`);
@@ -344,13 +354,19 @@ app.get(["/api/admob-ssv", "/api/admob/ssv"], async (req, res) => {
         const userData = userDoc.exists ? userDoc.data() : {};
         const now = Date.now();
         const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1e3;
-        const rawHistory = Array.isArray(userData?.rewardedAdTimestamps) ? userData.rewardedAdTimestamps : [];
+        let rawHistory = [];
+        if (targetGiveawayId && userData?.giveawayAdTimestamps && Array.isArray(userData.giveawayAdTimestamps[targetGiveawayId])) {
+          rawHistory = userData.giveawayAdTimestamps[targetGiveawayId];
+        } else if (Array.isArray(userData?.rewardedAdTimestamps)) {
+          rawHistory = userData.rewardedAdTimestamps;
+        }
         const recentAdTimestamps = rawHistory.filter((ts) => typeof ts === "number" && now - ts < TWENTY_FOUR_HOURS_MS);
         if (recentAdTimestamps.length >= 5) {
-          console.log(`[AdMob SSV] User ${effectiveUserId} has already reached the maximum limit of 5 rewarded ads in 24 hours. Acknowledging callback without crediting extra tickets.`);
+          console.log(`[AdMob SSV] User ${effectiveUserId} has already reached the maximum limit of 5 rewarded ads in 24 hours for giveaway ${targetGiveawayId || "global"}. Acknowledging callback without crediting extra tickets.`);
           transaction.set(ssvTxRef, {
             transactionId: transaction_id || "",
             userId: effectiveUserId,
+            giveawayTarget: targetGiveawayId || "global",
             rewardAmount: 0,
             rewardItem: reward_item || "tickets",
             status: "rate_limited_max_5_in_24h",
@@ -364,6 +380,7 @@ app.get(["/api/admob-ssv", "/api/admob/ssv"], async (req, res) => {
         transaction.set(ssvTxRef, {
           transactionId: transaction_id || "",
           userId: effectiveUserId,
+          giveawayTarget: targetGiveawayId || "global",
           rewardAmount: ticketsToAdd,
           rewardItem: reward_item || "tickets",
           status: "credited",
@@ -371,14 +388,20 @@ app.get(["/api/admob-ssv", "/api/admob/ssv"], async (req, res) => {
           processedAt: import_firestore.FieldValue.serverTimestamp(),
           rawUrl
         });
-        transaction.set(userRef, {
-          adBonusTickets: import_firestore.FieldValue.increment(ticketsToAdd),
+        const userUpdatePayload = {
           lastAdRewardAt: now,
           lastAdTransactionId: transaction_id || "",
           rewardedAdTimestamps: recentAdTimestamps
-        }, { merge: true });
+        };
+        if (targetGiveawayId) {
+          userUpdatePayload[`giveawayAdTickets.${targetGiveawayId}`] = import_firestore.FieldValue.increment(ticketsToAdd);
+          userUpdatePayload[`giveawayAdTimestamps.${targetGiveawayId}`] = recentAdTimestamps;
+        } else {
+          userUpdatePayload.adBonusTickets = import_firestore.FieldValue.increment(ticketsToAdd);
+        }
+        transaction.set(userRef, userUpdatePayload, { merge: true });
       });
-      console.log(`[AdMob SSV] Successfully processed for user ${effectiveUserId}`);
+      console.log(`[AdMob SSV] Successfully processed for user ${effectiveUserId} (Giveaway: ${targetGiveawayId || "global"})`);
     } else {
       console.log(`[AdMob SSV] Verified callback received without actionable user_id (or test ping). Acknowledging 200 OK.`);
     }
