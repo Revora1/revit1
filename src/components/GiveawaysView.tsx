@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, doc, getDoc, getCountFromServer, setDoc, onSnapshot, query, where, updateDoc, arrayUnion, increment } from 'firebase/firestore';
-import { Gift, Copy, CheckCircle2, ChevronLeft, Users, Trophy, ShieldCheck, X, Film, PlayCircle, Loader2 } from 'lucide-react';
+import { Gift, Copy, CheckCircle2, ChevronLeft, Users, Trophy, ShieldCheck, X, Film, PlayCircle, Loader2, Calendar, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Share } from '@capacitor/share';
-import { getBaseUrl, shareContent } from '../lib/utils';
+import { getBaseUrl, shareContent, formatDrawDate, getDrawCountdown } from '../lib/utils';
+import { GiveawayMilestone } from '../types';
 
 interface GiveawaysViewProps {
   onBack: () => void;
@@ -26,14 +27,20 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
   const [showTC, setShowTC] = useState(false);
   const [enteredGiveaways, setEnteredGiveaways] = useState<number[]>([]);
   const [enteringGiveaway, setEnteringGiveaway] = useState<number | null>(null);
+  const [selectedGiveaway, setSelectedGiveaway] = useState<GiveawayMilestone | null>(null);
   const [adLoading, setAdLoading] = useState(false);
   const [adRewardSuccess, setAdRewardSuccess] = useState(false);
   const [adBonusTickets, setAdBonusTickets] = useState(0);
+  const [giveawayAdTicketsMap, setGiveawayAdTicketsMap] = useState<Record<string, number>>({});
+  const [giveawayAdTimestampsMap, setGiveawayAdTimestampsMap] = useState<Record<string, number[]>>({});
+  const [globalAdTimestamps, setGlobalAdTimestamps] = useState<number[]>([]);
+  const [watchingTarget, setWatchingTarget] = useState<number | null>(null);
+  const [nextDrawDate, setNextDrawDate] = useState<string>('');
   
-  const [milestones, setMilestones] = useState<any[]>([
-    { target: 10000, prize: '£500 CASH' },
-    { target: 100000, prize: '£1000 CASH' },
-    { target: 1000000, prize: 'A CAR' },
+  const [milestones, setMilestones] = useState<GiveawayMilestone[]>([
+    { target: 10000, prize: '£500 CASH', drawDate: '' },
+    { target: 100000, prize: '£1000 CASH', drawDate: '' },
+    { target: 1000000, prize: 'A CAR', drawDate: '' },
   ]);
 
   useEffect(() => {
@@ -50,6 +57,9 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
           if (configData.milestones && Array.isArray(configData.milestones)) {
             setMilestones(configData.milestones);
           }
+          if (configData.nextDrawDate) {
+            setNextDrawDate(configData.nextDrawDate);
+          }
         }
         
         if (user) {
@@ -65,6 +75,9 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
             setEnteredGiveaways(data.enteredGiveaways || []);
             setScrolledFeedCount(userScrolled);
             setAdBonusTickets(data.adBonusTickets || 0);
+            setGiveawayAdTicketsMap(data.giveawayAdTickets || {});
+            setGiveawayAdTimestampsMap(data.giveawayAdTimestamps || {});
+            setGlobalAdTimestamps(data.rewardedAdTimestamps || []);
             if (data.giveawayQualified || (data.enteredGiveaways && data.enteredGiveaways.length > 0)) {
               hasLifetime = true;
               setIsLifetimeQualified(true);
@@ -103,34 +116,75 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
   const currentMilestoneIndex = milestones.findIndex(m => totalUsers < m.target);
   const activeMilestoneIndex = currentMilestoneIndex === -1 ? milestones.length - 1 : currentMilestoneIndex;
   const activeMilestone = milestones[activeMilestoneIndex];
-  const adTickets = adBonusTickets || (profile as any)?.adBonusTickets || 0;
+  const now = Date.now();
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const activeTargetKey = String(activeMilestone.target);
+  const adTickets = (giveawayAdTicketsMap[activeTargetKey] || 0) + (adBonusTickets || (profile as any)?.adBonusTickets || 0);
   const boostTickets = Math.min(15, (profile as any)?.boostTickets !== undefined ? (profile as any).boostTickets : myReferrals);
   const currentReqsMet = (user?.emailVerified || user) && hasCar && hasPost && myReferrals >= 10 && scrolledFeedCount >= 50;
   const isEligible = isLifetimeQualified || currentReqsMet;
   const baseTicketCount = isLifetimeQualified || isEligible ? 1 : 0;
   const totalMyTickets = baseTicketCount + boostTickets + adTickets;
 
-  const handleWatchRewardedAd = async () => {
+  const activeRawHistory: number[] = giveawayAdTimestampsMap[activeTargetKey] || globalAdTimestamps || [];
+  const activeRecentTimestamps = activeRawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
+  const activeAdsWatchedToday = Math.min(5, activeRecentTimestamps.length);
+  const activeAdsLimitReached = activeAdsWatchedToday >= 5;
+
+  const handleWatchRewardedAd = async (specificTarget?: number) => {
     if (!user) {
       alert("Please sign in to earn extra giveaway tickets.");
       return;
     }
+
+    const targetToUse = specificTarget || activeMilestone.target;
+    const targetKey = String(targetToUse);
+    const rawHistory: number[] = giveawayAdTimestampsMap[targetKey] || globalAdTimestamps || [];
+    const currentTime = Date.now();
+    const recentTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (currentTime - ts) < TWENTY_FOUR_HOURS_MS);
+
+    if (recentTimestamps.length >= 5) {
+      const oldestTs = Math.min(...recentTimestamps);
+      const msUntilReset = TWENTY_FOUR_HOURS_MS - (currentTime - oldestTs);
+      const hours = Math.floor(msUntilReset / (1000 * 60 * 60));
+      const minutes = Math.ceil((msUntilReset % (1000 * 60 * 60)) / (1000 * 60));
+      alert(`Daily limit reached (5/5). You can watch up to 5 rewarded ads per 24 hours for this giveaway. Next ad resets in approximately ${hours > 0 ? `${hours}h ` : ''}${minutes}m.`);
+      return;
+    }
+
+    setWatchingTarget(targetToUse);
     setAdLoading(true);
+
     // Simulate watching video on web (or native rewarded if Capacitor AdMob available)
     setTimeout(async () => {
       try {
         const userRef = doc(db, 'users', user.uid);
+        const updatedTimestamps = [...recentTimestamps, currentTime];
+
         await setDoc(userRef, {
-          adBonusTickets: increment(2),
-          lastAdRewardAt: Date.now()
+          [`giveawayAdTickets.${targetKey}`]: increment(2),
+          [`giveawayAdTimestamps.${targetKey}`]: updatedTimestamps,
+          rewardedAdTimestamps: updatedTimestamps,
+          lastAdRewardAt: currentTime,
         }, { merge: true });
-        setAdBonusTickets(prev => prev + 2);
+
+        setGiveawayAdTicketsMap(prev => ({
+          ...prev,
+          [targetKey]: (prev[targetKey] || 0) + 2,
+        }));
+        setGiveawayAdTimestampsMap(prev => ({
+          ...prev,
+          [targetKey]: updatedTimestamps,
+        }));
+        setGlobalAdTimestamps(updatedTimestamps);
+
         setAdRewardSuccess(true);
         setTimeout(() => setAdRewardSuccess(false), 5000);
       } catch (e) {
         console.error("Error rewarding ad tickets:", e);
       } finally {
         setAdLoading(false);
+        setWatchingTarget(null);
       }
     }, 1500);
   };
@@ -244,125 +298,187 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
                 )
               })()}
               
-              <div className="text-xs font-bold text-amber-500 uppercase tracking-widest mt-3 flex justify-between">
+              <div className="text-xs font-bold text-amber-500 uppercase tracking-widest mt-3 flex justify-between items-center">
                 <span>Active Target</span>
                 <span>{activeMilestone.prize}</span>
               </div>
+
+              {/* Scheduled Draw Date for active milestone / global */}
+              {(activeMilestone.drawDate || nextDrawDate) && (
+                <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-zinc-300">
+                    <Calendar size={14} className="text-amber-500 flex-shrink-0" />
+                    <span>Draw Date: <strong className="text-white font-bold">{formatDrawDate(activeMilestone.drawDate || nextDrawDate)}</strong></span>
+                  </div>
+                  {(() => {
+                    const cd = getDrawCountdown(activeMilestone.drawDate || nextDrawDate);
+                    if (!cd) return null;
+                    return (
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                        cd.isPast 
+                          ? 'bg-zinc-800 text-zinc-400' 
+                          : cd.isSoon 
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse' 
+                            : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                      }`}>
+                        {cd.text}
+                      </span>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="space-y-4">
-            {milestones.map((m, idx) => {
-              const isPassed = totalUsers >= m.target;
-              const isCurrent = idx === currentMilestoneIndex;
-              const isLocked = !isPassed && !isCurrent;
+          {/* Milestones List or Detail View */}
+          {selectedGiveaway ? (
+            <div className="space-y-4">
+              <button 
+                onClick={() => setSelectedGiveaway(null)}
+                className="flex items-center text-zinc-400 mb-4 hover:text-white transition-colors"
+              >
+                <ChevronLeft size={20} /> Back to all milestones
+              </button>
               
-              return (
-                <div 
-                  key={m.target} 
-                  className={`relative overflow-hidden rounded-2xl border ${
-                    isCurrent 
-                      ? 'bg-zinc-900 border-amber-500/50 shadow-[0_0_30px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/20' 
-                      : isPassed 
-                        ? 'bg-zinc-900/50 border-green-500/30' 
-                        : 'bg-black border-zinc-800 opacity-60'
+              <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
+                <h2 className="text-2xl font-black uppercase italic text-white mb-2">{selectedGiveaway.prize}</h2>
+                <p className="text-amber-500 font-bold mb-4">{selectedGiveaway.target.toLocaleString()} Users Target</p>
+                
+                {selectedGiveaway.image && (
+                   <img src={selectedGiveaway.image} alt={selectedGiveaway.prize} className="w-full h-64 object-cover rounded-xl mb-4" />
+                )}
+
+                {/* Enter Giveaway Button */}
+                <button
+                  onClick={() => handleEnterGiveaway(selectedGiveaway.target)}
+                  disabled={enteringGiveaway === selectedGiveaway.target || enteredGiveaways.includes(selectedGiveaway.target)}
+                  className={`w-full py-4 rounded-xl font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2 transition-transform ${
+                    enteredGiveaways.includes(selectedGiveaway.target)
+                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                      : 'bg-amber-500 text-black hover:bg-amber-400 active:scale-95 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
                   }`}
                 >
-                  <div className="p-5 relative z-10">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
-                          isCurrent ? 'bg-amber-500/20 text-amber-500' : isPassed ? 'bg-green-500/20 text-green-500' : 'bg-zinc-800 text-zinc-500'
-                        }`}>
-                          {isPassed ? 'Unlocked' : isCurrent ? 'Active Goal' : 'Locked'}
-                        </span>
-                        <h3 className="text-lg font-black italic uppercase mt-3">{m.prize}</h3>
-                        <p className="text-sm font-bold text-zinc-400 mt-1">{m.target.toLocaleString()} Users Target</p>
-                        
-                        {m.winnerUsername && (
-                          <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/20 border border-amber-500/30 text-amber-500 text-xs font-bold">
-                            <Trophy size={12} /> Winner: {m.winnerUsername}
-                          </div>
-                        )}
-                      </div>
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                          isCurrent ? 'bg-amber-500/10 text-amber-500' : isPassed ? 'bg-green-500/10 text-green-500' : 'bg-zinc-900 text-zinc-600'
-                      }`}>
-                        {isPassed ? <CheckCircle2 size={24} /> : <Gift size={24} />}
-                      </div>
+                  {enteredGiveaways.includes(selectedGiveaway.target) ? (
+                    <>
+                      <CheckCircle2 size={18} /> Entered
+                    </>
+                  ) : enteringGiveaway === selectedGiveaway.target ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" /> Entering...
+                    </>
+                  ) : (
+                    'Enter Giveaway'
+                  )}
+                </button>
+                
+                {/* Rewarded Ad for +2 Tickets */}
+                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 mt-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-center text-amber-500 flex-shrink-0">
+                      <Film size={22} />
                     </div>
-
-                    {(m.image || m.carMake || m.carModel) && (
-                      <div className={`mt-4 rounded-xl overflow-hidden border ${isCurrent ? 'border-amber-500/20' : 'border-zinc-800'} bg-black`}>
-                        {m.image && (
-                          <div className="relative">
-                            <img src={m.image} alt={m.prize} className={`w-full h-40 object-cover ${isLocked ? 'grayscale opacity-50' : ''}`} />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent flex items-end p-4">
-                              {/* Car Details if available over image */}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {(m.carMake || m.carModel) && (
-                          <div className="p-4 grid grid-cols-2 gap-3 text-xs bg-zinc-900">
-                            {m.carMake && (
-                              <div className="flex flex-col">
-                                <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Make</span>
-                                <span className="text-zinc-200 font-medium text-sm">{m.carMake}</span>
-                              </div>
-                            )}
-                            {m.carModel && (
-                              <div className="flex flex-col">
-                                <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Model</span>
-                                <span className="text-zinc-200 font-medium text-sm">{m.carModel}</span>
-                              </div>
-                            )}
-                            {m.carYear && (
-                              <div className="flex flex-col">
-                                <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Year</span>
-                                <span className="text-zinc-200 font-medium text-sm">{m.carYear}</span>
-                              </div>
-                            )}
-                            {m.carPower && (
-                              <div className="flex flex-col">
-                                <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Power</span>
-                                <span className="text-zinc-200 font-medium text-sm">{m.carPower}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-base italic uppercase text-white">Want More Tickets?</h3>
+                        <span className="bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase px-1.5 py-0.5 rounded">Optional</span>
                       </div>
-                    )}
-                    
-                    <div className="mt-4">
-                      {enteredGiveaways.includes(m.target) ? (
-                        <button disabled className="w-full bg-green-500/20 text-green-500 py-3 rounded-xl font-bold uppercase tracking-wider text-sm flex items-center justify-center gap-2 border border-green-500/30">
-                          <CheckCircle2 size={18} /> Entered
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleEnterGiveaway(m.target)}
-                          disabled={isLocked || isPassed || enteringGiveaway === m.target || !isEligible}
-                          className={`w-full py-3 rounded-xl font-bold uppercase tracking-wider text-sm flex items-center justify-center gap-2 transition-transform ${
-                            !isLocked && !isPassed && isEligible
-                              ? 'bg-amber-500 text-black active:scale-95 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
-                              : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                          }`}
-                        >
-                          {isPassed ? 'Giveaway Closed' : enteringGiveaway === m.target ? 'Entering...' : 'Enter Giveaway'}
-                        </button>
-                      )}
+                      <p className="text-zinc-400 text-xs mt-0.5">Watch a short video ad to claim +2 extra tickets for this draw</p>
                     </div>
                   </div>
-                  
-                  {/* Glowing Effect for Active */}
-                  {isCurrent && (
-                    <div className="absolute inset-0 bg-gradient-to-b from-amber-500/5 to-transparent pointer-events-none" />
-                  )}
+                  {(() => {
+                      const targetKey = String(selectedGiveaway.target);
+                      // Use giveawayAdTimestamps instead of giveawayAdTimestampsMap
+                      const adHistory = (giveawayAdTimestampsMap && giveawayAdTimestampsMap[targetKey]) || [];
+                      const now = Date.now();
+                      const recentAds = adHistory.filter((ts: number) => (now - ts) < (24 * 60 * 60 * 1000));
+                      const isLimitReached = recentAds.length >= 5;
+                      
+                      let resetText = "";
+                      if (isLimitReached) {
+                          const oldestAd = Math.min(...recentAds);
+                          const resetTime = oldestAd + (24 * 60 * 60 * 1000);
+                          const remainingMs = resetTime - now;
+                          const hours = Math.max(0, Math.floor(remainingMs / (60 * 60 * 1000)));
+                          const mins = Math.max(0, Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000)));
+                          resetText = `Next ad resets in approx ${hours}h ${mins}m`;
+                      }
+
+                      return (
+                        <>
+                          {isLimitReached ? (
+                            <div className="bg-zinc-950 border border-red-500/30 rounded-xl p-4 text-center">
+                              <p className="text-red-400 font-black text-sm uppercase">Daily limit reached (5/5)</p>
+                              <p className="text-zinc-500 text-xs mt-1">{resetText}</p>
+                            </div>
+                          ) : (
+                            <button
+                                onClick={() => handleWatchRewardedAd(selectedGiveaway.target)}
+                                disabled={adLoading}
+                                className="w-full py-3.5 rounded-xl font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2 transition-all bg-amber-500 hover:bg-amber-400 active:scale-95 disabled:opacity-50 text-black shadow-lg shadow-amber-500/10"
+                            >
+                                {adLoading ? (
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" />
+                                        <span>Loading Ad...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <PlayCircle size={18} />
+                                        <span>Watch Ad For +2 Extra Tickets</span>
+                                    </>
+                                )}
+                            </button>
+                          )}
+                        </>
+                      );
+                  })()}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {milestones.map((m, idx) => {
+                const isPassed = totalUsers >= m.target;
+                const isCurrent = idx === currentMilestoneIndex;
+                
+                return (
+                  <div 
+                    role="button"
+                    tabIndex={0}
+                    key={m.target} 
+                    onClick={() => setSelectedGiveaway(m)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedGiveaway(m); }}
+                    className={`relative overflow-hidden rounded-2xl border text-left w-full cursor-pointer ${
+                      isCurrent 
+                        ? 'bg-zinc-900 border-amber-500/50 shadow-[0_0_30px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/20' 
+                        : isPassed 
+                          ? 'bg-zinc-900/50 border-green-500/30' 
+                          : 'bg-black border-zinc-800 opacity-60'
+                    }`}
+                  >
+                    <div className="p-5 relative z-10">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
+                            isCurrent ? 'bg-amber-500/20 text-amber-500' : isPassed ? 'bg-green-500/20 text-green-500' : 'bg-zinc-800 text-zinc-500'
+                          }`}>
+                            {isPassed ? 'Unlocked' : isCurrent ? 'Active Goal' : 'Locked'}
+                          </span>
+                          <h3 className="text-lg font-black italic uppercase mt-3">{m.prize}</h3>
+                          <p className="text-sm font-bold text-zinc-400 mt-1">{m.target.toLocaleString()} Users Target</p>
+                        </div>
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                            isCurrent ? 'bg-amber-500/10 text-amber-500' : isPassed ? 'bg-green-500/10 text-green-500' : 'bg-zinc-900 text-zinc-600'
+                        }`}>
+                          {isPassed ? <CheckCircle2 size={24} /> : <Gift size={24} />}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between mb-2">
@@ -440,60 +556,6 @@ export function GiveawaysView({ onBack }: GiveawaysViewProps) {
             </button>
           </div>
 
-          {/* Optional Rewarded Ad for +2 Tickets */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-center text-amber-500 flex-shrink-0">
-                <Film size={22} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-black text-base italic uppercase text-white">Want More Tickets?</h3>
-                  <span className="bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase px-1.5 py-0.5 rounded">Optional</span>
-                </div>
-                <p className="text-zinc-400 text-xs mt-0.5">Watch a short video ad to claim +2 extra tickets for the active draw</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3 text-center">
-              <div>
-                <div className="text-2xl font-black text-amber-500">+{adTickets}</div>
-                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mt-0.5">Ad Bonus Tickets</div>
-              </div>
-              <div className="border-l border-zinc-800">
-                <div className="text-2xl font-black text-emerald-400">{totalMyTickets}</div>
-                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mt-0.5">Total Tickets In Draw</div>
-              </div>
-            </div>
-
-            {adRewardSuccess && (
-              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-emerald-400 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 size={16} />
-                <span>+2 extra tickets added to your giveaway entries!</span>
-              </div>
-            )}
-
-            <button
-              onClick={handleWatchRewardedAd}
-              disabled={adLoading}
-              className="w-full bg-amber-500 hover:bg-amber-400 active:scale-95 disabled:opacity-50 text-black py-3.5 rounded-xl font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10"
-            >
-              {adLoading ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  <span>Loading Ad...</span>
-                </>
-              ) : (
-                <>
-                  <PlayCircle size={18} />
-                  <span>Watch Ad For +2 Extra Tickets</span>
-                </>
-              )}
-            </button>
-            <p className="text-[11px] text-zinc-500 text-center leading-relaxed">
-              Completely optional — no obligation to watch. Watch anytime you want more entries.
-            </p>
-          </div>
 
           <div className="text-[9px] text-zinc-500 space-y-2 pt-6 pb-2 px-2 text-center uppercase tracking-wider leading-relaxed border-t border-zinc-900 mt-6">
             <p>

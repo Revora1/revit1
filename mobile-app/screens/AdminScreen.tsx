@@ -21,10 +21,11 @@ export default function AdminScreen({ navigation }: any) {
   const [newVideoThumbnail, setNewVideoThumbnail] = useState('');
   const [newVideoOrientation, setNewVideoOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [newVideoCameraModel, setNewVideoCameraModel] = useState('');
+  const [nextDrawDate, setNextDrawDate] = useState('');
   const [milestonesConfig, setMilestonesConfig] = useState<any[]>([
-    { target: '10000', prize: '£50 Giftcard', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
-    { target: '100000', prize: '£1000 Cash', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
-    { target: '1000000', prize: 'A Brand New Car', image: '', carMake: '', carModel: '', carYear: '', carPower: '' }
+    { target: '10000', prize: '£50 Giftcard', drawDate: '', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
+    { target: '100000', prize: '£1000 Cash', drawDate: '', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
+    { target: '1000000', prize: 'A Brand New Car', drawDate: '', image: '', carMake: '', carModel: '', carYear: '', carPower: '' }
   ]);
   const [savingMilestones, setSavingMilestones] = useState(false);
 
@@ -68,14 +69,21 @@ export default function AdminScreen({ navigation }: any) {
         
         // Fetch Config
         const configSnap = await getDoc(doc(db, 'giveaways', 'config'));
-        if (configSnap.exists() && configSnap.data().milestones) {
-          // ensure fields are string for inputs
-          const mapped = configSnap.data().milestones.map((m: any) => ({
-            ...m,
-            target: m.target ? String(m.target) : '',
-            carYear: m.carYear ? String(m.carYear) : '',
-          }));
-          setMilestonesConfig(mapped);
+        if (configSnap.exists()) {
+          const cData = configSnap.data();
+          if (cData.milestones) {
+            // ensure fields are string for inputs
+            const mapped = cData.milestones.map((m: any) => ({
+              ...m,
+              target: m.target ? String(m.target) : '',
+              carYear: m.carYear ? String(m.carYear) : '',
+              drawDate: m.drawDate || '',
+            }));
+            setMilestonesConfig(mapped);
+          }
+          if (cData.nextDrawDate) {
+            setNextDrawDate(cData.nextDrawDate);
+          }
         }
       } else if (activeTab === 'videos') {
         const q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'));
@@ -139,10 +147,15 @@ export default function AdminScreen({ navigation }: any) {
       // parse back to numbers if needed
       const payload = milestonesConfig.map(m => ({
         ...m,
-        target: Number(m.target) || 0
+        target: Number(m.target) || 0,
+        drawDate: m.drawDate ? String(m.drawDate).trim() : ''
       }));
-      await setDoc(doc(db, 'giveaways', 'config'), { milestones: payload }, { merge: true });
-      Alert.alert('Success', 'Milestones saved!');
+      await setDoc(doc(db, 'giveaways', 'config'), { 
+        milestones: payload,
+        nextDrawDate: nextDrawDate.trim(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      Alert.alert('Success', 'Milestones and draw dates saved!');
     } catch (e) {
       Alert.alert('Error', 'Failed to save milestones.');
     }
@@ -360,7 +373,7 @@ export default function AdminScreen({ navigation }: any) {
             {activeTab === 'giveaways' && (
               <View style={styles.giveawayContainer}>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Milestone Config</Text>
+                  <Text style={styles.sectionTitle}>Milestone Config & Draw Dates</Text>
                   <TouchableOpacity 
                     style={styles.saveBtn} 
                     onPress={saveMilestones} 
@@ -368,6 +381,18 @@ export default function AdminScreen({ navigation }: any) {
                   >
                     <Text style={styles.saveBtnText}>{savingMilestones ? 'Saving...' : 'SAVE'}</Text>
                   </TouchableOpacity>
+                </View>
+
+                {/* Overall Next Draw Date */}
+                <View style={[styles.card, { borderColor: '#f59e0b', borderWidth: 1, marginBottom: 16 }]}>
+                  <Text style={[styles.inputLabel, { color: '#f59e0b', fontWeight: 'bold' }]}>GLOBAL NEXT DRAW DATE & TIME</Text>
+                  <TextInput 
+                    style={styles.input} 
+                    value={nextDrawDate} 
+                    onChangeText={setNextDrawDate} 
+                    placeholder="e.g. 31 Oct 2026, 8:00 PM GMT or 2026-10-31" 
+                    placeholderTextColor="#555" 
+                  />
                 </View>
 
                 {milestonesConfig.map((m, idx) => (
@@ -383,6 +408,17 @@ export default function AdminScreen({ navigation }: any) {
                         <Text style={styles.inputLabel}>PRIZE NAME</Text>
                         <TextInput style={styles.input} value={m.prize} onChangeText={(t) => handleMilestoneChange(idx, 'prize', t)} />
                       </View>
+                    </View>
+
+                    <View style={{marginBottom: 8}}>
+                      <Text style={styles.inputLabel}>GIVEAWAY DRAW DATE / TIME</Text>
+                      <TextInput 
+                        style={styles.input} 
+                        value={m.drawDate || ''} 
+                        onChangeText={(t) => handleMilestoneChange(idx, 'drawDate', t)} 
+                        placeholder="e.g. 31 Oct 2026, 8:00 PM or 2026-10-31" 
+                        placeholderTextColor="#555" 
+                      />
                     </View>
 
                     <View style={styles.inputRow}>

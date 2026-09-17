@@ -4,8 +4,9 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Trash2, X, AlertTriangle, Users, Gift, Download, ImagePlus, Save, Tv, Camera, Smartphone, Upload, Plus } from 'lucide-react';
-import { UserProfile, RevitUpVideo } from '../types';
+import { Shield, Trash2, X, AlertTriangle, Users, Gift, Download, ImagePlus, Save, Tv, Camera, Smartphone, Upload, Plus, Calendar, Clock } from 'lucide-react';
+import { UserProfile, RevitUpVideo, GiveawayMilestone } from '../types';
+import { formatDrawDate, getDrawCountdown } from '../lib/utils';
 
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -23,10 +24,11 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [thumbnailUrlInput, setThumbnailUrlInput] = useState('');
   const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [milestonesConfig, setMilestonesConfig] = useState<any[]>([
-    { target: 10000, prize: '£50 Giftcard', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
-    { target: 100000, prize: '£1000 Cash', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
-    { target: 1000000, prize: 'A Brand New Car', image: '', carMake: '', carModel: '', carYear: '', carPower: '' }
+  const [nextDrawDate, setNextDrawDate] = useState('');
+  const [milestonesConfig, setMilestonesConfig] = useState<GiveawayMilestone[]>([
+    { target: 10000, prize: '£50 Giftcard', drawDate: '', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
+    { target: 100000, prize: '£1000 Cash', drawDate: '', image: '', carMake: '', carModel: '', carYear: '', carPower: '' },
+    { target: 1000000, prize: 'A Brand New Car', drawDate: '', image: '', carMake: '', carModel: '', carYear: '', carPower: '' }
   ]);
   const [savingMilestones, setSavingMilestones] = useState(false);
 
@@ -87,8 +89,14 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         setGiveawayTickets(tickets);
         
         const configSnap = await getDoc(doc(db, 'giveaways', 'config'));
-        if (configSnap.exists() && configSnap.data().milestones) {
-          setMilestonesConfig(configSnap.data().milestones);
+        if (configSnap.exists()) {
+          const cData = configSnap.data();
+          if (cData.milestones && Array.isArray(cData.milestones)) {
+            setMilestonesConfig(cData.milestones);
+          }
+          if (cData.nextDrawDate) {
+            setNextDrawDate(cData.nextDrawDate);
+          }
         }
       }
     } catch (e) {
@@ -145,8 +153,12 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   const saveMilestones = async () => {
     setSavingMilestones(true);
     try {
-      await setDoc(doc(db, 'giveaways', 'config'), { milestones: milestonesConfig }, { merge: true });
-      alert('Milestones saved!');
+      await setDoc(doc(db, 'giveaways', 'config'), { 
+        milestones: milestonesConfig,
+        nextDrawDate: nextDrawDate.trim(),
+        updatedAt: serverTimestamp() 
+      }, { merge: true });
+      alert('Milestones and giveaway draw dates saved successfully!');
     } catch (e) {
       console.error(e);
       alert('Error saving');
@@ -506,41 +518,131 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
           <div className="space-y-4">
             <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
               <h3 className="font-bold text-lg mb-4 flex items-center justify-between">
-                Milestone Config
-                <button onClick={saveMilestones} disabled={savingMilestones} className="bg-amber-500 text-black px-3 py-1 rounded-lg text-xs flex items-center gap-1">
-                  <Save size={14} /> {savingMilestones ? 'Saving...' : 'Save'}
+                Milestone Config & Giveaway Dates
+                <button onClick={saveMilestones} disabled={savingMilestones} className="bg-amber-500 hover:bg-amber-400 text-black px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow transition">
+                  <Save size={14} /> {savingMilestones ? 'Saving...' : 'Save Dates & Config'}
                 </button>
               </h3>
+
+              {/* Global Scheduled Giveaway Draw Date */}
+              <div className="mb-5 p-3.5 bg-zinc-950 rounded-xl border border-amber-500/30">
+                <label className="text-xs font-bold text-amber-500 uppercase flex items-center gap-1.5 mb-1.5">
+                  <Calendar size={14} /> Global Next Giveaway Draw Date & Time
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={nextDrawDate}
+                    onChange={(e) => setNextDrawDate(e.target.value)}
+                    placeholder="e.g. 31 Oct 2026, 8:00 PM GMT or 2026-10-31"
+                    className="flex-1 bg-zinc-900 p-2.5 rounded-lg text-sm text-white border border-zinc-800 focus:border-amber-500 focus:outline-none"
+                  />
+                  <input
+                    type="date"
+                    value={nextDrawDate && /^\d{4}-\d{2}-\d{2}/.test(nextDrawDate) ? nextDrawDate.slice(0, 10) : ''}
+                    onChange={(e) => {
+                      if (e.target.value) setNextDrawDate(e.target.value);
+                    }}
+                    className="bg-zinc-900 px-3 py-2 rounded-lg text-xs text-zinc-300 border border-zinc-800 cursor-pointer hover:border-amber-500"
+                    title="Pick date from calendar"
+                  />
+                </div>
+                {nextDrawDate ? (
+                  <div className="mt-2.5 flex items-center gap-2 text-xs">
+                    <span className="text-zinc-400">Scheduled: <strong className="text-white">{formatDrawDate(nextDrawDate)}</strong></span>
+                    {(() => {
+                      const cd = getDrawCountdown(nextDrawDate);
+                      if (!cd) return null;
+                      return (
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${cd.isPast ? 'bg-zinc-800 text-zinc-400' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                          {cd.text}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-500 mt-1.5">Enter a date or pick one from the calendar. Individual milestones below also have their own draw dates.</p>
+                )}
+              </div>
+
               <div className="space-y-4">
                 {milestonesConfig.map((m, idx) => (
-                  <div key={idx} className="p-3 bg-black rounded-lg border border-zinc-800 space-y-2">
+                  <div key={idx} className="p-3.5 bg-black rounded-lg border border-zinc-800 space-y-3">
+                    <div className="flex items-center justify-between pb-1 border-b border-zinc-900">
+                      <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">Milestone {idx + 1}</span>
+                      {m.drawDate && (
+                        <span className="text-[11px] font-semibold text-zinc-400 flex items-center gap-1">
+                          <Clock size={12} className="text-amber-500" />
+                          {formatDrawDate(m.drawDate)}
+                        </span>
+                      )}
+                    </div>
+
                     <div className="flex gap-2">
                       <div className="flex-1">
                         <label className="text-[10px] text-zinc-500 uppercase">Target Users</label>
-                        <input type="number" value={m.target} onChange={(e) => handleMilestoneChange(idx, 'target', Number(e.target.value))} className="w-full bg-zinc-900 p-2 rounded text-sm text-white" />
+                        <input type="number" value={m.target} onChange={(e) => handleMilestoneChange(idx, 'target', Number(e.target.value))} className="w-full bg-zinc-900 p-2 rounded text-sm text-white border border-zinc-800 focus:border-amber-500 focus:outline-none" />
                       </div>
                       <div className="flex-1">
                         <label className="text-[10px] text-zinc-500 uppercase">Prize Name</label>
-                        <input type="text" value={m.prize} onChange={(e) => handleMilestoneChange(idx, 'prize', e.target.value)} className="w-full bg-zinc-900 p-2 rounded text-sm text-white" />
+                        <input type="text" value={m.prize} onChange={(e) => handleMilestoneChange(idx, 'prize', e.target.value)} className="w-full bg-zinc-900 p-2 rounded text-sm text-white border border-zinc-800 focus:border-amber-500 focus:outline-none" />
+                      </div>
+                    </div>
+
+                    {/* Milestone Draw Date */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-zinc-400 uppercase font-semibold flex items-center gap-1">
+                          <Calendar size={12} className="text-amber-500" /> Giveaway Draw Date (When this takes place)
+                        </label>
+                        {m.drawDate && (() => {
+                          const cd = getDrawCountdown(m.drawDate);
+                          if (!cd) return null;
+                          return (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${cd.isPast ? 'bg-zinc-800 text-zinc-500' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                              {cd.text}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={m.drawDate || ''} 
+                          onChange={(e) => handleMilestoneChange(idx, 'drawDate', e.target.value)} 
+                          placeholder="e.g. 31 Oct 2026, 8:00 PM or 2026-10-31" 
+                          className="flex-1 bg-zinc-900 p-2 rounded text-sm text-white border border-zinc-800 focus:border-amber-500 focus:outline-none" 
+                        />
+                        <input 
+                          type="date" 
+                          value={m.drawDate && /^\d{4}-\d{2}-\d{2}/.test(m.drawDate) ? m.drawDate.slice(0, 10) : ''}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleMilestoneChange(idx, 'drawDate', e.target.value);
+                            }
+                          }} 
+                          className="bg-zinc-900 px-2 py-1 rounded text-xs text-zinc-300 border border-zinc-800 cursor-pointer hover:border-amber-500" 
+                          title="Pick date from calendar"
+                        />
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[10px] text-zinc-500 uppercase">Make</label>
-                        <input type="text" value={m.carMake || ''} onChange={(e) => handleMilestoneChange(idx, 'carMake', e.target.value)} placeholder="e.g. BMW" className="w-full bg-zinc-900 p-2 rounded text-sm text-white" />
+                        <input type="text" value={m.carMake || ''} onChange={(e) => handleMilestoneChange(idx, 'carMake', e.target.value)} placeholder="e.g. BMW" className="w-full bg-zinc-900 p-2 rounded text-sm text-white border border-zinc-800" />
                       </div>
                       <div>
                         <label className="text-[10px] text-zinc-500 uppercase">Model</label>
-                        <input type="text" value={m.carModel || ''} onChange={(e) => handleMilestoneChange(idx, 'carModel', e.target.value)} placeholder="e.g. M3" className="w-full bg-zinc-900 p-2 rounded text-sm text-white" />
+                        <input type="text" value={m.carModel || ''} onChange={(e) => handleMilestoneChange(idx, 'carModel', e.target.value)} placeholder="e.g. M3" className="w-full bg-zinc-900 p-2 rounded text-sm text-white border border-zinc-800" />
                       </div>
                       <div>
                         <label className="text-[10px] text-zinc-500 uppercase">Year</label>
-                        <input type="text" value={m.carYear || ''} onChange={(e) => handleMilestoneChange(idx, 'carYear', e.target.value)} placeholder="e.g. 2023" className="w-full bg-zinc-900 p-2 rounded text-sm text-white" />
+                        <input type="text" value={m.carYear || ''} onChange={(e) => handleMilestoneChange(idx, 'carYear', e.target.value)} placeholder="e.g. 2023" className="w-full bg-zinc-900 p-2 rounded text-sm text-white border border-zinc-800" />
                       </div>
                       <div>
                         <label className="text-[10px] text-zinc-500 uppercase">Power (HP/BHP)</label>
-                        <input type="text" value={m.carPower || ''} onChange={(e) => handleMilestoneChange(idx, 'carPower', e.target.value)} placeholder="e.g. 500 HP" className="w-full bg-zinc-900 p-2 rounded text-sm text-white" />
+                        <input type="text" value={m.carPower || ''} onChange={(e) => handleMilestoneChange(idx, 'carPower', e.target.value)} placeholder="e.g. 500 HP" className="w-full bg-zinc-900 p-2 rounded text-sm text-white border border-zinc-800" />
                       </div>
                     </div>
                     <div>
@@ -578,6 +680,14 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                     </div>
                   </div>
                 ))}
+
+                <button
+                  type="button"
+                  onClick={() => setMilestonesConfig(prev => [...prev, { target: 2000000, prize: 'Grand Prize Car', drawDate: '', image: '', carMake: '', carModel: '', carYear: '', carPower: '' }])}
+                  className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border border-dashed border-zinc-700 transition"
+                >
+                  <Plus size={15} /> Add Another Giveaway Milestone
+                </button>
               </div>
             </div>
 

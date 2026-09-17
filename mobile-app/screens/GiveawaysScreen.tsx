@@ -46,12 +46,16 @@ export default function GiveawaysScreen({ navigation }: any) {
   const [showTC, setShowTC] = useState(false);
   const [enteredGiveaways, setEnteredGiveaways] = useState<number[]>([]);
   const [enteringGiveaway, setEnteringGiveaway] = useState<number | null>(null);
+  const [selectedGiveaway, setSelectedGiveaway] = useState<any | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [nextDrawDate, setNextDrawDate] = useState<string>('');
 
   // Rewarded Ad state
   const [adLoaded, setAdLoaded] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
   const [rewardClaiming, setRewardClaiming] = useState(false);
+  const [watchingAdForTarget, setWatchingAdForTarget] = useState<number | null>(null);
+  const watchingAdTargetRef = useRef<number | null>(null);
   const rewardedAdRef = useRef<any>(null);
   const unsubsRef = useRef<(() => void)[]>([]);
   const userWantsToWatchRef = useRef(false);
@@ -80,6 +84,9 @@ export default function GiveawaysScreen({ navigation }: any) {
           const configData = configDoc.data();
           if (configData.milestones && Array.isArray(configData.milestones)) {
             setMilestones(configData.milestones);
+          }
+          if (configData.nextDrawDate) {
+            setNextDrawDate(configData.nextDrawDate);
           }
         }
 
@@ -155,7 +162,7 @@ export default function GiveawaysScreen({ navigation }: any) {
     };
   }, []);
 
-  const loadRewardedAd = () => {
+  const loadRewardedAd = (target?: number) => {
     if (Platform.OS === 'web') return;
 
     try {
@@ -164,11 +171,16 @@ export default function GiveawaysScreen({ navigation }: any) {
       });
       unsubsRef.current = [];
 
+      const targetForAd = target || watchingAdTargetRef.current;
+      const customDataStr = auth.currentUser
+        ? (targetForAd ? `${auth.currentUser.uid}__${targetForAd}` : auth.currentUser.uid)
+        : '';
+
       const ad = RewardedAd.createForAdRequest(REWARDED_AD_UNIT_ID, {
         requestNonPersonalizedAdsOnly: true,
         serverSideVerificationOptions: {
           userId: auth.currentUser ? auth.currentUser.uid : '',
-          customData: auth.currentUser ? auth.currentUser.uid : '',
+          customData: customDataStr,
         },
       });
 
@@ -182,13 +194,13 @@ export default function GiveawaysScreen({ navigation }: any) {
           userWantsToWatchRef.current = false;
           ad.show().catch((err: any) => {
             console.log('Error showing rewarded ad after load:', err);
-            handleAdRewardEarned();
+            handleAdRewardEarned(watchingAdTargetRef.current || undefined);
           });
         }
       });
 
       const unsubEarned = ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
-        handleAdRewardEarned();
+        handleAdRewardEarned(watchingAdTargetRef.current || undefined);
       });
 
       const unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
@@ -196,7 +208,7 @@ export default function GiveawaysScreen({ navigation }: any) {
         setAdLoading(false);
         userWantsToWatchRef.current = false;
         // Preload next rewarded ad so user can watch another if they wish
-        loadRewardedAd();
+        loadRewardedAd(watchingAdTargetRef.current || undefined);
       });
 
       const unsubError = ad.addAdEventListener(AdEventType.ERROR, (error: any) => {
@@ -215,7 +227,7 @@ export default function GiveawaysScreen({ navigation }: any) {
             [
               {
                 text: "Claim +2 Tickets",
-                onPress: () => handleAdRewardEarned(),
+                onPress: () => handleAdRewardEarned(watchingAdTargetRef.current || undefined),
               },
             ]
           );
@@ -232,46 +244,68 @@ export default function GiveawaysScreen({ navigation }: any) {
     }
   };
 
-  const handleAdRewardEarned = async () => {
+  const handleAdRewardEarned = async (giveawayTarget?: number) => {
     if (!auth.currentUser) return;
     try {
       setRewardClaiming(true);
       const uid = auth.currentUser.uid;
       const userRef = doc(db, "users", uid);
 
+      const targetKey = giveawayTarget ? String(giveawayTarget) : '';
       const now = Date.now();
       const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-      const rawHistory: number[] = Array.isArray(userProfile?.rewardedAdTimestamps)
-        ? userProfile.rewardedAdTimestamps
-        : [];
+      
+      const rawHistory: number[] = (targetKey && userProfile?.giveawayAdTimestamps?.[targetKey])
+        ? userProfile.giveawayAdTimestamps[targetKey]
+        : (Array.isArray(userProfile?.rewardedAdTimestamps) ? userProfile.rewardedAdTimestamps : []);
       const recentTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
 
       if (recentTimestamps.length >= 5) {
         Alert.alert(
           "Daily Limit Reached",
-          "You have already watched the maximum of 5 rewarded ads for today. Check back in a few hours!"
+          "You have already watched the maximum of 5 rewarded ads for this giveaway today. Check back in a few hours!"
         );
         return;
       }
 
       recentTimestamps.push(now);
 
-      await setDoc(userRef, {
-        adBonusTickets: increment(2),
+      const updateData: any = {
         lastAdRewardAt: now,
         rewardedAdTimestamps: recentTimestamps,
-      }, { merge: true });
+      };
 
-      setUserProfile((prev: any) => ({
-        ...prev,
-        adBonusTickets: (prev?.adBonusTickets || 0) + 2,
-        lastAdRewardAt: now,
-        rewardedAdTimestamps: recentTimestamps,
-      }));
+      if (targetKey) {
+        updateData[`giveawayAdTickets.${targetKey}`] = increment(2);
+        updateData[`giveawayAdTimestamps.${targetKey}`] = recentTimestamps;
+      } else {
+        updateData.adBonusTickets = increment(2);
+      }
+
+      await setDoc(userRef, updateData, { merge: true });
+
+      setUserProfile((prev: any) => {
+        const nextProfile = { ...prev, lastAdRewardAt: now, rewardedAdTimestamps: recentTimestamps };
+        if (targetKey) {
+          const currentMap = prev?.giveawayAdTickets || {};
+          const currentTsMap = prev?.giveawayAdTimestamps || {};
+          nextProfile.giveawayAdTickets = {
+            ...currentMap,
+            [targetKey]: (currentMap[targetKey] || 0) + 2
+          };
+          nextProfile.giveawayAdTimestamps = {
+            ...currentTsMap,
+            [targetKey]: recentTimestamps
+          };
+        } else {
+          nextProfile.adBonusTickets = (prev?.adBonusTickets || 0) + 2;
+        }
+        return nextProfile;
+      });
 
       Alert.alert(
         "🎉 +2 Extra Tickets Earned!",
-        `Thanks for watching! 2 extra raffle tickets have been added to your giveaway entries (${recentTimestamps.length}/5 watched today).`,
+        `Thanks for watching! 2 extra raffle tickets have been added specifically to this giveaway (${recentTimestamps.length}/5 watched today).`,
         [{ text: "Awesome!" }]
       );
     } catch (err) {
@@ -283,22 +317,31 @@ export default function GiveawaysScreen({ navigation }: any) {
     }
   };
 
-  const handleWatchAdForTickets = async () => {
+  const handleWatchAdForTickets = async (specificTarget?: number) => {
     if (!auth.currentUser) {
       Alert.alert("Sign In Required", "Please sign in to earn extra giveaway tickets.");
       return;
     }
 
-    // Check 24-hour limit before triggering ad
+    const targetToUse = specificTarget || activeMilestone?.target;
+    if (!targetToUse) {
+      Alert.alert("Notice", "No giveaway is currently selected.");
+      return;
+    }
+
+    setWatchingAdForTarget(targetToUse);
+    watchingAdTargetRef.current = targetToUse;
+
+    // Check 24-hour limit for this giveaway before triggering ad
+    const targetKey = String(targetToUse);
     const now = Date.now();
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-    const rawHistory: number[] = Array.isArray(userProfile?.rewardedAdTimestamps)
-      ? userProfile.rewardedAdTimestamps
-      : [];
+    const rawHistory: number[] = (userProfile?.giveawayAdTimestamps?.[targetKey])
+      ? userProfile.giveawayAdTimestamps[targetKey]
+      : (Array.isArray(userProfile?.rewardedAdTimestamps) ? userProfile.rewardedAdTimestamps : []);
     const recentTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
 
     if (recentTimestamps.length >= 5) {
-      // Find time until oldest ad in window expires
       const oldestTs = Math.min(...recentTimestamps);
       const msUntilReset = TWENTY_FOUR_HOURS_MS - (now - oldestTs);
       const hours = Math.floor(msUntilReset / (1000 * 60 * 60));
@@ -306,7 +349,7 @@ export default function GiveawaysScreen({ navigation }: any) {
 
       Alert.alert(
         "Daily Limit Reached (5/5)",
-        `You've reached the limit of 5 rewarded ads in 24 hours. Your next ad entry resets in approximately ${hours > 0 ? `${hours}h ` : ''}${minutes}m.`,
+        `You've reached the limit of 5 rewarded ads in 24 hours for this giveaway. Your next ad entry resets in approximately ${hours > 0 ? `${hours}h ` : ''}${minutes}m.`,
         [{ text: "Got it" }]
       );
       return;
@@ -315,27 +358,16 @@ export default function GiveawaysScreen({ navigation }: any) {
     if (Platform.OS === 'web') {
       setAdLoading(true);
       setTimeout(async () => {
-        await handleAdRewardEarned();
+        await handleAdRewardEarned(targetToUse);
         setAdLoading(false);
       }, 1200);
       return;
     }
 
-    // If ad is ready right now, show it immediately!
-    if (rewardedAdRef.current && adLoaded) {
-      try {
-        userWantsToWatchRef.current = false;
-        await rewardedAdRef.current.show();
-        return;
-      } catch (err) {
-        console.log("Error displaying rewarded ad:", err);
-      }
-    }
-
-    // If ad is not ready yet, initiate loading and auto-show once loaded
+    // Always reconfigure the ad request with this giveaway's specific target identifier in customData
     userWantsToWatchRef.current = true;
     setAdLoading(true);
-    loadRewardedAd();
+    loadRewardedAd(targetToUse);
 
     if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     loadingTimeoutRef.current = setTimeout(() => {
@@ -348,7 +380,7 @@ export default function GiveawaysScreen({ navigation }: any) {
           [
             {
               text: "Claim +2 Tickets",
-              onPress: () => handleAdRewardEarned(),
+              onPress: () => handleAdRewardEarned(targetToUse),
             },
             {
               text: "Cancel",
@@ -439,17 +471,18 @@ export default function GiveawaysScreen({ navigation }: any) {
     );
   }
 
-  const adTickets = userProfile?.adBonusTickets || 0;
+  const activeTargetKey = String(activeMilestone.target);
+  const adTickets = (userProfile?.giveawayAdTickets?.[activeTargetKey] || 0) + (userProfile?.adBonusTickets || 0);
   const boostTickets = Math.min(15, userProfile?.boostTickets !== undefined ? userProfile.boostTickets : myReferrals);
   const baseTicketCount = isLifetimeQualified || isEligibleForTicket ? 1 : 0;
   const totalMyTickets = baseTicketCount + boostTickets + adTickets;
 
-  // 24-hour rewarded ads count
+  // 24-hour rewarded ads count for active giveaway
   const now = Date.now();
   const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-  const rawHistory: number[] = Array.isArray(userProfile?.rewardedAdTimestamps)
-    ? userProfile.rewardedAdTimestamps
-    : [];
+  const rawHistory: number[] = (userProfile?.giveawayAdTimestamps?.[activeTargetKey])
+    ? userProfile.giveawayAdTimestamps[activeTargetKey]
+    : (Array.isArray(userProfile?.rewardedAdTimestamps) ? userProfile.rewardedAdTimestamps : []);
   const recentAdTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
   const adsWatchedToday = Math.min(5, recentAdTimestamps.length);
   const adsLimitReached = adsWatchedToday >= 5;
@@ -513,18 +546,125 @@ export default function GiveawaysScreen({ navigation }: any) {
               {activeMilestone.prize}
             </Text>
           </View>
+
+          {(activeMilestone.drawDate || nextDrawDate) && (
+            <View style={styles.activeDrawDateContainer}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="calendar-outline" size={13} color="#f59e0b" style={{ marginRight: 5 }} />
+                <Text style={styles.activeDrawDateLabel}>Scheduled Draw:</Text>
+              </View>
+              <Text style={styles.activeDrawDateValue}>
+                {activeMilestone.drawDate || nextDrawDate}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Milestones List */}
-        {milestones.map((m, idx) => {
+        {/* Milestones List or Detail View */}
+        {selectedGiveaway ? (
+          <View style={{ padding: 20 }}>
+            <TouchableOpacity onPress={() => setSelectedGiveaway(null)} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+              <Ionicons name="chevron-back" size={24} color="#fff" />
+              <Text style={{ color: "#fff", marginLeft: 5, fontSize: 16 }}>Back to all milestones</Text>
+            </TouchableOpacity>
+            
+            <View style={{ backgroundColor: "#18181b", padding: 20, borderRadius: 16, borderWidth: 1, borderColor: "#27272a" }}>
+              <Text style={{ fontSize: 24, fontWeight: '900', color: "#fff", marginBottom: 10, fontStyle: 'italic' }}>{selectedGiveaway.prize}</Text>
+              <Text style={{ color: "#f59e0b", fontWeight: 'bold', marginBottom: 20 }}>{selectedGiveaway.target.toLocaleString()} Users Target</Text>
+              
+              {/* Enter Giveaway Button */}
+              <TouchableOpacity
+                onPress={() => handleEnterGiveaway(selectedGiveaway.target)}
+                disabled={enteringGiveaway === selectedGiveaway.target || enteredGiveaways.includes(selectedGiveaway.target)}
+                style={{
+                  backgroundColor: enteredGiveaways.includes(selectedGiveaway.target) ? '#10b981' : '#f59e0b',
+                  padding: 15,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  marginBottom: 15,
+                }}
+              >
+                <Text style={{ color: enteredGiveaways.includes(selectedGiveaway.target) ? '#fff' : '#000', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  {enteredGiveaways.includes(selectedGiveaway.target) ? 'Entered' : enteringGiveaway === selectedGiveaway.target ? 'Entering...' : 'Enter Giveaway'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Rewarded Ad Interface */}
+              {(() => {
+                const targetKey = String(selectedGiveaway.target);
+                const adHistory = (userProfile?.giveawayAdTimestamps && userProfile?.giveawayAdTimestamps[targetKey]) || [];
+                const now = Date.now();
+                const recentAds = adHistory.filter((ts: number) => (now - ts) < (24 * 60 * 60 * 1000));
+                const isLimitReached = recentAds.length >= 5;
+
+                let resetText = "";
+                if (isLimitReached) {
+                    const oldestAd = Math.min(...recentAds);
+                    const resetTime = oldestAd + (24 * 60 * 60 * 1000);
+                    const remainingMs = resetTime - now;
+                    const hours = Math.max(0, Math.floor(remainingMs / (60 * 60 * 1000)));
+                    const mins = Math.max(0, Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000)));
+                    resetText = `Next ad resets in approx ${hours}h ${mins}m`;
+                }
+
+                return (
+                    <>
+                        {isLimitReached ? (
+                            <View style={{ backgroundColor: '#18181b', borderColor: '#ef4444', borderWidth: 1, padding: 15, borderRadius: 12, marginTop: 15 }}>
+                                <Text style={{ color: '#f87171', fontWeight: 'bold', textAlign: 'center', textTransform: 'uppercase' }}>Daily limit reached (5/5)</Text>
+                                <Text style={{ color: '#71717a', textAlign: 'center', marginTop: 5, fontSize: 12 }}>{resetText}</Text>
+                            </View>
+                        ) : (
+                            <TouchableOpacity
+                                onPress={() => handleWatchRewardedAd(selectedGiveaway.target)}
+                                disabled={adLoading}
+                                style={{
+                                    backgroundColor: '#f59e0b',
+                                    padding: 15,
+                                    borderRadius: 12,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginTop: 15,
+                                }}
+                            >
+                                {adLoading ? (
+                                    <ActivityIndicator color="#000" />
+                                ) : (
+                                    <>
+                                        <Ionicons name="film-outline" size={20} color="#000" style={{ marginRight: 8 }} />
+                                        <Text style={{ color: '#000', fontWeight: 'bold', textTransform: 'uppercase' }}>Watch Ad for +2 Tickets</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        )}
+                    </>
+                );
+              })()}
+            </View>
+          </View>
+        ) : (
+          milestones.map((m, idx) => {
           const isPassed = totalUsers >= m.target;
           const isCurrent = idx === currentMilestoneIndex;
           const isLocked = !isPassed && !isCurrent;
           const hasEntered = enteredGiveaways.includes(m.target);
 
+          const targetKey = String(m.target);
+          const giveawayAdTicketsCount = (userProfile?.giveawayAdTickets?.[targetKey] || 0) + (userProfile?.adBonusTickets || 0);
+          const giveawayMyTickets = baseTicketCount + boostTickets + giveawayAdTicketsCount;
+          const targetAdHistory: number[] = (userProfile?.giveawayAdTimestamps?.[targetKey])
+            ? userProfile.giveawayAdTimestamps[targetKey]
+            : (Array.isArray(userProfile?.rewardedAdTimestamps) ? userProfile.rewardedAdTimestamps : []);
+          const giveawayRecentAds = targetAdHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
+          const giveawayAdsWatched = Math.min(5, giveawayRecentAds.length);
+          const giveawayAdsLimitReached = giveawayAdsWatched >= 5;
+          const isThisAdBusy = (adLoading || rewardClaiming) && (watchingAdForTarget === m.target);
+
           return (
-            <View
+            <TouchableOpacity
               key={m.target}
+              onPress={() => setSelectedGiveaway(m)}
               style={[
                 styles.milestoneCard,
                 isCurrent && styles.milestoneCardCurrent,
@@ -561,6 +701,22 @@ export default function GiveawaysScreen({ navigation }: any) {
                   <Text style={styles.milestoneTarget}>
                     {m.target.toLocaleString()} Users Target
                   </Text>
+
+                  {m.drawDate ? (
+                    <View style={styles.milestoneDrawDateRow}>
+                      <Ionicons name="calendar-outline" size={13} color="#f59e0b" style={{ marginRight: 5 }} />
+                      <Text style={styles.milestoneDrawDateText}>
+                        Draw Date: <Text style={styles.milestoneDrawDateBold}>{m.drawDate}</Text>
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {m.winnerUsername ? (
+                    <View style={styles.winnerBadge}>
+                      <Ionicons name="trophy" size={13} color="#f59e0b" style={{ marginRight: 4 }} />
+                      <Text style={styles.winnerText}>Winner: {m.winnerUsername}</Text>
+                    </View>
+                  ) : null}
                 </View>
                 <View
                   style={[
@@ -586,15 +742,102 @@ export default function GiveawaysScreen({ navigation }: any) {
                 </View>
               </View>
 
+              {(m.image || m.carMake || m.carModel) ? (
+                <View style={styles.milestonePrizeBox}>
+                  {m.image ? (
+                    <Image source={{ uri: m.image }} style={styles.milestonePrizeImage} resizeMode="cover" />
+                  ) : null}
+                  {(m.carMake || m.carModel) ? (
+                    <View style={styles.carSpecsGrid}>
+                      {m.carMake ? (
+                        <View style={styles.carSpecCol}>
+                          <Text style={styles.carSpecLabel}>MAKE</Text>
+                          <Text style={styles.carSpecVal}>{m.carMake}</Text>
+                        </View>
+                      ) : null}
+                      {m.carModel ? (
+                        <View style={styles.carSpecCol}>
+                          <Text style={styles.carSpecLabel}>MODEL</Text>
+                          <Text style={styles.carSpecVal}>{m.carModel}</Text>
+                        </View>
+                      ) : null}
+                      {m.carYear ? (
+                        <View style={styles.carSpecCol}>
+                          <Text style={styles.carSpecLabel}>YEAR</Text>
+                          <Text style={styles.carSpecVal}>{m.carYear}</Text>
+                        </View>
+                      ) : null}
+                      {m.carPower ? (
+                        <View style={styles.carSpecCol}>
+                          <Text style={styles.carSpecLabel}>POWER</Text>
+                          <Text style={styles.carSpecVal}>{m.carPower}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* Giveaway Ticket and Ad Booster Section */}
               <View style={{ marginTop: 16 }}>
                 {hasEntered ? (
-                  <View style={styles.enteredBtn}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={18}
-                      color="#22c55e"
-                    />
-                    <Text style={styles.enteredBtnText}>TICKET ENTERED</Text>
+                  <View style={{ gap: 8 }}>
+                    <View style={styles.enteredBtn}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={18}
+                        color="#22c55e"
+                      />
+                      <Text style={styles.enteredBtnText}>
+                        ENTERED ({giveawayMyTickets} {giveawayMyTickets === 1 ? 'TICKET' : 'TICKETS'})
+                      </Text>
+                    </View>
+
+                    {/* Per-Giveaway Rewarded Ad Button */}
+                    {!isPassed && (
+                      <TouchableOpacity
+                        style={[
+                          styles.milestoneWatchAdBtn,
+                          (isThisAdBusy || giveawayAdsLimitReached) && styles.watchAdBtnDisabled,
+                          giveawayAdsLimitReached && { backgroundColor: "#27272a" },
+                        ]}
+                        onPress={() => handleWatchAdForTickets(m.target)}
+                        disabled={isThisAdBusy || giveawayAdsLimitReached}
+                        activeOpacity={0.8}
+                      >
+                        {isThisAdBusy ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <ActivityIndicator color="#000" size="small" style={{ marginRight: 6 }} />
+                            <Text style={styles.milestoneWatchAdBtnText}>
+                              {rewardClaiming ? "CREDITING +2 TICKETS..." : "LOADING AD..."}
+                            </Text>
+                          </View>
+                        ) : giveawayAdsLimitReached ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name="time-outline" size={16} color="#71717a" style={{ marginRight: 6 }} />
+                            <Text style={[styles.milestoneWatchAdBtnText, { color: "#71717a" }]}>
+                              LIMIT REACHED FOR THIS DRAW (5/5)
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name="play-circle" size={16} color="#000" style={{ marginRight: 6 }} />
+                            <Text style={styles.milestoneWatchAdBtnText}>
+                              WATCH AD FOR +2 TICKETS ({5 - giveawayAdsWatched} LEFT TODAY)
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    )}
+
+                    {giveawayAdTicketsCount > 0 && (
+                      <View style={styles.giveawayBonusInfoBadge}>
+                        <Ionicons name="ticket-outline" size={12} color="#f59e0b" style={{ marginRight: 4 }} />
+                        <Text style={styles.giveawayBonusInfoText}>
+                          Includes +{giveawayAdTicketsCount} ad bonus tickets for this draw
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 ) : isCurrent ? (
                   <TouchableOpacity
@@ -626,7 +869,7 @@ export default function GiveawaysScreen({ navigation }: any) {
                   </View>
                 )}
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
 
@@ -1479,5 +1722,128 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 10,
     lineHeight: 15,
+  },
+  activeDrawDateContainer: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  activeDrawDateLabel: {
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  activeDrawDateValue: {
+    color: "#f59e0b",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  milestoneDrawDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    backgroundColor: "rgba(24, 24, 27, 0.9)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.25)",
+  },
+  milestoneDrawDateText: {
+    color: "#d4d4d8",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  milestoneDrawDateBold: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  winnerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+  },
+  winnerText: {
+    color: "#f59e0b",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  milestonePrizeBox: {
+    marginTop: 12,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#000",
+    borderWidth: 1,
+    borderColor: "#27272a",
+  },
+  milestonePrizeImage: {
+    width: "100%",
+    height: 140,
+  },
+  carSpecsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    padding: 10,
+    backgroundColor: "#18181b",
+  },
+  carSpecCol: {
+    width: "50%",
+    marginBottom: 6,
+  },
+  carSpecLabel: {
+    color: "#71717a",
+    fontSize: 9,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  carSpecVal: {
+    color: "#e4e4e7",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  milestoneWatchAdBtn: {
+    backgroundColor: "#f59e0b",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  milestoneWatchAdBtnText: {
+    color: "#000",
+    fontWeight: "800",
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  giveawayBonusInfoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.2)",
+  },
+  giveawayBonusInfoText: {
+    color: "#fbbf24",
+    fontSize: 11,
+    fontWeight: "600",
   },
 });

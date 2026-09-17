@@ -227,8 +227,21 @@ app.get(['/api/admob-ssv', '/api/admob/ssv'], async (req, res) => {
 
     console.log(`[AdMob SSV] Valid SSV verified! transaction_id: ${transaction_id}, user_id: ${user_id}, reward: ${reward_amount} ${reward_item}`);
 
-    // Parse effective user ID (checks user_id first, then custom_data)
-    const effectiveUserId = user_id || custom_data;
+    // Parse effective user ID and optional giveaway target from custom_data or user_id
+    // When custom_data is formatted as `${uid}__${target}`, we extract both.
+    let effectiveUserId = user_id || custom_data || '';
+    let targetGiveawayId = '';
+    
+    if (custom_data && custom_data.includes('__')) {
+      const parts = custom_data.split('__');
+      effectiveUserId = parts[0];
+      targetGiveawayId = parts[1];
+    } else if (user_id && user_id.includes('__')) {
+      const parts = user_id.split('__');
+      effectiveUserId = parts[0];
+      targetGiveawayId = parts[1];
+    }
+
     const ticketsToAdd = parseInt(reward_amount, 10) || 2;
 
     if (effectiveUserId && firestoreDb) {
@@ -245,21 +258,28 @@ app.get(['/api/admob-ssv', '/api/admob/ssv'], async (req, res) => {
         const userDoc = await transaction.get(userRef);
         const userData = userDoc.exists ? userDoc.data() : {};
 
-        // 24-Hour Rolling Window Check (Max 5 rewarded ads)
+        // 24-Hour Rolling Window Check (Max 5 rewarded ads per giveaway or overall)
         const now = Date.now();
         const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-        const rawHistory: number[] = Array.isArray(userData?.rewardedAdTimestamps)
-          ? userData.rewardedAdTimestamps
-          : [];
+        
+        // Per-giveaway timestamps or fallback to global
+        let rawHistory: number[] = [];
+        if (targetGiveawayId && userData?.giveawayAdTimestamps && Array.isArray(userData.giveawayAdTimestamps[targetGiveawayId])) {
+          rawHistory = userData.giveawayAdTimestamps[targetGiveawayId];
+        } else if (Array.isArray(userData?.rewardedAdTimestamps)) {
+          rawHistory = userData.rewardedAdTimestamps;
+        }
+
         // Keep only timestamps within the last 24 hours
         const recentAdTimestamps = rawHistory.filter((ts: number) => typeof ts === 'number' && (now - ts) < TWENTY_FOUR_HOURS_MS);
 
         if (recentAdTimestamps.length >= 5) {
-          console.log(`[AdMob SSV] User ${effectiveUserId} has already reached the maximum limit of 5 rewarded ads in 24 hours. Acknowledging callback without crediting extra tickets.`);
+          console.log(`[AdMob SSV] User ${effectiveUserId} has already reached the maximum limit of 5 rewarded ads in 24 hours for giveaway ${targetGiveawayId || 'global'}. Acknowledging callback without crediting extra tickets.`);
           // Record the transaction so it isn't retried as a new event, but do not increment tickets
           transaction.set(ssvTxRef, {
             transactionId: transaction_id || '',
             userId: effectiveUserId,
+            giveawayTarget: targetGiveawayId || 'global',
             rewardAmount: 0,
             rewardItem: reward_item || 'tickets',
             status: 'rate_limited_max_5_in_24h',
@@ -276,6 +296,7 @@ app.get(['/api/admob-ssv', '/api/admob/ssv'], async (req, res) => {
         transaction.set(ssvTxRef, {
           transactionId: transaction_id || '',
           userId: effectiveUserId,
+          giveawayTarget: targetGiveawayId || 'global',
           rewardAmount: ticketsToAdd,
           rewardItem: reward_item || 'tickets',
           status: 'credited',
@@ -284,16 +305,24 @@ app.get(['/api/admob-ssv', '/api/admob/ssv'], async (req, res) => {
           rawUrl: rawUrl
         });
 
-        // Credit the user's bonus tickets and update the 24-hour timestamps
-        transaction.set(userRef, {
-          adBonusTickets: FieldValue.increment(ticketsToAdd),
+        // Update user fields: credit to specific giveaway if target is specified
+        const userUpdatePayload: any = {
           lastAdRewardAt: now,
           lastAdTransactionId: transaction_id || '',
           rewardedAdTimestamps: recentAdTimestamps
-        }, { merge: true });
+        };
+
+        if (targetGiveawayId) {
+          userUpdatePayload[`giveawayAdTickets.${targetGiveawayId}`] = FieldValue.increment(ticketsToAdd);
+          userUpdatePayload[`giveawayAdTimestamps.${targetGiveawayId}`] = recentAdTimestamps;
+        } else {
+          userUpdatePayload.adBonusTickets = FieldValue.increment(ticketsToAdd);
+        }
+
+        transaction.set(userRef, userUpdatePayload, { merge: true });
       });
 
-      console.log(`[AdMob SSV] Successfully processed for user ${effectiveUserId}`);
+      console.log(`[AdMob SSV] Successfully processed for user ${effectiveUserId} (Giveaway: ${targetGiveawayId || 'global'})`);
     } else {
       console.log(`[AdMob SSV] Verified callback received without actionable user_id (or test ping). Acknowledging 200 OK.`);
     }

@@ -137,3 +137,58 @@ export async function shareContent(shareData: { title?: string; text?: string; u
   return await copyToClipboard(shareUrl);
 }
 
+/**
+ * Formats a giveaway draw date string into a friendly, human-readable display.
+ * Supports ISO dates (e.g. "2026-10-31"), date strings, or freeform text.
+ */
+export function formatDrawDate(dateStr?: string): string {
+  if (!dateStr || !dateStr.trim()) return '';
+  const trimmed = dateStr.trim();
+
+  // If it's a standard YYYY-MM-DD or ISO string
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime()) && /^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(trimmed)) {
+    try {
+      const hasTime = trimmed.includes('T') || (trimmed.includes(':') && trimmed.length > 10);
+      return parsed.toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {})
+      });
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed;
+}
+
+/**
+ * Returns a countdown or status badge for a given draw date:
+ * e.g. "Draw Today!", "Draw Tomorrow!", "In 12 days", "Concluded"
+ */
+export function getDrawCountdown(dateStr?: string): { text: string; isPast: boolean; isSoon: boolean } | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  const parsed = new Date(dateStr.trim());
+  if (isNaN(parsed.getTime())) return null;
+
+  const now = new Date();
+  const diffMs = parsed.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return { text: 'Concluded', isPast: true, isSoon: false };
+  }
+  if (diffDays === 0) {
+    return { text: 'Draw Today!', isPast: false, isSoon: true };
+  }
+  if (diffDays === 1) {
+    return { text: 'Draw Tomorrow!', isPast: false, isSoon: true };
+  }
+  return { 
+    text: `In ${diffDays} days`, 
+    isPast: false, 
+    isSoon: diffDays <= 7 
+  };
+}
+

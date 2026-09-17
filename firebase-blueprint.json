@@ -227,9 +227,26 @@
         "rawUrl": { "type": "string" }
       },
       "required": ["transactionId", "userId", "rewardAmount"]
+    },
+    "GiveawayConfig": {
+      "title": "GiveawayConfig",
+      "description": "Configuration for community giveaways, milestone targets, and draw dates",
+      "type": "object",
+      "properties": {
+        "milestones": {
+          "type": "array",
+          "description": "List of giveaway milestones with draw dates, prizes, and requirements"
+        },
+        "nextDrawDate": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
     }
   },
   "firestore": {
+    "/giveaways/{giveawayId}": {
+      "schema": "GiveawayConfig",
+      "description": "Giveaway configurations and milestone draw details"
+    },
     "/admob_ssv_transactions/{transactionId}": {
       "schema": "AdMobSSVTransaction",
       "description": "Stores processed AdMob rewarded video SSV callbacks"

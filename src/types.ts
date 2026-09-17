@@ -22,6 +22,9 @@ export interface UserProfile {
   scrolledFeedCount?: number; // Count of feed images scrolled/viewed
   feedViewsCount?: number;
   giveawayQualified?: boolean; // True once user completes all giveaway requirements once (lifetime qualified)
+  adBonusTickets?: number; // Global/legacy ad bonus tickets
+  giveawayAdTickets?: Record<string, number>; // target -> bonus tickets earned specifically for that giveaway
+  giveawayAdTimestamps?: Record<string, number[]>; // target -> timestamp history for that giveaway (max 5 per 24h)
   badges?: string[]; // Array of badge identifiers (e.g. 'cotm_winner_2026_08')
 }
 
@@ -227,3 +230,24 @@ export interface RevitUpVideo {
   featured?: boolean;
   createdAt: any;
 }
+
+export interface GiveawayMilestone {
+  target: number;
+  prize: string;
+  drawDate?: string;
+  image?: string;
+  carMake?: string;
+  carModel?: string;
+  carYear?: string | number;
+  carPower?: string;
+  winnerUsername?: string;
+  winnerId?: string;
+  status?: string;
+}
+
+export interface GiveawayConfig {
+  milestones: GiveawayMilestone[];
+  nextDrawDate?: string;
+  updatedAt?: any;
+}
+
