@@ -616,8 +616,8 @@ export default function GiveawaysScreen({ navigation }: any) {
                             </View>
                         ) : (
                             <TouchableOpacity
-                                onPress={() => handleWatchRewardedAd(selectedGiveaway.target)}
-                                disabled={adLoading}
+                                onPress={() => handleWatchAdForTickets(selectedGiveaway.target)}
+                                disabled={adLoading || rewardClaiming}
                                 style={{
                                     backgroundColor: '#f59e0b',
                                     padding: 15,
@@ -628,8 +628,13 @@ export default function GiveawaysScreen({ navigation }: any) {
                                     marginTop: 15,
                                 }}
                             >
-                                {adLoading ? (
-                                    <ActivityIndicator color="#000" />
+                                {adLoading || rewardClaiming ? (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <ActivityIndicator color="#000" size="small" style={{ marginRight: 8 }} />
+                                        <Text style={{ color: '#000', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                            {rewardClaiming ? "Crediting +2 Tickets..." : "Loading Ad..."}
+                                        </Text>
+                                    </View>
                                 ) : (
                                     <>
                                         <Ionicons name="film-outline" size={20} color="#000" style={{ marginRight: 8 }} />
@@ -870,8 +875,9 @@ export default function GiveawaysScreen({ navigation }: any) {
                 )}
               </View>
             </TouchableOpacity>
-          )
-        )}
+          );
+        })
+      )}
 
         {/* Entry Status Card */}
         <View style={styles.statusCard}>
@@ -1101,7 +1107,7 @@ export default function GiveawaysScreen({ navigation }: any) {
               (adLoading || rewardClaiming || adsLimitReached) && styles.watchAdBtnDisabled,
               adsLimitReached && { backgroundColor: "#27272a" },
             ]}
-            onPress={handleWatchAdForTickets}
+            onPress={() => handleWatchAdForTickets()}
             disabled={adLoading || rewardClaiming || adsLimitReached}
             activeOpacity={0.8}
           >
